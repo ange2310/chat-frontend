@@ -1,4 +1,6 @@
 <?php
+// config/auth.php - Helper de autenticación simplificado para demo
+
 class AuthHelper {
     private $authServiceURL = 'http://187.33.158.246/auth';
     
@@ -77,41 +79,6 @@ class AuthHelper {
     }
     
     /**
-     * Hacer request autenticado a tu backend
-     */
-    public function makeAuthenticatedRequest($endpoint, $method = 'GET', $data = null) {
-        $token = $this->getToken();
-        if (!$token) {
-            return ['success' => false, 'message' => 'No authenticated'];
-        }
-        
-        $url = $this->authServiceURL . $endpoint;
-        
-        $options = [
-            'http' => [
-                'method' => $method,
-                'header' => [
-                    'Content-Type: application/json',
-                    'Authorization: Bearer ' . $token
-                ]
-            ]
-        ];
-        
-        if ($data && in_array($method, ['POST', 'PUT', 'PATCH'])) {
-            $options['http']['content'] = json_encode($data);
-        }
-        
-        $context = stream_context_create($options);
-        $response = file_get_contents($url, false, $context);
-        
-        if ($response === FALSE) {
-            return ['success' => false, 'message' => 'Request failed'];
-        }
-        
-        return json_decode($response, true);
-    }
-    
-    /**
      * Logout (limpiar sesión)
      */
     public function logout() {
@@ -150,6 +117,4 @@ function protectPage($requiredRole = null, $redirectTo = '/') {
 function protectStaffPage($redirectTo = '/') {
     auth()->requireStaff($redirectTo);
 }
-
 ?>
-

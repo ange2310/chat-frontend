@@ -188,9 +188,8 @@ $user = $isAuthenticated ? $auth->getUser() : null;
             <?php endif; ?>
         </main>
     </div>
-
     <!-- Auth Modal -->
-    <?php include __DIR__ . '/../components/auth-modal.php'; ?>
+    <?php include __DIR__ . '../components/auth-modal.php'; ?>
 
     <!-- Scripts -->
     <script src="../assets/js/auth-client.js"></script>
