@@ -4,13 +4,11 @@ define('APP_NAME', 'Sistema de Chat');
 define('APP_VERSION', '1.0.0');
 
 // URLs de servicios backend - TU SERVIDOR REAL
-define('AUTH_SERVICE_URL', 'http://187.33.158.246/auth');
-define('CHAT_SERVICE_URL', 'ws://187.33.158.246/ws');
-define('ADMIN_SERVICE_URL', 'http://187.33.158.246/admin');
-define('SUPERVISOR_SERVICE_URL', 'http://187.33.158.246/supervisor');
+define('AUTH_SERVICE_URL', 'http://187.33.158.246:8080/auth');
+define('CHAT_SERVICE_URL', 'ws://187.33.158.246:8080/ws');
+define('ADMIN_SERVICE_URL', 'http://187.33.158.246:8080/admin');
+define('SUPERVISOR_SERVICE_URL', 'http://187.33.158.246:8080/supervisor');
 
-// Configuración de base de datos LOCAL (para desarrollo)
-// NOTA: Para la demo, no necesitas BD local, solo frontend
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'chat_system_demo');
 define('DB_USER', 'root');  // Usuario por defecto de XAMPP
