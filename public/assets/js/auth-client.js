@@ -1,11 +1,14 @@
 class AuthClient {
-    constructor() {
-        // Usar tus URLs reales del servidor
-        this.baseURL = 'http://187.33.158.246:8080/auth';
+    constructor(authServiceUrl = null) {  // ← CAMBIO: Aceptar parámetro
+        // URLs CORREGIDAS - usando parámetro o valor por defecto
+        this.baseURL = authServiceUrl || 'http://187.33.158.246:8080/auth';
+        this.authServiceUrl = this.baseURL;  // ← AGREGAR: Para compatibilidad
+        
         this.token = this.getStoredToken();
         this.user = this.getStoredUser();
         
         console.log('🔐 AuthClient inicializado con servidor:', this.baseURL);
+        console.log('🔐 authServiceUrl establecido:', this.authServiceUrl);
         this.init();
     }
 
@@ -24,42 +27,64 @@ class AuthClient {
     }
 
     // ===============================
-    // AUTENTICACIÓN
+    // AUTENTICACIÓN CORREGIDA
     // ===============================
 
     async login(email, password, remember = false) {
         try {
             console.log('🔐 Iniciando login para:', email);
+            console.log('🌐 URL:', `${this.baseURL}/login`);
 
             const response = await fetch(`${this.baseURL}/login`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
                 body: JSON.stringify({ email, password, remember })
             });
 
+            console.log('📡 Respuesta del servidor:', response.status);
+            
             const result = await response.json();
+            console.log('📋 Datos recibidos:', result);
 
             if (response.ok && result.success) {
                 this.setAuth(result.data.access_token, result.data.user);
                 console.log('✅ Login exitoso');
-                return { success: true, user: result.data.user, data: result.data };
+                return { 
+                    success: true, 
+                    user: result.data.user, 
+                    token: result.data.access_token,
+                    data: result.data 
+                };
             } else {
                 console.log('❌ Login fallido:', result.message);
-                return { success: false, error: result.message || 'Error de autenticación' };
+                return { 
+                    success: false, 
+                    error: result.message || 'Error de autenticación' 
+                };
             }
         } catch (error) {
             console.error('❌ Error en login:', error);
-            return { success: false, error: 'Error de conexión con el servidor' };
+            return { 
+                success: false, 
+                error: 'Error de conexión con el servidor: ' + error.message 
+            };
         }
     }
 
     async register(userData) {
         try {
             console.log('📝 Registrando usuario:', userData.email);
+            console.log('🌐 URL:', `${this.baseURL}/register`);
 
             const response = await fetch(`${this.baseURL}/register`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
                 body: JSON.stringify({
                     name: userData.name,
                     email: userData.email,
@@ -68,20 +93,34 @@ class AuthClient {
                 })
             });
 
+            console.log('📡 Respuesta registro:', response.status);
+            
             const result = await response.json();
+            console.log('📋 Datos registro:', result);
 
             if (response.ok && result.success) {
                 // Auto-login después del registro
                 this.setAuth(result.data.access_token, result.data.user);
                 console.log('✅ Registro exitoso');
-                return { success: true, user: result.data.user, data: result.data };
+                return { 
+                    success: true, 
+                    user: result.data.user, 
+                    token: result.data.access_token,
+                    data: result.data 
+                };
             } else {
                 console.log('❌ Registro fallido:', result.message);
-                return { success: false, error: result.message || 'Error en el registro' };
+                return { 
+                    success: false, 
+                    error: result.message || 'Error en el registro' 
+                };
             }
         } catch (error) {
             console.error('❌ Error en registro:', error);
-            return { success: false, error: 'Error de conexión con el servidor' };
+            return { 
+                success: false, 
+                error: 'Error de conexión con el servidor: ' + error.message 
+            };
         }
     }
 
@@ -89,11 +128,14 @@ class AuthClient {
         if (!this.token) return false;
 
         try {
+            console.log('🔍 Verificando token...');
+            
             const response = await fetch(`${this.baseURL}/validate-token`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.token}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({ token: this.token })
             });
@@ -103,10 +145,12 @@ class AuthClient {
                 if (result.success && result.data.user) {
                     this.user = result.data.user;
                     this.setStoredUser(this.user);
+                    console.log('✅ Token válido');
                     return true;
                 }
             }
 
+            console.log('❌ Token inválido');
             return false;
         } catch (error) {
             console.error('❌ Error verificando token:', error);
@@ -119,36 +163,66 @@ class AuthClient {
         this.clearAuth();
         this.updateUI();
         
-        // Redirigir a home si estamos en una página protegida
-        if (window.location.pathname.includes('staff')) {
+        // Redirigir a home
+        setTimeout(() => {
             window.location.href = '/';
-        } else {
-            window.location.reload();
-        }
+        }, 500);
     }
 
     // ===============================
-    // GESTIÓN DE SALAS
+    // GESTIÓN DE SALAS CORREGIDA
     // ===============================
 
     async getAvailableRooms() {
-        try {
-            const response = await fetch(`${this.baseURL}/rooms/available`, {
-                headers: this.getAuthHeaders()
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                return result.data.rooms || [];
-            }
-
-            throw new Error(result.message || 'Error obteniendo salas');
-        } catch (error) {
-            console.error('❌ Error obteniendo salas:', error);
-            return [];
-        }
+    console.log('📡 Obteniendo salas disponibles...');
+    console.log('🔍 Token disponible:', !!this.token);
+    console.log('🔍 Usuario autenticado:', this.isAuthenticated());
+    
+    if (!this.isAuthenticated()) {
+        throw new Error('Usuario no autenticado');
     }
+
+    try {
+        // SOLO UNA URL - LA CORRECTA
+        const endpoint = `${this.baseURL}/rooms/available`;
+        
+        console.log(`🔄 Llamando a: ${endpoint}`);
+        
+        const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log(`📡 Respuesta:`, response.status, response.statusText);
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Datos de salas recibidos:', data);
+            
+            // Extraer salas del response
+            const rooms = data.rooms || data.data?.rooms || data;
+            
+            if (Array.isArray(rooms)) {
+                console.log(`✅ ${rooms.length} salas encontradas`);
+                return rooms;
+            } else {
+                console.log('⚠️ Respuesta no contiene array de salas:', data);
+                return [];
+            }
+        } else {
+            const errorData = await response.json().catch(() => ({}));
+            console.log(`❌ Error ${response.status}:`, errorData);
+            throw new Error(`Error HTTP ${response.status}: ${JSON.stringify(errorData)}`);
+        }
+
+    } catch (error) {
+        console.error('❌ Error obteniendo salas:', error);
+        throw error;
+    }
+}
 
     async selectRoom(roomId, userData = {}) {
         try {
@@ -176,7 +250,8 @@ class AuthClient {
                 return {
                     success: true,
                     ptoken: result.data.ptoken,
-                    room_data: result.data
+                    room_data: result.data,
+                    room: result.data.room
                 };
             }
 
@@ -273,7 +348,8 @@ class AuthClient {
         }
         return {
             'Authorization': `Bearer ${this.token}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
         };
     }
 
@@ -286,36 +362,92 @@ class AuthClient {
     updateUI() {
         const isAuth = this.isAuthenticated();
         
-        // Mostrar/ocultar elementos según autenticación
-        const authRequired = document.querySelectorAll('.auth-required');
-        const guestOnly = document.querySelectorAll('.guest-only');
-        
-        authRequired.forEach(el => {
-            el.style.display = isAuth ? 'block' : 'none';
-        });
-        
-        guestOnly.forEach(el => {
-            el.style.display = isAuth ? 'none' : 'block';
-        });
-        
-        // Actualizar elementos con clase user-name
-        const userNameElements = document.querySelectorAll('.user-name');
-        userNameElements.forEach(el => {
-            if (isAuth && this.user?.name) {
-                el.textContent = this.user.name;
-            }
-        });
-
-        console.log('🔄 UI actualizada:', { 
+        console.log('🔄 Actualizando UI:', { 
             isAuthenticated: isAuth, 
             user: this.user?.name || 'none',
             token: this.token ? 'disponible' : 'no disponible'
         });
+        
+        // Manejar secciones principales
+        const authRequired = document.querySelectorAll('.auth-required');
+        const guestOnly = document.querySelectorAll('.guest-only');
+        
+        authRequired.forEach(el => {
+            if (isAuth) {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        });
+        
+        guestOnly.forEach(el => {
+            if (isAuth) {
+                el.classList.add('hidden');
+            } else {
+                el.classList.remove('hidden');
+            }
+        });
+        
+        // Manejar elementos específicos del header
+        const userAuthSection = document.getElementById('userAuthenticatedSection');
+        const userGuestSection = document.getElementById('userGuestSection');
+        
+        if (userAuthSection && userGuestSection) {
+            if (isAuth) {
+                userAuthSection.classList.remove('hidden');
+                userAuthSection.classList.add('flex');
+                userGuestSection.classList.add('hidden');
+                userGuestSection.classList.remove('flex');
+            } else {
+                userAuthSection.classList.add('hidden');
+                userAuthSection.classList.remove('flex');
+                userGuestSection.classList.remove('hidden');
+                userGuestSection.classList.add('flex');
+            }
+        }
+        
+        // Actualizar información del usuario en el header
+        if (isAuth && this.user) {
+            const userInitial = document.getElementById('userInitial');
+            const userDisplayName = document.getElementById('userDisplayName');
+            
+            if (userInitial) {
+                userInitial.textContent = this.user.name ? this.user.name.charAt(0).toUpperCase() : 'U';
+            }
+            
+            if (userDisplayName) {
+                userDisplayName.textContent = this.user.name || 'Usuario';
+            }
+        }
+        
+        // Actualizar elementos con clase user-name (para compatibilidad)
+        const userNameElements = document.querySelectorAll('.user-name');
+        userNameElements.forEach(el => {
+            if (isAuth && this.user?.name) {
+                el.textContent = this.user.name;
+            } else {
+                el.textContent = 'Usuario';
+            }
+        });
+
+        console.log('✅ UI actualizada correctamente');
     }
 
     // ===============================
-    // NOTIFICACIONES
+    // NOTIFICACIONES MEJORADAS
     // ===============================
+
+    showSuccess(message, duration = 3000) {
+        this.showNotification(message, 'success', duration);
+    }
+
+    showError(message, duration = 5000) {
+        this.showNotification(message, 'error', duration);
+    }
+
+    showInfo(message, duration = 4000) {
+        this.showNotification(message, 'info', duration);
+    }
 
     showNotification(message, type = 'info', duration = 5000) {
         // Crear elemento de notificación
@@ -367,6 +499,25 @@ class AuthClient {
     }
 
     // ===============================
+    // VALIDACIONES FRONTEND
+    // ===============================
+
+    validateEmail(email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    }
+
+    validatePassword(password) {
+        // Al menos 8 caracteres, una mayúscula, una minúscula y un número
+        const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
+        return strongPasswordRegex.test(password);
+    }
+
+    validateName(name) {
+        return name && name.trim().length >= 2 && name.trim().length <= 50;
+    }
+
+    // ===============================
     // UTILIDADES DE DESARROLLO
     // ===============================
 
@@ -374,19 +525,19 @@ class AuthClient {
         try {
             console.log('🔍 Probando conexión con servidor...');
             
-            const response = await fetch(`${this.baseURL}/health`);
+            const response = await fetch(`${this.baseURL}/../health`);
             
             if (response.ok) {
                 const data = await response.json();
                 console.log('✅ Servidor respondiendo:', data);
-                this.showNotification('Conexión con servidor exitosa', 'success');
+                this.showSuccess('Conexión con servidor exitosa');
                 return true;
             } else {
                 throw new Error(`Error ${response.status}: ${response.statusText}`);
             }
         } catch (error) {
             console.error('❌ Error de conexión:', error);
-            this.showNotification('Error de conexión con el servidor', 'error');
+            this.showError('Error de conexión con el servidor');
             return false;
         }
     }
@@ -408,7 +559,7 @@ class AuthClient {
 // ===============================
 
 // Crear instancia global
-window.authClient = new AuthClient();
+//window.authClient = new AuthClient();
 
 // Event listener para el estado de autenticación
 window.addEventListener('authStateChanged', (event) => {
@@ -420,7 +571,7 @@ window.addEventListener('authStateChanged', (event) => {
 });
 
 // ===============================
-// FUNCIONES GLOBALES DE UTILIDAD
+// FUNCIONES GLOBALES CORREGIDAS
 // ===============================
 
 // Funciones para uso en HTML
@@ -471,7 +622,137 @@ window.logout = function() {
 };
 
 // ===============================
-// MODO DEBUG (DISPONIBLE SIEMPRE)
+// FORMULARIOS CON VALIDACIÓN
+// ===============================
+
+// Manejo de formulario de login
+window.handleLoginSubmit = async function(event) {
+    event.preventDefault();
+    
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const remember = document.getElementById('rememberMe')?.checked || false;
+    
+    // Validaciones frontend
+    if (!email || !password) {
+        window.authClient.showError('Email y contraseña son requeridos');
+        return;
+    }
+    
+    if (!window.authClient.validateEmail(email)) {
+        window.authClient.showError('Formato de email inválido');
+        return;
+    }
+    
+    // Mostrar loading
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Iniciando sesión...';
+    
+    try {
+        const result = await window.authClient.login(email, password, remember);
+        
+        if (result.success) {
+            window.authClient.showSuccess('¡Bienvenido de vuelta!');
+            closeAuthModal();
+            
+            // Redireccionar según el rol
+            setTimeout(() => {
+                if (window.authClient.isStaff()) {
+                    window.location.href = '/staff.php';
+                } else {
+                    window.location.reload();
+                }
+            }, 1000);
+        } else {
+            window.authClient.showError(result.error || 'Error en el login');
+        }
+    } catch (error) {
+        window.authClient.showError('Error de conexión');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+};
+
+// Manejo de formulario de registro
+window.handleRegisterSubmit = async function(event) {
+    event.preventDefault();
+    
+    const firstName = document.getElementById('firstName').value.trim();
+    const lastName = document.getElementById('lastName').value.trim();
+    const email = document.getElementById('registerEmail').value.trim();
+    const password = document.getElementById('registerPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    const acceptTerms = document.getElementById('acceptTerms')?.checked;
+    
+    // Validaciones frontend
+    if (!firstName || !lastName || !email || !password || !confirmPassword) {
+        window.authClient.showError('Todos los campos son requeridos');
+        return;
+    }
+    
+    if (!window.authClient.validateName(firstName) || !window.authClient.validateName(lastName)) {
+        window.authClient.showError('Nombres deben tener entre 2 y 50 caracteres');
+        return;
+    }
+    
+    if (!window.authClient.validateEmail(email)) {
+        window.authClient.showError('Formato de email inválido');
+        return;
+    }
+    
+    if (!window.authClient.validatePassword(password)) {
+        window.authClient.showError('La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número');
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        window.authClient.showError('Las contraseñas no coinciden');
+        return;
+    }
+    
+    if (!acceptTerms) {
+        window.authClient.showError('Debes aceptar los términos y condiciones');
+        return;
+    }
+    
+    // Mostrar loading
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Creando cuenta...';
+    
+    try {
+        const result = await window.authClient.register({
+            name: `${firstName} ${lastName}`,
+            email,
+            password,
+            role: 1 // Paciente por defecto
+        });
+        
+        if (result.success) {
+            window.authClient.showSuccess('¡Cuenta creada exitosamente! Bienvenido!');
+            closeAuthModal();
+            
+            // Redireccionar
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            window.authClient.showError(result.error || 'Error en el registro');
+        }
+    } catch (error) {
+        window.authClient.showError('Error de conexión');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+};
+
+// ===============================
+// MODO DEBUG MEJORADO
 // ===============================
 
 window.debugAuth = {
@@ -501,40 +782,70 @@ window.debugAuth = {
         return result;
     },
     
-    // Test de sala
-    testRoom: async (roomId = 'general') => {
+    // Test de registro
+    testRegister: async () => {
+        const result = await window.authClient.register({
+            name: 'Usuario Prueba',
+            email: 'test' + Date.now() + '@test.com',
+            password: 'Password123',
+            role: 1
+        });
+        console.log('📝 Test register result:', result);
+        return result;
+    },
+    
+    // Test de salas
+    testRooms: async () => {
         if (!window.authClient.isAuthenticated()) {
             console.error('❌ Debes estar autenticado para probar salas');
             return;
         }
-        const result = await window.authClient.selectRoom(roomId);
-        console.log('🏠 Test room result:', result);
-        return result;
+        const rooms = await window.authClient.getAvailableRooms();
+        console.log('🏠 Salas disponibles:', rooms);
+        return rooms;
     },
     
-    // Test de notificaciones
-    testNotification: (message = 'Test notification', type = 'info') => {
-        window.authClient.showNotification(message, type);
+    // Test de selección de sala
+    testSelectRoom: async (roomId = 'general') => {
+        if (!window.authClient.isAuthenticated()) {
+            console.error('❌ Debes estar autenticado para seleccionar salas');
+            return;
+        }
+        const result = await window.authClient.selectRoom(roomId);
+        console.log('🎯 Resultado selección:', result);
+        return result;
     },
     
     // Help
     help: () => {
         console.log(`
-🛠️ DEBUG AUTH CLIENT:
-═══════════════════════════
+🛠️ DEBUG AUTH CLIENT COMPLETO:
+════════════════════════════════
 
-• debugAuth.testConnection() - Probar conexión
-• debugAuth.getInfo() - Info del cliente
+CONEXIÓN:
+• debugAuth.testConnection() - Probar conexión con servidor
+
+AUTENTICACIÓN:
+• debugAuth.testLogin(email, password) - Login de prueba
+• debugAuth.testRegister() - Registro de prueba
 • debugAuth.getState() - Estado actual
-• debugAuth.clearAuth() - Limpiar auth
-• debugAuth.testLogin() - Login de prueba
-• debugAuth.testRoom() - Test selección sala
-• debugAuth.testNotification() - Test notificación
+• debugAuth.clearAuth() - Limpiar autenticación
+
+SALAS:
+• debugAuth.testRooms() - Listar salas disponibles
+• debugAuth.testSelectRoom(roomId) - Seleccionar sala
+
+INFORMACIÓN:
+• debugAuth.getInfo() - Info del cliente
+• debugAuth.help() - Esta ayuda
 
 URLs configuradas:
 • Auth Service: ${window.authClient.baseURL}
+
+¡Ya puedes probar todas las funcionalidades!
         `);
     }
 };
 
-console.log('🛠️ Modo debug activado. Usa debugAuth.help() para ver comandos');
+console.log('🛠️ Modo debug completo activado. Usa debugAuth.help() para ver comandos');
+console.log('🚀 AuthClient con todas las funcionalidades listo!');

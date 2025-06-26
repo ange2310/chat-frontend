@@ -1,5 +1,5 @@
 <?php
-// public/index.php - Portal Médico Mejorado con KISS
+// public/index.php - Portal Médico Completo con Auth-Service
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 
@@ -39,6 +39,26 @@ if ($isAuthenticated && $auth->isStaff()) {
             }
         }
     </script>
+    <style>
+        /* Asegurar que los elementos auth-required se muestren cuando sea necesario */
+        .auth-required.show { display: block !important; }
+        .guest-only.hide { display: none !important; }
+        
+        /* Animaciones suaves para transiciones */
+        .auth-required, .guest-only {
+            transition: opacity 0.3s ease-in-out;
+        }
+        
+        /* Asegurar que el spinner esté visible */
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body class="h-full">
     <!-- Header -->
@@ -59,26 +79,35 @@ if ($isAuthenticated && $auth->isStaff()) {
                 </div>
                 
                 <div class="flex items-center space-x-4">
-                    <?php if ($isAuthenticated): ?>
-                        <!-- Usuario autenticado -->
-                        <div class="flex items-center space-x-3">
-                            <div class="flex items-center space-x-2">
-                                <div class="w-8 h-8 bg-medical-100 rounded-full flex items-center justify-center">
-                                    <span class="text-medical-700 text-sm font-medium">
-                                        <?= strtoupper(substr($user['name'] ?? 'U', 0, 1)) ?>
-                                    </span>
-                                </div>
-                                <span class="text-sm font-medium text-gray-700">
-                                    <?= htmlspecialchars($user['name'] ?? 'Usuario') ?>
+                    <!-- Usuario autenticado - SIEMPRE PRESENTE, controlado por JS -->
+                    <div id="userAuthenticatedSection" class="auth-required hidden flex items-center space-x-3">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-medical-100 rounded-full flex items-center justify-center">
+                                <span id="userInitial" class="text-medical-700 text-sm font-medium">
+                                    <?= $isAuthenticated ? strtoupper(substr($user['name'] ?? 'U', 0, 1)) : 'U' ?>
                                 </span>
                             </div>
-                            <button onclick="logout()" 
-                                    class="text-gray-500 hover:text-gray-700 text-sm transition-colors">
-                                Cerrar Sesión
-                            </button>
+                            <span id="userDisplayName" class="text-sm font-medium text-gray-700 user-name">
+                                <?= $isAuthenticated ? htmlspecialchars($user['name'] ?? 'Usuario') : 'Usuario' ?>
+                            </span>
                         </div>
-                        <!-- Usuario no autenticado -->
-                    <?php endif; ?>
+                        <button onclick="logout()" 
+                                class="text-gray-500 hover:text-gray-700 text-sm transition-colors">
+                            Cerrar Sesión
+                        </button>
+                    </div>
+                    
+                    <!-- Usuario no autenticado - SIEMPRE PRESENTE, controlado por JS -->
+                    <div id="userGuestSection" class="guest-only flex items-center space-x-3">
+                        <button onclick="showAuthModal('login')" 
+                                class="text-medical-600 hover:text-medical-700 text-sm font-medium transition-colors">
+                            Iniciar Sesión
+                        </button>
+                        <button onclick="showAuthModal('register')" 
+                                class="bg-medical-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-medical-700 transition-colors">
+                            Crear Cuenta
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -88,99 +117,57 @@ if ($isAuthenticated && $auth->isStaff()) {
     <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <?php if ($isAuthenticated): ?>
             <!-- Estado: Usuario autenticado - Selección de sala -->
-            <div id="roomSelectionSection">
+            <div id="roomSelectionSection" class="auth-required">
                 <div class="bg-white shadow rounded-lg">
                     <div class="px-6 py-4 border-b border-gray-200">
-                        <h3 class="text-lg font-medium text-gray-900">
-                            Bienvenido, <?= htmlspecialchars($user['name'] ?? 'Usuario') ?>
-                        </h3>
-                        <p class="text-sm text-gray-600 mt-1">Selecciona el tipo de consulta que necesitas</p>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-medium text-gray-900">
+                                    Bienvenido, <span class="user-name"><?= htmlspecialchars($user['name'] ?? 'Usuario') ?></span>
+                                </h3>
+                                <p class="text-sm text-gray-600 mt-1">Selecciona el tipo de consulta que necesitas</p>
+                            </div>
+                            <button onclick="refreshRooms()" 
+                                    class="bg-medical-100 text-medical-700 px-3 py-2 rounded-lg text-sm hover:bg-medical-200 transition-colors">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                Actualizar
+                            </button>
+                        </div>
                     </div>
                     <div class="p-6">
-                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
-                            <!-- Consulta General -->
-                            <div onclick="selectRoom('general', 'Consulta General')" 
-                                 class="room-card cursor-pointer p-6 border border-gray-200 rounded-lg hover:border-medical-300 hover:shadow-md transition-all group">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
-                                            </svg>
-                                        </div>
-                                    </div>
-                                    <div class="ml-4 flex-1">
-                                        <h4 class="text-sm font-medium text-gray-900">Consulta General</h4>
-                                        <p class="text-sm text-gray-500">Consultas médicas generales y orientación</p>
-                                        <p class="text-xs text-gray-400 mt-1">Tiempo estimado: 5-10 min</p>
-                                    </div>
-                                </div>
+                        <!-- Loading de salas -->
+                        <div id="roomsLoading" class="text-center py-8">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-medical-600 mx-auto"></div>
+                            <p class="text-gray-500 mt-2">Cargando salas disponibles...</p>
+                        </div>
+                        
+                        <!-- Grid de salas -->
+                        <div id="roomsGrid" class="hidden grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
+                            <!-- Las salas se cargarán dinámicamente aquí -->
+                        </div>
+                        
+                        <!-- Error de salas -->
+                        <div id="roomsError" class="hidden text-center py-8">
+                            <div class="text-red-500 mb-4">
+                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
                             </div>
-
-                            <!-- Consulta Especializada -->
-                            <div onclick="selectRoom('medical', 'Consulta Especializada')" 
-                                 class="room-card cursor-pointer p-6 border border-gray-200 rounded-lg hover:border-medical-300 hover:shadow-md transition-all group">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
-                                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path>
-                                            </svg>
-                                        </div>
-                                    </div>
-                                    <div class="ml-4 flex-1">
-                                        <h4 class="text-sm font-medium text-gray-900">Consulta Especializada</h4>
-                                        <p class="text-sm text-gray-500">Atención médica especializada</p>
-                                        <p class="text-xs text-gray-400 mt-1">Tiempo estimado: 10-15 min</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Soporte Técnico -->
-                            <div onclick="selectRoom('support', 'Soporte Técnico')" 
-                                 class="room-card cursor-pointer p-6 border border-gray-200 rounded-lg hover:border-medical-300 hover:shadow-md transition-all group">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                                            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                            </svg>
-                                        </div>
-                                    </div>
-                                    <div class="ml-4 flex-1">
-                                        <h4 class="text-sm font-medium text-gray-900">Soporte Técnico</h4>
-                                        <p class="text-sm text-gray-500">Ayuda con la plataforma</p>
-                                        <p class="text-xs text-gray-400 mt-1">Tiempo estimado: 2-5 min</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Urgencias -->
-                            <div onclick="selectRoom('emergency', 'Urgencias')" 
-                                 class="room-card cursor-pointer p-6 border border-red-200 rounded-lg hover:border-red-300 hover:shadow-md transition-all bg-red-50 group">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center group-hover:bg-red-200 transition-colors">
-                                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                            </svg>
-                                        </div>
-                                    </div>
-                                    <div class="ml-4 flex-1">
-                                        <h4 class="text-sm font-medium text-gray-900">Urgencias</h4>
-                                        <p class="text-sm text-gray-500">Atención médica urgente</p>
-                                        <p class="text-xs text-gray-400 mt-1">Atención prioritaria</p>
-                                    </div>
-                                </div>
-                            </div>
+                            <h3 class="text-lg font-medium text-gray-900 mb-2">Error cargando salas</h3>
+                            <p class="text-gray-600 mb-4">No se pudieron cargar las salas disponibles</p>
+                            <button onclick="refreshRooms()" 
+                                    class="bg-medical-600 text-white px-4 py-2 rounded-lg hover:bg-medical-700 transition-colors">
+                                Reintentar
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Estado: En chat -->
-            <div id="chatSection" class="hidden">
+            <div id="chatSection" class="hidden auth-required">
                 <div class="bg-white shadow rounded-lg">
                     <div class="h-96 flex flex-col">
                         <!-- Chat Header -->
@@ -198,6 +185,11 @@ if ($isAuthenticated && $auth->isStaff()) {
                                     </div>
                                 </div>
                                 <div class="flex items-center space-x-2">
+                                    <button onclick="minimizeChat()" class="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                                        </svg>
+                                    </button>
                                     <button onclick="endChat()" class="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -284,7 +276,7 @@ if ($isAuthenticated && $auth->isStaff()) {
 
         <?php else: ?>
             <!-- Estado: No autenticado -->
-            <div class="text-center">
+            <div class="guest-only text-center">
                 <div class="mx-auto max-w-md">
                     <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-medical-100 mb-4">
                         <svg class="h-8 w-8 text-medical-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -343,7 +335,6 @@ if ($isAuthenticated && $auth->isStaff()) {
         <?php endif; ?>
     </main>
 
-    <?php if (!$isAuthenticated): ?>
     <!-- Auth Modal -->
     <div id="authModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
         <div class="flex items-center justify-center min-h-screen p-4">
@@ -361,7 +352,7 @@ if ($isAuthenticated && $auth->isStaff()) {
 
                 <!-- Login Form -->
                 <div id="loginForm" class="p-6">
-                    <form id="loginFormData" class="space-y-4">
+                    <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico</label>
                             <input type="email" id="loginEmail" required
@@ -373,6 +364,12 @@ if ($isAuthenticated && $auth->isStaff()) {
                             <input type="password" id="loginPassword" required
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500"
                                    placeholder="Tu contraseña">
+                        </div>
+                        <div class="flex items-center">
+                            <input id="rememberMe" type="checkbox" class="h-4 w-4 text-medical-600 focus:ring-medical-500 border-gray-300 rounded">
+                            <label for="rememberMe" class="ml-2 block text-sm text-gray-700">
+                                Recordarme
+                            </label>
                         </div>
                         <button type="submit" 
                                 class="w-full bg-medical-600 text-white py-2 px-4 rounded-lg hover:bg-medical-700 transition-colors">
@@ -389,7 +386,7 @@ if ($isAuthenticated && $auth->isStaff()) {
 
                 <!-- Register Form -->
                 <div id="registerForm" class="hidden p-6">
-                    <form id="registerFormData" class="space-y-4">
+                    <form onsubmit="handleRegisterSubmit(event)" class="space-y-4">
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
@@ -415,12 +412,19 @@ if ($isAuthenticated && $auth->isStaff()) {
                             <input type="password" id="registerPassword" required
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500"
                                    placeholder="Mínimo 8 caracteres">
+                            <p class="text-xs text-gray-500 mt-1">Debe contener al menos una mayúscula, una minúscula y un número</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar Contraseña</label>
                             <input type="password" id="confirmPassword" required
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500"
                                    placeholder="Repite tu contraseña">
+                        </div>
+                        <div class="flex items-center">
+                            <input id="acceptTerms" type="checkbox" required class="h-4 w-4 text-medical-600 focus:ring-medical-500 border-gray-300 rounded">
+                            <label for="acceptTerms" class="ml-2 block text-sm text-gray-700">
+                                Acepto los <a href="#" class="text-medical-600 hover:text-medical-500">términos y condiciones</a>
+                            </label>
                         </div>
                         <button type="submit" 
                                 class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">
@@ -437,7 +441,6 @@ if ($isAuthenticated && $auth->isStaff()) {
             </div>
         </div>
     </div>
-    <?php endif; ?>
 
     <!-- Loading Spinner -->
     <div id="loadingSpinner" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50 flex items-center justify-center">
@@ -449,11 +452,11 @@ if ($isAuthenticated && $auth->isStaff()) {
         </div>
     </div>
 
-    <!-- Include Auth Client -->
+    <!-- Include Auth Client CORREGIDO -->
     <script src="assets/js/auth-client.js"></script>
     
     <script>
-        // Configuration - usando tus URLs reales
+        // Configuration - URLs CORREGIDAS
         const CONFIG = {
             AUTH_SERVICE_URL: 'http://187.33.158.246:8080/auth',
             CHAT_SERVICE_URL: 'http://187.33.158.246:8080/chat',
@@ -463,32 +466,456 @@ if ($isAuthenticated && $auth->isStaff()) {
         // Global state
         let currentUser = <?= $isAuthenticated ? json_encode($user) : 'null' ?>;
         let currentSession = null;
-        let websocket = null;
+        let currentRooms = [];
+
+        // INICIALIZAR AUTHCLIENT AQUÍ - DESPUÉS DE QUE SE CARGUE EL SCRIPT
+        setTimeout(() => {
+            console.log('🔧 Inicializando AuthClient...');
+            window.authClient = new AuthClient(CONFIG.AUTH_SERVICE_URL);
+            console.log('✅ AuthClient inicializado con URL:', CONFIG.AUTH_SERVICE_URL);
+            
+            // Ahora sí inicializar el resto
+            initializePortal();
+        }, 100);
 
         // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
+        function initializePortal() {
             console.log('🚀 Portal Médico iniciado');
-            // Debug info
             console.log('CONFIG:', CONFIG);
             console.log('currentUser:', currentUser);
             console.log('authClient available:', !!window.authClient);
 
-            if (currentUser) {
-                console.log('✅ Usuario autenticado desde PHP:', currentUser.name);
-                // Sincronizar con authClient si existe
-                if (window.authClient) {
-                    window.authClient.user = currentUser;
-                    console.log('✅ AuthClient sincronizado');
+            // Esperar a que authClient esté completamente cargado
+            setTimeout(() => {
+                console.log('🔍 Verificando estado de autenticación...');
+                console.log('🔍 currentUser desde PHP:', currentUser);
+                console.log('🔍 authClient.isAuthenticated():', window.authClient?.isAuthenticated());
+                console.log('🔍 authClient.getUser():', window.authClient?.getUser());
+                
+                // Priorizar AuthClient sobre PHP si hay conflicto
+                const isAuthenticatedJS = window.authClient && window.authClient.isAuthenticated();
+                const isAuthenticatedPHP = !!currentUser;
+                
+                console.log('🔍 Estado de auth:', {
+                    js: isAuthenticatedJS,
+                    php: isAuthenticatedPHP
+                });
+                
+                if (isAuthenticatedJS && !isAuthenticatedPHP) {
+                    console.log('⚠️ Conflicto: JS dice autenticado, PHP dice no autenticado');
+                    console.log('✅ Priorizando estado de JavaScript (AuthClient)');
+                    
+                    // Usar datos de AuthClient
+                    currentUser = window.authClient.getUser();
+                    
+                    // Forzar UI de usuario autenticado
+                    forceAuthenticatedUI();
+                    
+                } else if (isAuthenticatedPHP && !isAuthenticatedJS) {
+                    console.log('⚠️ Conflicto: PHP dice autenticado, JS dice no autenticado');
+                    console.log('✅ Sincronizando AuthClient con datos de PHP');
+                    
+                    // Sincronizar AuthClient con PHP
+                    if (window.authClient) {
+                        window.authClient.user = currentUser;
+                        window.authClient.updateUI();
+                    }
+                    
+                    forceAuthenticatedUI();
+                    
+                } else if (isAuthenticatedJS && isAuthenticatedPHP) {
+                    console.log('✅ Estados sincronizados: usuario autenticado');
+                    forceAuthenticatedUI();
+                    
+                } else {
+                    console.log('👤 Usuario no autenticado en ambos sistemas');
+                    forceGuestUI();
+                }
+                
+                setupEventListeners();
+            }, 500);
+        }
+            
+        // Función para forzar UI autenticada
+        function forceAuthenticatedUI() {
+            console.log('🔧 Forzando UI de usuario autenticado...');
+            
+            // Ocultar TODAS las secciones de invitado
+            document.querySelectorAll('.guest-only').forEach(el => {
+                el.style.display = 'none';
+                el.classList.add('hidden');
+            });
+            
+            // Mostrar TODAS las secciones de autenticado
+            document.querySelectorAll('.auth-required').forEach(el => {
+                el.style.display = 'block';
+                el.classList.remove('hidden');
+            });
+            
+            // Forzar mostrar sección específica de salas
+            const roomSection = document.getElementById('roomSelectionSection');
+            if (roomSection) {
+                roomSection.style.display = 'block';
+                roomSection.classList.remove('hidden');
+                console.log('✅ Sección de salas forzada a visible');
+            }
+            
+            // Forzar mostrar sección de usuario autenticado en header
+            const userAuthSection = document.getElementById('userAuthenticatedSection');
+            const userGuestSection = document.getElementById('userGuestSection');
+            
+            if (userAuthSection) {
+                userAuthSection.style.display = 'flex';
+                userAuthSection.classList.remove('hidden');
+                userAuthSection.classList.add('flex');
+                console.log('✅ Header de usuario autenticado visible');
+            }
+            if (userGuestSection) {
+                userGuestSection.style.display = 'none';
+                userGuestSection.classList.add('hidden');
+                userGuestSection.classList.remove('flex');
+            }
+            
+            // Actualizar información del usuario
+            const user = window.authClient?.getUser() || currentUser;
+            if (user) {
+                const userInitial = document.getElementById('userInitial');
+                const userDisplayName = document.getElementById('userDisplayName');
+                
+                if (userInitial && user.name) {
+                    userInitial.textContent = user.name.charAt(0).toUpperCase();
+                }
+                if (userDisplayName && user.name) {
+                    userDisplayName.textContent = user.name;
                 }
             }
-            setupEventListeners();
             
-            <?php if ($isAuthenticated): ?>
-            console.log('Usuario autenticado:', <?= json_encode($user['name'] ?? 'Usuario') ?>);
-            <?php endif; ?>
-        });
+            // Cargar salas después de asegurar que todo esté visible
+            setTimeout(() => {
+                loadAvailableRooms();
+            }, 200);
+        }
+        
+        // Función para forzar UI de invitado
+        function forceGuestUI() {
+            console.log('🔧 Forzando UI de invitado...');
+            
+            const userAuthSection = document.getElementById('userAuthenticatedSection');
+            const userGuestSection = document.getElementById('userGuestSection');
+            
+            if (userAuthSection) {
+                userAuthSection.style.display = 'none';
+                userAuthSection.classList.add('hidden');
+                userAuthSection.classList.remove('flex');
+            }
+            if (userGuestSection) {
+                userGuestSection.style.display = 'flex';
+                userGuestSection.classList.remove('hidden');
+                userGuestSection.classList.add('flex');
+            }
+            
+            document.querySelectorAll('.auth-required').forEach(el => {
+                el.style.display = 'none';
+                el.classList.add('hidden');
+            });
+            document.querySelectorAll('.guest-only').forEach(el => {
+                el.style.display = 'block';
+                el.classList.remove('hidden');
+            });
+        }
 
-        // Setup event listeners
+        // ===============================
+        // GESTIÓN DE SALAS COMPLETA
+        // ===============================
+
+        async function loadAvailableRooms() {
+            console.log('🏠 Cargando salas disponibles...');
+            console.log('🔍 AuthClient disponible:', !!window.authClient);
+            console.log('🔍 Usuario autenticado:', window.authClient?.isAuthenticated());
+            
+            // Verificar que el usuario esté autenticado
+            if (!window.authClient || !window.authClient.isAuthenticated()) {
+                console.log('❌ Usuario no autenticado, no se pueden cargar salas');
+                showRoomsError('Debes iniciar sesión para ver las salas disponibles');
+                return;
+            }
+            
+            // Mostrar loading
+            const loadingEl = document.getElementById('roomsLoading');
+            const gridEl = document.getElementById('roomsGrid');
+            const errorEl = document.getElementById('roomsError');
+            
+            console.log('🔍 Elementos DOM:', {
+                loading: !!loadingEl,
+                grid: !!gridEl,
+                error: !!errorEl
+            });
+            
+            if (loadingEl) loadingEl.classList.remove('hidden');
+            if (gridEl) gridEl.classList.add('hidden');
+            if (errorEl) errorEl.classList.add('hidden');
+            
+            try {
+                console.log('📡 Llamando a getAvailableRooms...');
+                const rooms = await window.authClient.getAvailableRooms();
+                console.log('📋 Respuesta de salas:', rooms);
+                console.log('📋 Tipo de respuesta:', typeof rooms);
+                console.log('📋 Es array:', Array.isArray(rooms));
+                console.log('📋 Longitud:', rooms?.length);
+                
+                if (rooms && Array.isArray(rooms) && rooms.length > 0) {
+                    currentRooms = rooms;
+                    console.log('✅ Salas válidas recibidas, mostrando...');
+                    displayRooms(rooms);
+                } else if (rooms && rooms.length === 0) {
+                    console.log('⚠️ Array de salas vacío');
+                    showRoomsError('No hay salas disponibles en este momento. Intenta más tarde.');
+                } else {
+                    console.log('⚠️ Respuesta de salas inválida:', rooms);
+                    showRoomsError('Error procesando las salas disponibles.');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error cargando salas:', error);
+                console.error('❌ Stack del error:', error.stack);
+                
+                // Determinar el mensaje de error apropiado
+                let errorMessage = 'Error de conexión. Verifica tu conexión a internet y vuelve a intentar.';
+                
+                if (error.message.includes('404')) {
+                    errorMessage = 'Servicio de salas no disponible. Contacta al administrador.';
+                } else if (error.message.includes('403')) {
+                    errorMessage = 'No tienes permisos para acceder a las salas.';
+                } else if (error.message.includes('401')) {
+                    errorMessage = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
+                }
+                
+                showRoomsError(errorMessage);
+            }
+        }
+
+        // FUNCIÓN FALTANTE: showRoomsError
+        function showRoomsError(message) {
+            console.log('🔧 Mostrando error de salas:', message);
+            
+            const loadingEl = document.getElementById('roomsLoading');
+            const gridEl = document.getElementById('roomsGrid');
+            const errorEl = document.getElementById('roomsError');
+            
+            if (loadingEl) {
+                loadingEl.classList.add('hidden');
+                console.log('✅ Loading oculto');
+            }
+            if (gridEl) {
+                gridEl.classList.add('hidden');
+                console.log('✅ Grid oculto');
+            }
+            
+            // Mostrar error - con fallback si el elemento no existe
+            if (errorEl) {
+                errorEl.classList.remove('hidden');
+                
+                const errorMessage = errorEl.querySelector('p');
+                if (errorMessage) {
+                    errorMessage.textContent = message;
+                }
+                console.log('✅ Error mostrado');
+            } else {
+                console.log('⚠️ Elemento roomsError no encontrado, usando alert fallback...');
+                alert('Error: ' + message);
+            }
+        }
+
+        // FUNCIÓN FALTANTE: displayRooms
+        function displayRooms(rooms) {
+            console.log('🏠 Mostrando', rooms.length, 'salas');
+            
+            const roomsGrid = document.getElementById('roomsGrid');
+            const roomsLoading = document.getElementById('roomsLoading');
+            
+            if (!roomsGrid) {
+                console.error('❌ Elemento roomsGrid no encontrado');
+                return;
+            }
+            
+            // Ocultar loading
+            if (roomsLoading) roomsLoading.classList.add('hidden');
+            roomsGrid.classList.remove('hidden');
+            
+            // Generar HTML de salas
+            roomsGrid.innerHTML = rooms.map(room => `
+                <div onclick="selectRoom('${room.id}', '${room.name}')" 
+                     class="room-card cursor-pointer p-6 border border-gray-200 rounded-lg hover:border-medical-300 hover:shadow-md transition-all group ${!room.available ? 'opacity-60' : ''}">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-12 h-12 ${getRoomColorClass(room.type)} rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
+                                ${getRoomIcon(room.type)}
+                            </div>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <div class="flex items-center justify-between">
+                                <h4 class="text-sm font-medium text-gray-900">${room.name}</h4>
+                                ${room.available ? 
+                                    '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Disponible</span>' :
+                                    '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">No disponible</span>'
+                                }
+                            </div>
+                            <p class="text-sm text-gray-500 mt-1">${room.description}</p>
+                            <div class="flex items-center justify-between mt-2">
+                                <p class="text-xs text-gray-400">
+                                    ${room.available ? 
+                                        `Tiempo estimado: ${room.estimated_wait || '5-10 min'}` : 
+                                        room.estimated_wait || 'Fuera de horario'
+                                    }
+                                </p>
+                                ${room.current_queue > 0 ? 
+                                    `<span class="text-xs text-orange-600">${room.current_queue} en cola</span>` : 
+                                    ''
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            console.log('✅ Salas mostradas en el DOM');
+        }
+
+        function getRoomColorClass(roomType) {
+            const colors = {
+                'general': 'bg-blue-100',
+                'medical': 'bg-green-100', 
+                'support': 'bg-purple-100',
+                'emergency': 'bg-red-100'
+            };
+            return colors[roomType] || 'bg-blue-100';
+        }
+
+        function getRoomIcon(roomType) {
+            const icons = {
+                'general': '<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path></svg>',
+                'medical': '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path></svg>',
+                'support': '<svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>',
+                'emergency': '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>'
+            };
+            return icons[roomType] || icons['general'];
+        }
+
+        async function selectRoom(roomId, roomName) {
+            console.log('🎯 Seleccionando sala:', roomId, roomName);
+            
+            if (!window.authClient.isAuthenticated()) {
+                window.authClient.showError('Debes iniciar sesión para acceder a las salas');
+                showAuthModal('login');
+                return;
+            }
+            
+            // Mostrar loading
+            showLoading();
+            
+            try {
+                const result = await window.authClient.selectRoom(roomId, {
+                    selected_at: new Date().toISOString(),
+                    source: 'patient_portal'
+                });
+                
+                if (result.success) {
+                    window.authClient.showSuccess(`Conectado a ${roomName} exitosamente`);
+                    
+                    // Guardar datos de sesión
+                    currentSession = {
+                        roomId: roomId,
+                        roomName: roomName,
+                        ptoken: result.ptoken,
+                        sessionData: result.room_data
+                    };
+                    
+                    // Mostrar interfaz de chat
+                    showChatInterface(roomName);
+                    
+                    // Inicializar chat si existe el cliente
+                    if (window.chatClient) {
+                        window.chatClient.connect(result.ptoken, roomId);
+                    } else {
+                        // Simular chat básico
+                        simulateBasicChat(roomName);
+                    }
+                    
+                } else {
+                    window.authClient.showError(result.error || 'Error seleccionando sala');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error seleccionando sala:', error);
+                window.authClient.showError('Error de conexión al seleccionar sala');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function refreshRooms() {
+            console.log('🔄 Actualizando salas...');
+            window.authClient.showInfo('Actualizando salas disponibles...');
+            loadAvailableRooms();
+        }
+
+        // ===============================
+        // RESTO DE FUNCIONES (chat, etc.)
+        // ===============================
+
+        function showChatInterface(roomName) {
+            document.getElementById('roomSelectionSection').classList.add('hidden');
+            document.getElementById('chatSection').classList.remove('hidden');
+            
+            // Actualizar título del chat
+            document.getElementById('chatRoomName').textContent = roomName;
+            document.getElementById('chatStatus').textContent = 'Conectando...';
+        }
+
+        function simulateBasicChat(roomName) {
+            // Simular mensaje de bienvenida
+            setTimeout(() => {
+                document.getElementById('chatStatus').textContent = 'Conectado';
+                
+                addMessageToChat(
+                    `¡Hola! Te damos la bienvenida a ${roomName}. Un profesional te atenderá en breve. ¿En qué podemos ayudarte hoy?`,
+                    'agent',
+                    'Sistema Médico'
+                );
+            }, 1500);
+        }
+
+        function addMessageToChat(content, senderType, senderName = null) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageElement = document.createElement('div');
+            
+            const isUser = senderType === 'user';
+            const time = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            
+            messageElement.className = `flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`;
+            messageElement.innerHTML = `
+                <div class="max-w-xs lg:max-w-md">
+                    <div class="${isUser ? 'bg-medical-600 text-white' : 'bg-white border border-gray-200'} rounded-lg px-4 py-2 shadow-sm">
+                        ${!isUser && senderName ? `
+                            <div class="flex items-center space-x-2 mb-2">
+                                <div class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <svg class="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                    </svg>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900">${senderName}</span>
+                            </div>
+                        ` : ''}
+                        <p class="text-sm">${content}</p>
+                        <p class="text-xs ${isUser ? 'text-blue-100' : 'text-gray-500'} mt-1">${time}</p>
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
         function setupEventListeners() {
             // Auto-resize textarea
             const messageInput = document.getElementById('messageInput');
@@ -512,344 +939,44 @@ if ($isAuthenticated && $auth->isStaff()) {
                     }
                 });
             }
-
-            <?php if (!$isAuthenticated): ?>
-            // Auth form submissions
-            const loginForm = document.getElementById('loginFormData');
-            const registerForm = document.getElementById('registerFormData');
-            
-            if (loginForm) {
-                loginForm.addEventListener('submit', handleLogin);
-            }
-            
-            if (registerForm) {
-                registerForm.addEventListener('submit', handleRegister);
-            }
-            <?php endif; ?>
         }
 
-        <?php if (!$isAuthenticated): ?>
-        // Authentication functions
-        async function handleLogin(e) {
-            e.preventDefault();
-            showLoading();
-
-            const email = document.getElementById('loginEmail').value.trim();
-            const password = document.getElementById('loginPassword').value;
-
-            try {
-                const response = await fetch(`${CONFIG.AUTH_SERVICE_URL}/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success) {
-                    showNotification('Inicio de sesión exitoso', 'success');
-                    window.location.reload();
-                } else {
-                    showNotification(result.message || 'Error al iniciar sesión', 'error');
-                }
-            } catch (error) {
-                console.error('Login error:', error);
-                showNotification('Error de conexión', 'error');
-            } finally {
-                hideLoading();
-            }
-        }
-
-        async function handleRegister(e) {
-            e.preventDefault();
-            
-            const password = document.getElementById('registerPassword').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            
-            if (password !== confirmPassword) {
-                showNotification('Las contraseñas no coinciden', 'error');
-                return;
-            }
-
-            showLoading();
-
-            const firstName = document.getElementById('firstName').value.trim();
-            const lastName = document.getElementById('lastName').value.trim();
-            const email = document.getElementById('registerEmail').value.trim();
-
-            try {
-                const response = await fetch(`${CONFIG.AUTH_SERVICE_URL}/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: `${firstName} ${lastName}`,
-                        email,
-                        password,
-                        role: 1
-                    })
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success) {
-                    showNotification('Cuenta creada exitosamente', 'success');
-                    window.location.reload();
-                } else {
-                    showNotification(result.message || 'Error al crear la cuenta', 'error');
-                }
-            } catch (error) {
-                console.error('Register error:', error);
-                showNotification('Error de conexión', 'error');
-            } finally {
-                hideLoading();
-            }
-        }
-
-        // Modal functions
-        function showAuthModal(type = 'login') {
-            document.getElementById('authModal').classList.remove('hidden');
-            if (type === 'login') {
-                showLoginForm();
-            } else {
-                showRegisterForm();
-            }
-        }
-
-        function closeAuthModal() {
-            document.getElementById('authModal').classList.add('hidden');
-        }
-
-        function showLoginForm() {
-            document.getElementById('authModalTitle').textContent = 'Iniciar Sesión';
-            document.getElementById('loginForm').classList.remove('hidden');
-            document.getElementById('registerForm').classList.add('hidden');
-        }
-
-        function showRegisterForm() {
-            document.getElementById('authModalTitle').textContent = 'Crear Cuenta';
-            document.getElementById('loginForm').classList.add('hidden');
-            document.getElementById('registerForm').classList.remove('hidden');
-        }
-        <?php endif; ?>
-
-        <?php if ($isAuthenticated): ?>
-        // Room selection
-        async function selectRoom(roomId, roomName) {
-            console.log('🎯 Seleccionando sala:', roomId, roomName);
-            console.log('CONFIG.AUTH_SERVICE_URL:', CONFIG.AUTH_SERVICE_URL);
-            showLoading();
-
-            try {
-
-                const token = window.authClient?.getToken() || '';
-                console.log('Token disponible:', !!token);
-                
-                const url = `${CONFIG.AUTH_SERVICE_URL}/rooms/${roomId}/select`;
-                console.log('URL de sala:', url);
-                // Get pToken for the room
-                const roomResponse = await fetch(`${CONFIG.AUTH_SERVICE_URL}/rooms/${roomId}/select`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${window.authClient?.getToken() || ''}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        user_data: {
-                            source: 'patient_portal',
-                            selected_at: new Date().toISOString()
-                        }
-                    })
-                });
-
-                const roomResult = await roomResponse.json();
-
-                if (!roomResponse.ok || !roomResult.success) {
-                    throw new Error(roomResult.message || 'Error seleccionando sala');
-                }
-
-                const pToken = roomResult.data.ptoken;
-
-                // Join chat session
-                const chatResponse = await fetch(`${CONFIG.CHAT_SERVICE_URL}/join`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        room_id: roomId,
-                        ptoken: pToken,
-                        user_data: { source: 'patient_portal' }
-                    })
-                });
-
-                const chatResult = await chatResponse.json();
-
-                if (chatResponse.ok && chatResult.success) {
-                    currentSession = {
-                        id: chatResult.data.session_id,
-                        room_id: roomId,
-                        room_name: roomName,
-                        ptoken: pToken,
-                        status: chatResult.data.status
-                    };
-
-                    document.getElementById('chatRoomName').textContent = roomName;
-                    document.getElementById('chatStatus').textContent = 'Conectado';
-                    
-                    showChatInterface();
-                    initWebSocket(pToken, roomId);
-                    
-                    showNotification(`Conectado a ${roomName}`, 'success');
-                } else {
-                    throw new Error(chatResult.message || 'Error iniciando chat');
-                }
-            } catch (error) {
-                console.error('Error selecting room:', error);
-                showNotification(error.message || 'Error conectando a la sala', 'error');
-            } finally {
-                hideLoading();
-            }
-        }
-
-        function showChatInterface() {
-            document.getElementById('roomSelectionSection').classList.add('hidden');
-            document.getElementById('chatSection').classList.remove('hidden');
-        }
-
-        // WebSocket connection
-        function initWebSocket(pToken, roomId) {
-            try {
-                websocket = new WebSocket(CONFIG.WS_URL);
-                
-                websocket.onopen = function() {
-                    console.log('WebSocket conectado');
-                    websocket.send(JSON.stringify({
-                        type: 'authenticate',
-                        ptoken: pToken
-                    }));
-                };
-
-                websocket.onmessage = function(event) {
-                    try {
-                        const data = JSON.parse(event.data);
-                        handleWebSocketMessage(data);
-                    } catch (error) {
-                        console.error('Error parsing WebSocket message:', error);
-                    }
-                };
-
-                websocket.onclose = function() {
-                    console.log('WebSocket desconectado');
-                    document.getElementById('chatStatus').textContent = 'Desconectado';
-                };
-
-                websocket.onerror = function(error) {
-                    console.error('WebSocket error:', error);
-                    document.getElementById('chatStatus').textContent = 'Error de conexión';
-                };
-
-            } catch (error) {
-                console.error('Error initializing WebSocket:', error);
-                initHTTPPolling();
-            }
-        }
-
-        function handleWebSocketMessage(data) {
-            switch (data.type) {
-                case 'authenticated':
-                    console.log('WebSocket authenticated');
-                    websocket.send(JSON.stringify({
-                        type: 'join_room',
-                        room_id: currentSession.room_id,
-                        session_id: currentSession.id
-                    }));
-                    break;
-
-                case 'room_joined':
-                    console.log('Joined room successfully');
-                    document.getElementById('chatStatus').textContent = 'En línea';
-                    break;
-
-                case 'message_received':
-                    addMessageToChat(data.content, data.sender_type, data.timestamp);
-                    break;
-
-                case 'user_typing':
-                    showTypingIndicator();
-                    break;
-
-                case 'user_stop_typing':
-                    hideTypingIndicator();
-                    break;
-
-                default:
-                    console.log('Unknown WebSocket message type:', data.type);
-            }
-        }
-
-        // Chat functions
         function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
             
-            if (!message || !currentSession) return;
-
-            if (websocket && websocket.readyState === WebSocket.OPEN) {
-                websocket.send(JSON.stringify({
-                    type: 'send_message',
-                    content: message,
-                    session_id: currentSession.id
-                }));
-            } else {
-                sendMessageHTTP(message);
-            }
-
-            addMessageToChat(message, 'patient');
+            if (!message) return;
             
+            // Añadir mensaje del usuario
+            addMessageToChat(message, 'user');
+            
+            // Limpiar input
             input.value = '';
             input.style.height = 'auto';
             document.getElementById('sendButton').disabled = true;
+            
+            // Simular respuesta del agente
+            simulateAgentResponse(message);
         }
 
-        async function sendMessageHTTP(message) {
-            try {
-                const response = await fetch(`${CONFIG.CHAT_SERVICE_URL.replace('/chats', '')}/messages/send`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: currentSession.id,
-                        content: message,
-                        sender_id: currentUser.id
-                    })
-                });
-
-                if (!response.ok) {
-                    console.error('Error sending message via HTTP');
-                }
-            } catch (error) {
-                console.error('Error sending message via HTTP:', error);
-            }
-        }
-
-        function addMessageToChat(content, senderType, timestamp) {
-            const messagesContainer = document.getElementById('chatMessages');
-            const messageElement = document.createElement('div');
+        function simulateAgentResponse(userMessage) {
+            // Mostrar indicador de escritura
+            showTypingIndicator();
             
-            const isUser = senderType === 'patient';
-            const time = timestamp ? 
-                new Date(timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : 
-                new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            // Respuestas simuladas
+            const responses = [
+                "Entiendo tu consulta. Déjame revisar la información que me proporcionas.",
+                "Gracias por esa información. ¿Podrías contarme más detalles sobre tus síntomas?",
+                "Basado en lo que me describes, te haré algunas preguntas adicionales.",
+                "Es importante que me proporciones todos los detalles para poder ayudarte mejor.",
+                "Te voy a dar algunas recomendaciones. ¿Tienes alguna pregunta específica?"
+            ];
             
-            messageElement.className = `flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`;
-            messageElement.innerHTML = `
-                <div class="max-w-xs lg:max-w-md">
-                    <div class="${isUser ? 'bg-medical-600 text-white' : 'bg-white border border-gray-200'} rounded-lg px-4 py-2 shadow-sm">
-                        <p class="text-sm">${content}</p>
-                        <p class="text-xs ${isUser ? 'text-blue-100' : 'text-gray-500'} mt-1">${time}</p>
-                    </div>
-                </div>
-            `;
-            
-            messagesContainer.appendChild(messageElement);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            setTimeout(() => {
+                hideTypingIndicator();
+                const response = responses[Math.floor(Math.random() * responses.length)];
+                addMessageToChat(response, 'agent', 'Dr. García');
+            }, 2000 + Math.random() * 2000);
         }
 
         function showTypingIndicator() {
@@ -862,21 +989,6 @@ if ($isAuthenticated && $auth->isStaff()) {
             document.getElementById('typingIndicator').classList.add('hidden');
         }
 
-        function endChat() {
-            if (confirm('¿Estás seguro de que quieres terminar el chat?')) {
-                if (websocket) {
-                    websocket.close();
-                    websocket = null;
-                }
-                
-                currentSession = null;
-                document.getElementById('roomSelectionSection').classList.remove('hidden');
-                document.getElementById('chatSection').classList.add('hidden');
-                showNotification('Chat finalizado', 'success');
-            }
-        }
-
-        // Emoji functions
         function toggleEmojiPicker() {
             const picker = document.getElementById('emojiPicker');
             picker.classList.toggle('hidden');
@@ -899,46 +1011,27 @@ if ($isAuthenticated && $auth->isStaff()) {
             document.getElementById('emojiPicker').classList.add('hidden');
         }
 
-        // HTTP polling fallback
-        function initHTTPPolling() {
-            if (!currentSession) return;
-            
-            const pollMessages = async () => {
-                try {
-                    const response = await fetch(`${CONFIG.CHAT_SERVICE_URL.replace('/chats', '')}/messages/${currentSession.id}?limit=10`);
-                    if (response.ok) {
-                        const result = await response.json();
-                        if (result.success && result.data.messages) {
-                            console.log('Polled messages:', result.data.messages.length);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error polling messages:', error);
-                }
-            };
-
-            setInterval(pollMessages, 3000);
-        }
-        <?php endif; ?>
-
-        function logout() {
-            if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-                if (websocket) {
-                    websocket.close();
-                    websocket = null;
-                }
+        function endChat() {
+            if (confirm('¿Estás seguro de que quieres terminar la consulta?')) {
+                // Mostrar salas de nuevo
+                document.getElementById('chatSection').classList.add('hidden');
+                document.getElementById('roomSelectionSection').classList.remove('hidden');
                 
-                // Use auth client logout
-                if (window.authClient) {
-                    window.authClient.logout();
-                } else {
-                    // Fallback
-                    window.location.href = '/logout.php';
-                }
+                // Limpiar sesión actual
+                currentSession = null;
+                
+                window.authClient.showSuccess('Consulta finalizada exitosamente');
+                
+                console.log('👋 Chat finalizado por el usuario');
             }
         }
 
-        // Utility functions
+        function minimizeChat() {
+            // Toggle entre minimizado y maximizado
+            const chatSection = document.getElementById('chatSection');
+            chatSection.classList.toggle('minimized');
+        }
+
         function showLoading() {
             document.getElementById('loadingSpinner').classList.remove('hidden');
         }
@@ -947,69 +1040,37 @@ if ($isAuthenticated && $auth->isStaff()) {
             document.getElementById('loadingSpinner').classList.add('hidden');
         }
 
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm transition-all transform ${
-                type === 'success' ? 'bg-green-500 text-white' :
-                type === 'error' ? 'bg-red-500 text-white' :
-                'bg-blue-500 text-white'
-            }`;
-            
-            notification.innerHTML = `
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            ${type === 'success' ? 
-                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>' :
-                                type === 'error' ?
-                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>' :
-                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
-                            }
-                        </svg>
-                        <span>${message}</span>
-                    </div>
-                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 hover:opacity-75">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-            `;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.style.transform = 'translateX(100%)';
-                setTimeout(() => notification.remove(), 300);
-            }, 5000);
+        function logout() {
+            if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+                window.authClient.logout();
+            }
         }
 
-        // Close emoji picker when clicking outside
-        document.addEventListener('click', function(e) {
-            const picker = document.getElementById('emojiPicker');
-            const button = document.getElementById('emojiButton');
+        // Escuchar cambios de autenticación
+        window.addEventListener('authStateChanged', function(event) {
+            const { isAuthenticated, user } = event.detail;
             
-            if (picker && button && 
-                !picker.contains(e.target) && 
-                !button.contains(e.target)) {
-                picker.classList.add('hidden');
+            console.log('🔄 Evento authStateChanged:', { isAuthenticated, user: user?.name });
+            
+            if (isAuthenticated && user) {
+                console.log('🔄 Usuario autenticado via evento, mostrando interfaz de paciente...');
+                
+                // Actualizar currentUser global
+                currentUser = user;
+                
+                forceAuthenticatedUI();
+                
+            } else {
+                console.log('🔄 Usuario no autenticado via evento, mostrando interfaz de invitado...');
+                
+                // Actualizar currentUser global
+                currentUser = null;
+                
+                forceGuestUI();
             }
         });
 
-        // Debug mode for development
-        <?php if ($isAuthenticated): ?>
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            window.debugMedical = {
-                getCurrentUser: () => currentUser,
-                getCurrentSession: () => currentSession,
-                getWebSocket: () => websocket,
-                testNotification: (msg, type) => showNotification(msg, type),
-                simulateMessage: (content) => addMessageToChat(content, 'agent'),
-                testEmoji: () => insertEmoji('😊')
-            };
-            console.log('🛠️ Debug mode activo. Usa window.debugMedical');
-        }
-        <?php endif; ?>
+        console.log('🚀 Portal Médico completamente funcional cargado!');
     </script>
 </body>
 </html>
