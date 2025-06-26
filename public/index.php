@@ -115,224 +115,222 @@ if ($isAuthenticated && $auth->isStaff()) {
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <?php if ($isAuthenticated): ?>
-            <!-- Estado: Usuario autenticado - Selección de sala -->
-            <div id="roomSelectionSection" class="auth-required">
-                <div class="bg-white shadow rounded-lg">
-                    <div class="px-6 py-4 border-b border-gray-200">
+        
+        <!-- SECCIÓN DE SALAS - SIEMPRE RENDERIZADA -->
+        <div id="roomSelectionSection" class="auth-required" style="<?= $isAuthenticated ? '' : 'display: none;' ?>">
+            <div class="bg-white shadow rounded-lg">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-medium text-gray-900">
+                                Bienvenido, <span class="user-name"><?= $isAuthenticated ? htmlspecialchars($user['name'] ?? 'Usuario') : 'Usuario' ?></span>
+                            </h3>
+                            <p class="text-sm text-gray-600 mt-1">Selecciona el tipo de consulta que necesitas</p>
+                        </div>
+                        <button onclick="refreshRooms()" 
+                                class="bg-medical-100 text-medical-700 px-3 py-2 rounded-lg text-sm hover:bg-medical-200 transition-colors">
+                            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            Actualizar
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <!-- Loading de salas -->
+                    <div id="roomsLoading" class="text-center py-8">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-medical-600 mx-auto"></div>
+                        <p class="text-gray-500 mt-2">Cargando salas disponibles...</p>
+                    </div>
+                    
+                    <!-- Grid de salas - SIEMPRE PRESENTE -->
+                    <div id="roomsGrid" class="hidden grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
+                        <!-- Las salas se cargarán dinámicamente aquí -->
+                    </div>
+                    
+                    <!-- Error de salas - SIEMPRE PRESENTE -->
+                    <div id="roomsError" class="hidden text-center py-8">
+                        <div class="text-red-500 mb-4">
+                            <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Error cargando salas</h3>
+                        <p class="text-gray-600 mb-4">No se pudieron cargar las salas disponibles</p>
+                        <button onclick="refreshRooms()" 
+                                class="bg-medical-600 text-white px-4 py-2 rounded-lg hover:bg-medical-700 transition-colors">
+                            Reintentar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECCIÓN DE CHAT - SIEMPRE RENDERIZADA -->
+        <div id="chatSection" class="hidden auth-required">
+            <div class="bg-white shadow rounded-lg">
+                <div class="h-96 flex flex-col">
+                    <!-- Chat Header -->
+                    <div class="flex-shrink-0 bg-medical-600 text-white px-6 py-4 rounded-t-lg">
                         <div class="flex items-center justify-between">
-                            <div>
-                                <h3 class="text-lg font-medium text-gray-900">
-                                    Bienvenido, <span class="user-name"><?= htmlspecialchars($user['name'] ?? 'Usuario') ?></span>
-                                </h3>
-                                <p class="text-sm text-gray-600 mt-1">Selecciona el tipo de consulta que necesitas</p>
-                            </div>
-                            <button onclick="refreshRooms()" 
-                                    class="bg-medical-100 text-medical-700 px-3 py-2 rounded-lg text-sm hover:bg-medical-200 transition-colors">
-                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                                </svg>
-                                Actualizar
-                            </button>
-                        </div>
-                    </div>
-                    <div class="p-6">
-                        <!-- Loading de salas -->
-                        <div id="roomsLoading" class="text-center py-8">
-                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-medical-600 mx-auto"></div>
-                            <p class="text-gray-500 mt-2">Cargando salas disponibles...</p>
-                        </div>
-                        
-                        <!-- Grid de salas -->
-                        <div id="roomsGrid" class="hidden grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
-                            <!-- Las salas se cargarán dinámicamente aquí -->
-                        </div>
-                        
-                        <!-- Error de salas -->
-                        <div id="roomsError" class="hidden text-center py-8">
-                            <div class="text-red-500 mb-4">
-                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                </svg>
-                            </div>
-                            <h3 class="text-lg font-medium text-gray-900 mb-2">Error cargando salas</h3>
-                            <p class="text-gray-600 mb-4">No se pudieron cargar las salas disponibles</p>
-                            <button onclick="refreshRooms()" 
-                                    class="bg-medical-600 text-white px-4 py-2 rounded-lg hover:bg-medical-700 transition-colors">
-                                Reintentar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Estado: En chat -->
-            <div id="chatSection" class="hidden auth-required">
-                <div class="bg-white shadow rounded-lg">
-                    <div class="h-96 flex flex-col">
-                        <!-- Chat Header -->
-                        <div class="flex-shrink-0 bg-medical-600 text-white px-6 py-4 rounded-t-lg">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <h3 id="chatRoomName" class="font-medium">Chat Médico</h3>
-                                        <p id="chatStatus" class="text-sm text-blue-100">Conectando...</p>
-                                    </div>
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
+                                    </svg>
                                 </div>
+                                <div>
+                                    <h3 id="chatRoomName" class="font-medium">Chat Médico</h3>
+                                    <p id="chatStatus" class="text-sm text-blue-100">Conectando...</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="minimizeChat()" class="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                                    </svg>
+                                </button>
+                                <button onclick="endChat()" class="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Messages Area -->
+                    <div id="chatMessages" class="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50">
+                        <!-- Welcome message -->
+                        <div class="flex justify-center">
+                            <div class="bg-white px-4 py-2 rounded-full shadow-sm border">
+                                <p class="text-sm text-gray-600">Consulta médica iniciada</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Typing indicator -->
+                    <div id="typingIndicator" class="hidden px-4 py-2">
+                        <div class="flex justify-start">
+                            <div class="bg-white rounded-lg px-4 py-2 shadow-sm border">
                                 <div class="flex items-center space-x-2">
-                                    <button onclick="minimizeChat()" class="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
-                                        </svg>
-                                    </button>
-                                    <button onclick="endChat()" class="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Messages Area -->
-                        <div id="chatMessages" class="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50">
-                            <!-- Welcome message -->
-                            <div class="flex justify-center">
-                                <div class="bg-white px-4 py-2 rounded-full shadow-sm border">
-                                    <p class="text-sm text-gray-600">Consulta médica iniciada</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Typing indicator -->
-                        <div id="typingIndicator" class="hidden px-4 py-2">
-                            <div class="flex justify-start">
-                                <div class="bg-white rounded-lg px-4 py-2 shadow-sm border">
-                                    <div class="flex items-center space-x-2">
-                                        <div class="flex space-x-1">
-                                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-                                        </div>
-                                        <span class="text-sm text-gray-500">Escribiendo...</span>
+                                    <div class="flex space-x-1">
+                                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Message Input -->
-                        <div class="flex-shrink-0 bg-white border-t border-gray-200 p-4">
-                            <div class="flex items-end space-x-2">
-                                <div class="flex-1">
-                                    <textarea 
-                                        id="messageInput" 
-                                        placeholder="Escribe tu mensaje..."
-                                        rows="1"
-                                        class="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500 focus:border-transparent resize-none"
-                                        style="min-height: 40px; max-height: 120px;"
-                                    ></textarea>
-                                </div>
-                                <button 
-                                    id="emojiButton" 
-                                    onclick="toggleEmojiPicker()"
-                                    class="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                </button>
-                                <button 
-                                    id="sendButton" 
-                                    onclick="sendMessage()"
-                                    disabled
-                                    class="p-2 bg-medical-600 text-white rounded-lg hover:bg-medical-700 focus:outline-none focus:ring-2 focus:ring-medical-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-                                    </svg>
-                                </button>
-                            </div>
-                            
-                            <!-- Emoji Picker -->
-                            <div id="emojiPicker" class="hidden mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                <div class="grid grid-cols-8 gap-2">
-                                    <button onclick="insertEmoji('😊')" class="p-2 hover:bg-gray-200 rounded text-lg">😊</button>
-                                    <button onclick="insertEmoji('😢')" class="p-2 hover:bg-gray-200 rounded text-lg">😢</button>
-                                    <button onclick="insertEmoji('😟')" class="p-2 hover:bg-gray-200 rounded text-lg">😟</button>
-                                    <button onclick="insertEmoji('😷')" class="p-2 hover:bg-gray-200 rounded text-lg">😷</button>
-                                    <button onclick="insertEmoji('🤒')" class="p-2 hover:bg-gray-200 rounded text-lg">🤒</button>
-                                    <button onclick="insertEmoji('👍')" class="p-2 hover:bg-gray-200 rounded text-lg">👍</button>
-                                    <button onclick="insertEmoji('👎')" class="p-2 hover:bg-gray-200 rounded text-lg">👎</button>
-                                    <button onclick="insertEmoji('🙏')" class="p-2 hover:bg-gray-200 rounded text-lg">🙏</button>
+                                    <span class="text-sm text-gray-500">Escribiendo...</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-        <?php else: ?>
-            <!-- Estado: No autenticado -->
-            <div class="guest-only text-center">
-                <div class="mx-auto max-w-md">
-                    <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-medical-100 mb-4">
-                        <svg class="h-8 w-8 text-medical-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
-                        </svg>
-                    </div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Portal de Consulta Médica</h2>
-                    <p class="text-gray-600 mb-6">
-                        Conecta con profesionales de la salud las 24 horas del día.
-                    </p>
-                    <div class="space-y-3">
-                        <button onclick="showAuthModal('register')" 
-                                class="w-full flex justify-center py-3 px-4 rounded-lg text-sm font-medium text-white bg-medical-600 hover:bg-medical-700 transition-colors">
-                            Crear Cuenta
-                        </button>
-                        <button onclick="showAuthModal('login')" 
-                                class="w-full flex justify-center py-3 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors">
-                            Iniciar Sesión
-                        </button>
+                    <!-- Message Input -->
+                    <div class="flex-shrink-0 bg-white border-t border-gray-200 p-4">
+                        <div class="flex items-end space-x-2">
+                            <div class="flex-1">
+                                <textarea 
+                                    id="messageInput" 
+                                    placeholder="Escribe tu mensaje..."
+                                    rows="1"
+                                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500 focus:border-transparent resize-none"
+                                    style="min-height: 40px; max-height: 120px;"
+                                ></textarea>
+                            </div>
+                            <button 
+                                id="emojiButton" 
+                                onclick="toggleEmojiPicker()"
+                                class="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </button>
+                            <button 
+                                id="sendButton" 
+                                onclick="sendMessage()"
+                                disabled
+                                class="p-2 bg-medical-600 text-white rounded-lg hover:bg-medical-700 focus:outline-none focus:ring-2 focus:ring-medical-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Emoji Picker -->
+                        <div id="emojiPicker" class="hidden mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div class="grid grid-cols-8 gap-2">
+                                <button onclick="insertEmoji('😊')" class="p-2 hover:bg-gray-200 rounded text-lg">😊</button>
+                                <button onclick="insertEmoji('😢')" class="p-2 hover:bg-gray-200 rounded text-lg">😢</button>
+                                <button onclick="insertEmoji('😟')" class="p-2 hover:bg-gray-200 rounded text-lg">😟</button>
+                                <button onclick="insertEmoji('😷')" class="p-2 hover:bg-gray-200 rounded text-lg">😷</button>
+                                <button onclick="insertEmoji('🤒')" class="p-2 hover:bg-gray-200 rounded text-lg">🤒</button>
+                                <button onclick="insertEmoji('👍')" class="p-2 hover:bg-gray-200 rounded text-lg">👍</button>
+                                <button onclick="insertEmoji('👎')" class="p-2 hover:bg-gray-200 rounded text-lg">👎</button>
+                                <button onclick="insertEmoji('🙏')" class="p-2 hover:bg-gray-200 rounded text-lg">🙏</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Features -->
-            <div class="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                <div class="text-center p-6">
-                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                        <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-2">Consulta Privada</h3>
-                    <p class="text-sm text-gray-600">Todas las conversaciones son privadas y confidenciales.</p>
+        <!-- SECCIÓN DE INVITADO - SIEMPRE RENDERIZADA -->
+        <div class="guest-only text-center" style="<?= $isAuthenticated ? 'display: none;' : '' ?>">
+            <div class="mx-auto max-w-md">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-medical-100 mb-4">
+                    <svg class="h-8 w-8 text-medical-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
+                    </svg>
                 </div>
-                
-                <div class="text-center p-6">
-                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
-                        <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-2">Disponible 24/7</h3>
-                    <p class="text-sm text-gray-600">Atención médica cuando la necesites.</p>
-                </div>
-                
-                <div class="text-center p-6">
-                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
-                        <svg class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-2">Respuesta Rápida</h3>
-                    <p class="text-sm text-gray-600">Conecta con profesionales en minutos.</p>
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">Portal de Consulta Médica</h2>
+                <p class="text-gray-600 mb-6">
+                    Conecta con profesionales de la salud las 24 horas del día.
+                </p>
+                <div class="space-y-3">
+                    <button onclick="showAuthModal('register')" 
+                            class="w-full flex justify-center py-3 px-4 rounded-lg text-sm font-medium text-white bg-medical-600 hover:bg-medical-700 transition-colors">
+                        Crear Cuenta
+                    </button>
+                    <button onclick="showAuthModal('login')" 
+                            class="w-full flex justify-center py-3 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                        Iniciar Sesión
+                    </button>
                 </div>
             </div>
-        <?php endif; ?>
+        </div>
+
+        <!-- Features -->
+        <div class="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="text-center p-6">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                    <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Consulta Privada</h3>
+                <p class="text-sm text-gray-600">Todas las conversaciones son privadas y confidenciales.</p>
+            </div>
+            
+            <div class="text-center p-6">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
+                    <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Disponible 24/7</h3>
+                <p class="text-sm text-gray-600">Atención médica cuando la necesites.</p>
+            </div>
+            
+            <div class="text-center p-6">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
+                    <svg class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Respuesta Rápida</h3>
+                <p class="text-sm text-gray-600">Conecta con profesionales en minutos.</p>
+            </div>
+        </div>
     </main>
 
     <!-- Auth Modal -->
@@ -452,11 +450,11 @@ if ($isAuthenticated && $auth->isStaff()) {
         </div>
     </div>
 
-    <!-- Include Auth Client CORREGIDO -->
+    <!-- Include Auth Client -->
     <script src="assets/js/auth-client.js"></script>
     
     <script>
-        // Configuration - URLs CORREGIDAS
+        // Configuration
         const CONFIG = {
             AUTH_SERVICE_URL: 'http://187.33.158.246:8080/auth',
             CHAT_SERVICE_URL: 'http://187.33.158.246:8080/chat',
@@ -468,99 +466,57 @@ if ($isAuthenticated && $auth->isStaff()) {
         let currentSession = null;
         let currentRooms = [];
 
-        // INICIALIZAR AUTHCLIENT AQUÍ - DESPUÉS DE QUE SE CARGUE EL SCRIPT
+        // INICIALIZAR AUTHCLIENT
         setTimeout(() => {
             console.log('🔧 Inicializando AuthClient...');
             window.authClient = new AuthClient(CONFIG.AUTH_SERVICE_URL);
-            console.log('✅ AuthClient inicializado con URL:', CONFIG.AUTH_SERVICE_URL);
+            console.log('✅ AuthClient inicializado');
             
-            // Ahora sí inicializar el resto
             initializePortal();
         }, 100);
 
-        // Initialize
         function initializePortal() {
             console.log('🚀 Portal Médico iniciado');
-            console.log('CONFIG:', CONFIG);
-            console.log('currentUser:', currentUser);
-            console.log('authClient available:', !!window.authClient);
-
-            // Esperar a que authClient esté completamente cargado
+            
             setTimeout(() => {
-                console.log('🔍 Verificando estado de autenticación...');
-                console.log('🔍 currentUser desde PHP:', currentUser);
-                console.log('🔍 authClient.isAuthenticated():', window.authClient?.isAuthenticated());
-                console.log('🔍 authClient.getUser():', window.authClient?.getUser());
-                
-                // Priorizar AuthClient sobre PHP si hay conflicto
                 const isAuthenticatedJS = window.authClient && window.authClient.isAuthenticated();
                 const isAuthenticatedPHP = !!currentUser;
                 
-                console.log('🔍 Estado de auth:', {
-                    js: isAuthenticatedJS,
-                    php: isAuthenticatedPHP
-                });
+                console.log('🔍 Estado de auth:', { js: isAuthenticatedJS, php: isAuthenticatedPHP });
                 
-                if (isAuthenticatedJS && !isAuthenticatedPHP) {
-                    console.log('⚠️ Conflicto: JS dice autenticado, PHP dice no autenticado');
-                    console.log('✅ Priorizando estado de JavaScript (AuthClient)');
-                    
-                    // Usar datos de AuthClient
+                if (isAuthenticatedJS) {
                     currentUser = window.authClient.getUser();
-                    
-                    // Forzar UI de usuario autenticado
                     forceAuthenticatedUI();
-                    
-                } else if (isAuthenticatedPHP && !isAuthenticatedJS) {
-                    console.log('⚠️ Conflicto: PHP dice autenticado, JS dice no autenticado');
-                    console.log('✅ Sincronizando AuthClient con datos de PHP');
-                    
-                    // Sincronizar AuthClient con PHP
+                } else if (isAuthenticatedPHP) {
                     if (window.authClient) {
                         window.authClient.user = currentUser;
                         window.authClient.updateUI();
                     }
-                    
                     forceAuthenticatedUI();
-                    
-                } else if (isAuthenticatedJS && isAuthenticatedPHP) {
-                    console.log('✅ Estados sincronizados: usuario autenticado');
-                    forceAuthenticatedUI();
-                    
                 } else {
-                    console.log('👤 Usuario no autenticado en ambos sistemas');
                     forceGuestUI();
                 }
                 
                 setupEventListeners();
             }, 500);
         }
-            
-        // Función para forzar UI autenticada
+
         function forceAuthenticatedUI() {
             console.log('🔧 Forzando UI de usuario autenticado...');
             
-            // Ocultar TODAS las secciones de invitado
-            document.querySelectorAll('.guest-only').forEach(el => {
-                el.style.display = 'none';
-                el.classList.add('hidden');
-            });
-            
-            // Mostrar TODAS las secciones de autenticado
+            // Mostrar secciones autenticadas
             document.querySelectorAll('.auth-required').forEach(el => {
                 el.style.display = 'block';
                 el.classList.remove('hidden');
             });
             
-            // Forzar mostrar sección específica de salas
-            const roomSection = document.getElementById('roomSelectionSection');
-            if (roomSection) {
-                roomSection.style.display = 'block';
-                roomSection.classList.remove('hidden');
-                console.log('✅ Sección de salas forzada a visible');
-            }
+            // Ocultar secciones de invitado
+            document.querySelectorAll('.guest-only').forEach(el => {
+                el.style.display = 'none';
+                el.classList.add('hidden');
+            });
             
-            // Forzar mostrar sección de usuario autenticado en header
+            // Header de usuario
             const userAuthSection = document.getElementById('userAuthenticatedSection');
             const userGuestSection = document.getElementById('userGuestSection');
             
@@ -568,7 +524,6 @@ if ($isAuthenticated && $auth->isStaff()) {
                 userAuthSection.style.display = 'flex';
                 userAuthSection.classList.remove('hidden');
                 userAuthSection.classList.add('flex');
-                console.log('✅ Header de usuario autenticado visible');
             }
             if (userGuestSection) {
                 userGuestSection.style.display = 'none';
@@ -590,13 +545,12 @@ if ($isAuthenticated && $auth->isStaff()) {
                 }
             }
             
-            // Cargar salas después de asegurar que todo esté visible
+            // Cargar salas
             setTimeout(() => {
                 loadAvailableRooms();
             }, 200);
         }
         
-        // Función para forzar UI de invitado
         function forceGuestUI() {
             console.log('🔧 Forzando UI de invitado...');
             
@@ -624,77 +578,55 @@ if ($isAuthenticated && $auth->isStaff()) {
             });
         }
 
-        // ===============================
-        // GESTIÓN DE SALAS COMPLETA
-        // ===============================
-
         async function loadAvailableRooms() {
             console.log('🏠 Cargando salas disponibles...');
-            console.log('🔍 AuthClient disponible:', !!window.authClient);
-            console.log('🔍 Usuario autenticado:', window.authClient?.isAuthenticated());
             
-            // Verificar que el usuario esté autenticado
             if (!window.authClient || !window.authClient.isAuthenticated()) {
-                console.log('❌ Usuario no autenticado, no se pueden cargar salas');
+                console.log('❌ Usuario no autenticado');
                 showRoomsError('Debes iniciar sesión para ver las salas disponibles');
                 return;
             }
             
-            // Mostrar loading
             const loadingEl = document.getElementById('roomsLoading');
             const gridEl = document.getElementById('roomsGrid');
             const errorEl = document.getElementById('roomsError');
             
+            // Verificar que existan los elementos
             console.log('🔍 Elementos DOM:', {
                 loading: !!loadingEl,
                 grid: !!gridEl,
                 error: !!errorEl
             });
             
+            // Ahora los elementos SIEMPRE deben existir
+            if (!gridEl) {
+                console.error('❌ CRÍTICO: elemento roomsGrid aún no existe');
+                return;
+            }
+            
             if (loadingEl) loadingEl.classList.remove('hidden');
             if (gridEl) gridEl.classList.add('hidden');
             if (errorEl) errorEl.classList.add('hidden');
             
             try {
-                console.log('📡 Llamando a getAvailableRooms...');
                 const rooms = await window.authClient.getAvailableRooms();
                 console.log('📋 Respuesta de salas:', rooms);
-                console.log('📋 Tipo de respuesta:', typeof rooms);
-                console.log('📋 Es array:', Array.isArray(rooms));
-                console.log('📋 Longitud:', rooms?.length);
                 
                 if (rooms && Array.isArray(rooms) && rooms.length > 0) {
                     currentRooms = rooms;
                     console.log('✅ Salas válidas recibidas, mostrando...');
                     displayRooms(rooms);
-                } else if (rooms && rooms.length === 0) {
-                    console.log('⚠️ Array de salas vacío');
-                    showRoomsError('No hay salas disponibles en este momento. Intenta más tarde.');
                 } else {
-                    console.log('⚠️ Respuesta de salas inválida:', rooms);
-                    showRoomsError('Error procesando las salas disponibles.');
+                    console.log('⚠️ No hay salas disponibles');
+                    showRoomsError('No hay salas disponibles en este momento.');
                 }
                 
             } catch (error) {
                 console.error('❌ Error cargando salas:', error);
-                console.error('❌ Stack del error:', error.stack);
-                
-                // Determinar el mensaje de error apropiado
-                let errorMessage = 'Error de conexión. Verifica tu conexión a internet y vuelve a intentar.';
-                
-                if (error.message.includes('404')) {
-                    errorMessage = 'Servicio de salas no disponible. Contacta al administrador.';
-                } else if (error.message.includes('403')) {
-                    errorMessage = 'No tienes permisos para acceder a las salas.';
-                } else if (error.message.includes('401')) {
-                    errorMessage = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
-                }
-                
-                showRoomsError(errorMessage);
+                showRoomsError('Error de conexión. Verifica tu conexión e inténtalo de nuevo.');
             }
         }
 
-        // FUNCIÓN FALTANTE: showRoomsError
         function showRoomsError(message) {
             console.log('🔧 Mostrando error de salas:', message);
             
@@ -702,31 +634,18 @@ if ($isAuthenticated && $auth->isStaff()) {
             const gridEl = document.getElementById('roomsGrid');
             const errorEl = document.getElementById('roomsError');
             
-            if (loadingEl) {
-                loadingEl.classList.add('hidden');
-                console.log('✅ Loading oculto');
-            }
-            if (gridEl) {
-                gridEl.classList.add('hidden');
-                console.log('✅ Grid oculto');
-            }
+            if (loadingEl) loadingEl.classList.add('hidden');
+            if (gridEl) gridEl.classList.add('hidden');
             
-            // Mostrar error - con fallback si el elemento no existe
             if (errorEl) {
                 errorEl.classList.remove('hidden');
-                
                 const errorMessage = errorEl.querySelector('p');
                 if (errorMessage) {
                     errorMessage.textContent = message;
                 }
-                console.log('✅ Error mostrado');
-            } else {
-                console.log('⚠️ Elemento roomsError no encontrado, usando alert fallback...');
-                alert('Error: ' + message);
             }
         }
 
-        // FUNCIÓN FALTANTE: displayRooms
         function displayRooms(rooms) {
             console.log('🏠 Mostrando', rooms.length, 'salas');
             
@@ -734,15 +653,15 @@ if ($isAuthenticated && $auth->isStaff()) {
             const roomsLoading = document.getElementById('roomsLoading');
             
             if (!roomsGrid) {
-                console.error('❌ Elemento roomsGrid no encontrado');
+                console.error('❌ ERROR: elemento roomsGrid no encontrado');
                 return;
             }
             
-            // Ocultar loading
+            console.log('✅ Elemento roomsGrid encontrado exitosamente');
+            
             if (roomsLoading) roomsLoading.classList.add('hidden');
             roomsGrid.classList.remove('hidden');
             
-            // Generar HTML de salas
             roomsGrid.innerHTML = rooms.map(room => `
                 <div onclick="selectRoom('${room.id}', '${room.name}')" 
                      class="room-card cursor-pointer p-6 border border-gray-200 rounded-lg hover:border-medical-300 hover:shadow-md transition-all group ${!room.available ? 'opacity-60' : ''}">
@@ -778,7 +697,7 @@ if ($isAuthenticated && $auth->isStaff()) {
                 </div>
             `).join('');
             
-            console.log('✅ Salas mostradas en el DOM');
+            console.log('✅ Salas mostradas en el DOM exitosamente');
         }
 
         function getRoomColorClass(roomType) {
@@ -810,7 +729,6 @@ if ($isAuthenticated && $auth->isStaff()) {
                 return;
             }
             
-            // Mostrar loading
             showLoading();
             
             try {
@@ -822,7 +740,6 @@ if ($isAuthenticated && $auth->isStaff()) {
                 if (result.success) {
                     window.authClient.showSuccess(`Conectado a ${roomName} exitosamente`);
                     
-                    // Guardar datos de sesión
                     currentSession = {
                         roomId: roomId,
                         roomName: roomName,
@@ -830,14 +747,11 @@ if ($isAuthenticated && $auth->isStaff()) {
                         sessionData: result.room_data
                     };
                     
-                    // Mostrar interfaz de chat
                     showChatInterface(roomName);
                     
-                    // Inicializar chat si existe el cliente
                     if (window.chatClient) {
                         window.chatClient.connect(result.ptoken, roomId);
                     } else {
-                        // Simular chat básico
                         simulateBasicChat(roomName);
                     }
                     
@@ -859,21 +773,15 @@ if ($isAuthenticated && $auth->isStaff()) {
             loadAvailableRooms();
         }
 
-        // ===============================
-        // RESTO DE FUNCIONES (chat, etc.)
-        // ===============================
-
         function showChatInterface(roomName) {
             document.getElementById('roomSelectionSection').classList.add('hidden');
             document.getElementById('chatSection').classList.remove('hidden');
             
-            // Actualizar título del chat
             document.getElementById('chatRoomName').textContent = roomName;
             document.getElementById('chatStatus').textContent = 'Conectando...';
         }
 
         function simulateBasicChat(roomName) {
-            // Simular mensaje de bienvenida
             setTimeout(() => {
                 document.getElementById('chatStatus').textContent = 'Conectado';
                 
@@ -917,7 +825,6 @@ if ($isAuthenticated && $auth->isStaff()) {
         }
 
         function setupEventListeners() {
-            // Auto-resize textarea
             const messageInput = document.getElementById('messageInput');
             if (messageInput) {
                 messageInput.addEventListener('input', function() {
@@ -947,23 +854,18 @@ if ($isAuthenticated && $auth->isStaff()) {
             
             if (!message) return;
             
-            // Añadir mensaje del usuario
             addMessageToChat(message, 'user');
             
-            // Limpiar input
             input.value = '';
             input.style.height = 'auto';
             document.getElementById('sendButton').disabled = true;
             
-            // Simular respuesta del agente
             simulateAgentResponse(message);
         }
 
         function simulateAgentResponse(userMessage) {
-            // Mostrar indicador de escritura
             showTypingIndicator();
             
-            // Respuestas simuladas
             const responses = [
                 "Entiendo tu consulta. Déjame revisar la información que me proporcionas.",
                 "Gracias por esa información. ¿Podrías contarme más detalles sobre tus síntomas?",
@@ -1004,20 +906,16 @@ if ($isAuthenticated && $auth->isStaff()) {
             input.focus();
             input.setSelectionRange(cursorPos + emoji.length, cursorPos + emoji.length);
             
-            // Trigger input event
             input.dispatchEvent(new Event('input'));
             
-            // Hide picker
             document.getElementById('emojiPicker').classList.add('hidden');
         }
 
         function endChat() {
             if (confirm('¿Estás seguro de que quieres terminar la consulta?')) {
-                // Mostrar salas de nuevo
                 document.getElementById('chatSection').classList.add('hidden');
                 document.getElementById('roomSelectionSection').classList.remove('hidden');
                 
-                // Limpiar sesión actual
                 currentSession = null;
                 
                 window.authClient.showSuccess('Consulta finalizada exitosamente');
@@ -1027,7 +925,6 @@ if ($isAuthenticated && $auth->isStaff()) {
         }
 
         function minimizeChat() {
-            // Toggle entre minimizado y maximizado
             const chatSection = document.getElementById('chatSection');
             chatSection.classList.toggle('minimized');
         }
@@ -1053,19 +950,10 @@ if ($isAuthenticated && $auth->isStaff()) {
             console.log('🔄 Evento authStateChanged:', { isAuthenticated, user: user?.name });
             
             if (isAuthenticated && user) {
-                console.log('🔄 Usuario autenticado via evento, mostrando interfaz de paciente...');
-                
-                // Actualizar currentUser global
                 currentUser = user;
-                
                 forceAuthenticatedUI();
-                
             } else {
-                console.log('🔄 Usuario no autenticado via evento, mostrando interfaz de invitado...');
-                
-                // Actualizar currentUser global
                 currentUser = null;
-                
                 forceGuestUI();
             }
         });
