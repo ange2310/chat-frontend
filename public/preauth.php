@@ -326,6 +326,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
 
         let currentSession = null;
         let chatActive = false;
+        let patientData = null;
 
         // Inicialización
         document.addEventListener('DOMContentLoaded', async () => {
@@ -352,10 +353,49 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 console.log('🔑 Validando pToken:', CONFIG.PATIENT_TOKEN.substring(0, 15) + '...');
                 
                 const authClient = new AuthClient();
-                const isValid = await authClient.verifyToken(CONFIG.PATIENT_TOKEN);
                 
-                if (isValid) {
+                // Usar validatePToken para obtener datos completos
+                const validationResult = await authClient.validatePToken(CONFIG.PATIENT_TOKEN);
+                
+                if (validationResult.success) {
                     console.log('✅ pToken válido');
+                    console.log('📋 Datos recibidos:', validationResult.data);
+                    
+                    // Guardar datos del paciente
+                    // Extraer datos de la membresía
+                // Extraer datos de la membresía
+                if (validationResult.data && validationResult.data.data && validationResult.data.data.membresias && validationResult.data.data.membresias.length > 0) {
+                    const membresia = validationResult.data.data.membresias[0];
+                    
+                    // Extraer nombre del tomador
+                    const nomTomador = membresia.nomTomador || 'Sistema de Atención';
+                    
+                    // Buscar beneficiario principal
+                    const beneficiarioPrincipal = membresia.beneficiarios.find(ben => ben.tipo_ben === 'PPAL');
+                    
+                    if (beneficiarioPrincipal) {
+                        // Construir nombre completo del paciente
+                        const nombreCompleto = [
+                            beneficiarioPrincipal.primer_nombre,
+                            beneficiarioPrincipal.segundo_nombre,
+                            beneficiarioPrincipal.primer_apellido,
+                            beneficiarioPrincipal.segundo_apellido
+                        ].filter(nombre => nombre && nombre.trim()).join(' ');
+                        
+                        patientData = {
+                            nombreCompleto: nombreCompleto,
+                            nomTomador: nomTomador,
+                            beneficiario: beneficiarioPrincipal
+                        };
+                        
+                        console.log('👤 Datos extraídos:', patientData);
+                    } else {
+                        console.warn('⚠️ No se encontró beneficiario principal');
+                    }
+                } else {
+                    console.warn('⚠️ No se encontraron datos de membresía');
+                }
+                    
                     authClient.token = CONFIG.PATIENT_TOKEN;
                     authClient.userType = 'patient';
                     window.authClient = authClient;
@@ -461,7 +501,16 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 }
                 
                 console.log('✅ Sala seleccionada en auth-service');
-                
+
+                // Guardar datos del paciente si vienen en la respuesta
+                if (selectResult.room_data && selectResult.room_data.patient) {
+                    patientData = selectResult.room_data.patient;
+                    console.log('👤 Datos del paciente guardados:', patientData);
+                } else if (selectResult.room_data && selectResult.room_data.user) {
+                    patientData = selectResult.room_data.user;
+                    console.log('👤 Datos del usuario guardados:', patientData);
+                }
+
                 const updatedPToken = selectResult.ptoken || CONFIG.PATIENT_TOKEN;
                 console.log('🔑 Usando pToken actualizado para chat:', updatedPToken.substring(0, 15) + '...');
                 
@@ -486,9 +535,22 @@ if (empty($pToken) || strlen($pToken) < 10) {
             document.getElementById('chatSection').classList.remove('hidden');
             
             // Mostrar información del chat
-            document.getElementById('nomTomador').textContent = 'Sistema de Atención';
-            document.getElementById('nombrePaciente').textContent = 'Paciente';
-            
+            // Mostrar información del chat
+            if (patientData && patientData.nomTomador) {
+                document.getElementById('nomTomador').textContent = patientData.nomTomador;
+            } else {
+                document.getElementById('nomTomador').textContent = 'Sistema de Atención';
+            }
+
+            // Mostrar nombre del beneficiario
+            if (patientData && patientData.nombreCompleto) {
+                document.getElementById('nombrePaciente').textContent = patientData.nombreCompleto;
+            } else {
+                document.getElementById('nombrePaciente').textContent = 'Paciente';
+            }
+
+            console.log('👤 Nombres asignados - Tomador:', document.getElementById('nomTomador').textContent, 'Beneficiario:', document.getElementById('nombrePaciente').textContent);
+                        
             // Actualizar hora del mensaje del sistema
             const now = new Date();
             document.getElementById('systemMessageTime').textContent = now.toLocaleTimeString('es-ES', {
