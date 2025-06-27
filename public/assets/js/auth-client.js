@@ -1,6 +1,7 @@
 class AuthClient {
     constructor(authServiceUrl = null) { 
-        this.baseURL = authServiceUrl || 'http://187.33.158.246:8080/auth';
+        // ✅ URLS CORREGIDAS PARA NGINX PROXY
+        this.baseURL = authServiceUrl || 'http://187.33.158.246:8080/auth'; // ← A través de nginx
         this.authServiceUrl = this.baseURL;  
         
         this.token = this.getStoredToken();
@@ -8,7 +9,7 @@ class AuthClient {
         this.userType = 'staff'; // 'staff' o 'patient'
         
         console.log('🔐 AuthClient inicializado');
-        console.log('🌐 Servidor:', this.baseURL);
+        console.log('🌐 Servidor (nginx):', this.baseURL);
         console.log('👤 Token disponible:', !!this.token);
         
         this.init();
@@ -613,7 +614,7 @@ class AuthClient {
         try {
             console.log('🔍 Probando conexión con servidor...');
             
-            const response = await fetch(`${this.baseURL}/../health`);
+            const response = await fetch(`http://187.33.158.246:8080/health`);
             
             if (response.ok) {
                 const data = await response.json();
@@ -804,5 +805,5 @@ window.debugAuth = {
     },
 };
 
-console.log('🔐 AuthClient v2.0 cargado');
+console.log('🔐 AuthClient v2.2 cargado - NGINX PROXY CONFIGURADO');
 console.log('🛠️ Debug disponible en: window.debugAuth');

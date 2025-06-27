@@ -1,9 +1,10 @@
-// public/assets/js/chat-client.js - SOCKET.IO CORREGIDO
+// public/assets/js/chat-client.js - NGINX PROXY VERSION
 class ChatClient {
     constructor() {
-        this.chatServiceUrl = 'http://187.33.158.246:8080/chat';
-        this.websocketUrl = 'http://187.33.158.246:8080';           // ← CAMBIADO: http en lugar de ws
-        this.fileServiceUrl = 'http://187.33.158.246:8080/files';
+        // ✅ URLS CORREGIDAS PARA NGINX PROXY
+        this.chatServiceUrl = 'http://187.33.158.246:8080/chats';     // ← A través de nginx
+        this.websocketUrl = 'ws://187.33.158.246:8080';           // ← A través de nginx
+        this.fileServiceUrl = 'http://187.33.158.246:8080/chats';   // ← A través de nginx
         
         this.socket = null;
         this.isConnected = false;
@@ -14,9 +15,10 @@ class ChatClient {
         this.messageQueue = [];
         this.heartbeatInterval = null;
         
-        console.log('💬 ChatClient inicializado - SOCKET.IO');
+        console.log('💬 ChatClient inicializado - SOCKET.IO + NGINX');
         console.log('🌐 Chat Service:', this.chatServiceUrl);
         console.log('🔌 WebSocket:', this.websocketUrl);
+        console.log('📁 File Service:', this.fileServiceUrl);
     }
 
     // ====== CONECTAR AL CHAT ======
@@ -87,9 +89,9 @@ class ChatClient {
     async connectWebSocket(ptoken) {
         return new Promise((resolve, reject) => {
             try {
-                console.log('🔌 Conectando Socket.IO...');
+                console.log('🔌 Conectando Socket.IO via nginx...');
                 
-                // ✅ SOCKET.IO EN LUGAR DE WEBSOCKET NATIVO
+                // ✅ SOCKET.IO A TRAVÉS DE NGINX
                 this.socket = io(this.websocketUrl, {
                     path: '/socket.io/',  // ← PATH CONFIGURADO EN NGINX
                     transports: ['websocket', 'polling'],
@@ -101,7 +103,7 @@ class ChatClient {
                 
                 // ✅ EVENT HANDLERS DE SOCKET.IO
                 this.socket.on('connect', () => {
-                    console.log('✅ Socket.IO conectado');
+                    console.log('✅ Socket.IO conectado via nginx');
                     this.isConnected = true;
                     this.updateConnectionStatus('Conectado');
                     
@@ -130,7 +132,7 @@ class ChatClient {
                 // Timeout de conexión
                 setTimeout(() => {
                     if (!this.isConnected) {
-                        reject(new Error('Timeout conectando Socket.IO'));
+                        reject(new Error('Timeout conectando Socket.IO via nginx'));
                     }
                 }, 10000);
                 
@@ -188,18 +190,11 @@ class ChatClient {
         });
     }
 
-    // ====== MANEJAR MENSAJES DEL SOCKET - YA NO SE USA ======
-    // Este método se mantiene para compatibilidad pero ya no se necesita
-    // porque ahora usamos event handlers específicos de Socket.IO
-    handleSocketMessage(data) {
-        console.log('📨 Socket message (legacy):', data);
-        // Ya no se usa porque Socket.IO maneja eventos directamente
-    }
-
     // ====== HANDLERS ======
     handleAuthenticated(data) {
         console.log('✅ Socket autenticado:', data);
         this.isAuthenticated = true;
+        this.stubUserId      = data.user_id;
         this.updateConnectionStatus('Autenticado');
     }
 
@@ -230,8 +225,15 @@ class ChatClient {
     }
 
     handleMessageReceived(data) {
-        console.log('📨 Mensaje recibido:', data);
-        this.addMessageToChat(data.content, data.sender_type, data.sender_id, data.timestamp);
+        const ts = data.timestamp || data.created_at || data.createdAt || new Date().toISOString();
+
+        this.addMessageToChat(
+            data.content,
+            data.sender_type,
+            data.sender_id,
+            ts               
+        );
+
         this.playNotificationSound();
     }
 
@@ -255,7 +257,11 @@ class ChatClient {
 
     handleFileUploaded(data) {
         console.log('📎 Archivo subido:', data);
-        this.addFileMessageToChat(data);
+        const isMe =
+            (data.sender_id  && data.sender_id  === this.stubUserId) ||
+            (data.session_id && data.session_id === this.currentSessionId);
+
+        this.addFileMessageToChat(data, isMe);
     }
 
     handleQueuePosition(data) {
@@ -270,25 +276,23 @@ class ChatClient {
 
     // ====== ENVIAR MENSAJE ======
     sendMessage(content, messageType = 'text') {
-        if (!content || content.trim() === '') return;
-        
-        if (!this.isConnected || !this.isAuthenticated) {
-            this.showError('No conectado al chat');
-            return;
-        }
-        
-        const messageData = {
-            content: content.trim(),
-            message_type: messageType,
-            session_id: this.currentSessionId,
-            timestamp: new Date().toISOString()
-        };
-        
-        // Agregar a UI inmediatamente
-        this.addMessageToChat(messageData.content, 'patient', 'user', messageData.timestamp);
+    if (!content || content.trim() === '') return;
+
+    if (!this.isConnected || !this.isAuthenticated) {
+        this.showError('No conectado al chat');
+        return;
+    }
+
+    // construimos el payload que se manda por socket
+    const messageData = {
+        content      : content.trim(),
+        message_type : messageType,
+        session_id   : this.currentSessionId,
+        timestamp    : new Date().toISOString()      // hora local provisional
+    };
         
         // Enviar por socket
-        this.sendToSocket('send_message', messageData);
+         this.sendToSocket('send_message', messageData);
         
         console.log('📤 Mensaje enviado:', content);
     }
@@ -308,10 +312,10 @@ class ChatClient {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('session_id', this.currentSessionId);
-            formData.append('user_id', this.currentPToken); // Usar pToken como user_id temporal
+            formData.append('user_id', this.stubUserId); 
             if (description) formData.append('description', description);
             
-            const response = await fetch(`${this.fileServiceUrl}/upload`, {
+            const response = await fetch(`${this.fileServiceUrl}/files/upload`, {
                 method: 'POST',
                 body: formData
             });
@@ -340,7 +344,8 @@ class ChatClient {
         try {
             console.log('📚 Cargando historial...');
             
-            const response = await fetch(`${this.chatServiceUrl.replace('/chat', '')}/messages/${this.currentSessionId}?limit=50`, {
+            // Usar endpoint de historial a través de nginx
+            const response = await fetch(`http://187.33.158.246:8080/chats/messages/${this.currentSessionId}?limit=50`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json'
@@ -376,6 +381,13 @@ class ChatClient {
     }
 
     // ====== UI HELPERS ======
+    getFullFileUrl (partialUrl) {
+        if (!partialUrl) return '#';
+        if (partialUrl.startsWith('http')) return partialUrl;
+        // garantiza una sola barra
+        return `${this.fileServiceUrl}${partialUrl.startsWith('/') ? '' : '/'}${partialUrl}`;
+    }
+
     addMessageToChat(content, senderType, senderId, timestamp, scroll = true) {
         const messagesContainer = document.getElementById('chatMessages');
         if (!messagesContainer) return;
@@ -394,16 +406,18 @@ class ChatClient {
         }
     }
 
-    addFileMessageToChat(fileData) {
+    addFileMessageToChat(fileData, isMe = false) {
         const messagesContainer = document.getElementById('chatMessages');
         if (!messagesContainer) return;
-        
         const messageElement = document.createElement('div');
-        messageElement.className = 'flex justify-start mb-4';
-        
+        messageElement.className =
+            `flex ${isMe ? 'justify-end' : 'justify-start'} mb-4`;
+
         messageElement.innerHTML = `
             <div class="max-w-xs lg:max-w-md">
-                <div class="bg-white rounded-2xl px-4 py-3 shadow-sm border border-gray-200">
+                <div class="${isMe
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white'
+                        : 'bg-white border border-gray-200 text-gray-900'} rounded-2xl">
                     <div class="flex items-center space-x-3">
                         <div class="flex-shrink-0">
                             <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -413,7 +427,7 @@ class ChatClient {
                         <div class="flex-1">
                             <p class="text-sm font-medium text-gray-900">${fileData.file_name}</p>
                             <p class="text-xs text-gray-500">${this.formatFileSize(fileData.file_size)}</p>
-                            <a href="${fileData.download_url}" target="_blank" 
+                            <a href="${this.getFullFileUrl(fileData.download_url)}" target="_blank" download 
                                class="text-xs text-blue-600 hover:text-blue-800">Descargar</a>
                         </div>
                     </div>
@@ -428,18 +442,27 @@ class ChatClient {
 
     createMessageElement(messageData) {
         const messageDiv = document.createElement('div');
-        const isUser = messageData.sender_type === 'patient' || messageData.sender_id === 'user';
-        
+        const isUser = messageData.sender_type === 'patient' ||
+                    messageData.sender_id   === 'user';
+
+        // ─── normalizamos timestamp ───────────────────────────
+        const tsString  = messageData.timestamp ||
+                        messageData.created_at ||
+                        messageData.createdAt  ||
+                        Date.now();            // último recurso
+
+        const tsDate    = new Date(tsString);
+        const timeLabel = isNaN(tsDate)
+            ? ''          // oculta la hora si llegara mal
+            : tsDate.toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+
+        // 🔑  *** AQUÍ va la línea que faltaba ***
+        const bgClass = isUser
+            ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white'
+            : 'bg-white border border-gray-200 text-gray-900';
+
+        // ─── estructura del mensaje ───────────────────────────
         messageDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`;
-        
-        const bgClass = isUser ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 
-                       'bg-white border border-gray-200 text-gray-900';
-        
-        const time = new Date(messageData.timestamp).toLocaleTimeString('es-ES', {
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        
         messageDiv.innerHTML = `
             <div class="max-w-xs lg:max-w-md">
                 <div class="${bgClass} rounded-2xl px-4 py-3 shadow-sm">
@@ -447,18 +470,21 @@ class ChatClient {
                         <div class="flex items-center space-x-2 mb-2">
                             <div class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
                                 <svg class="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                 </svg>
                             </div>
                             <span class="text-sm font-medium text-gray-700">Dr. Asistente</span>
-                        </div>
-                    ` : ''}
-                    <p class="text-sm ${isUser ? 'text-white' : 'text-gray-700'}">${this.formatMessage(messageData.content)}</p>
-                    <p class="text-xs ${isUser ? 'text-blue-100' : 'text-gray-500'} mt-2 opacity-75">${time}</p>
+                        </div>` : ''}
+                    <p class="text-sm ${isUser ? 'text-white' : 'text-gray-700'}">
+                        ${this.formatMessage(messageData.content)}
+                    </p>
+                    <p class="text-xs ${isUser ? 'text-blue-100' : 'text-gray-500'} mt-2 opacity-75">
+                        ${timeLabel}
+                    </p>
                 </div>
             </div>
         `;
-        
         return messageDiv;
     }
 
@@ -607,7 +633,10 @@ class ChatClient {
             isAuthenticated: this.isAuthenticated,
             currentRoom: this.currentRoom,
             currentSessionId: this.currentSessionId,
-            socketConnected: this.socket ? this.socket.connected : false  // ← CONNECTED en lugar de readyState
+            socketConnected: this.socket ? this.socket.connected : false,
+            chatServiceUrl: this.chatServiceUrl,
+            websocketUrl: this.websocketUrl,
+            fileServiceUrl: this.fileServiceUrl
         };
     }
 }
@@ -676,4 +705,4 @@ function endChat() {
     }
 }
 
-console.log('💬 ChatClient v2.5 cargado - SOCKET.IO CORREGIDO');
+console.log('💬 ChatClient v2.7 cargado - NGINX PROXY CONFIGURADO');
