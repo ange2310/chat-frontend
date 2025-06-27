@@ -1,8 +1,7 @@
 class AuthClient {
-    constructor(authServiceUrl = null) {  // ← CAMBIO: Aceptar parámetro
-        // URLs CORREGIDAS - usando parámetro o valor por defecto
+    constructor(authServiceUrl = null) { 
         this.baseURL = authServiceUrl || 'http://187.33.158.246:8080/auth';
-        this.authServiceUrl = this.baseURL;  // ← AGREGAR: Para compatibilidad
+        this.authServiceUrl = this.baseURL;  
         
         this.token = this.getStoredToken();
         this.user = this.getStoredUser();
@@ -26,9 +25,6 @@ class AuthClient {
         }
     }
 
-    // ===============================
-    // AUTENTICACIÓN CORREGIDA
-    // ===============================
 
     async login(email, password, remember = false) {
         try {
@@ -89,7 +85,7 @@ class AuthClient {
                     name: userData.name,
                     email: userData.email,
                     password: userData.password,
-                    role: userData.role || 1 // Paciente por defecto
+                    role: userData.role || 1 
                 })
             });
 
@@ -168,10 +164,6 @@ class AuthClient {
             window.location.href = '/';
         }, 500);
     }
-
-    // ===============================
-    // GESTIÓN DE SALAS CORREGIDA
-    // ===============================
 
     async getAvailableRooms() {
     console.log('📡 Obteniendo salas disponibles...');
@@ -265,10 +257,6 @@ class AuthClient {
         }
     }
 
-    // ===============================
-    // ALMACENAMIENTO LOCAL
-    // ===============================
-
     setAuth(token, user) {
         this.token = token;
         this.user = user;
@@ -316,10 +304,6 @@ class AuthClient {
     setStoredUser(user) {
         localStorage.setItem('user', JSON.stringify(user));
     }
-
-    // ===============================
-    // HELPERS
-    // ===============================
 
     isAuthenticated() {
         return !!(this.token && this.user);
@@ -433,10 +417,6 @@ class AuthClient {
         console.log('✅ UI actualizada correctamente');
     }
 
-    // ===============================
-    // NOTIFICACIONES MEJORADAS
-    // ===============================
-
     showSuccess(message, duration = 3000) {
         this.showNotification(message, 'success', duration);
     }
@@ -498,10 +478,6 @@ class AuthClient {
         return icons[type] || icons.info;
     }
 
-    // ===============================
-    // VALIDACIONES FRONTEND
-    // ===============================
-
     validateEmail(email) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
@@ -516,10 +492,6 @@ class AuthClient {
     validateName(name) {
         return name && name.trim().length >= 2 && name.trim().length <= 50;
     }
-
-    // ===============================
-    // UTILIDADES DE DESARROLLO
-    // ===============================
 
     async testConnection() {
         try {
@@ -554,13 +526,6 @@ class AuthClient {
     }
 }
 
-// ===============================
-// INICIALIZACIÓN GLOBAL
-// ===============================
-
-// Crear instancia global
-//window.authClient = new AuthClient();
-
 // Event listener para el estado de autenticación
 window.addEventListener('authStateChanged', (event) => {
     const { isAuthenticated, user } = event.detail;
@@ -570,9 +535,6 @@ window.addEventListener('authStateChanged', (event) => {
     });
 });
 
-// ===============================
-// FUNCIONES GLOBALES CORREGIDAS
-// ===============================
 
 // Funciones para uso en HTML
 window.showAuthModal = function(type = 'login') {
@@ -621,9 +583,6 @@ window.logout = function() {
     }
 };
 
-// ===============================
-// FORMULARIOS CON VALIDACIÓN
-// ===============================
 
 // Manejo de formulario de login
 window.handleLoginSubmit = async function(event) {
@@ -751,9 +710,6 @@ window.handleRegisterSubmit = async function(event) {
     }
 };
 
-// ===============================
-// MODO DEBUG MEJORADO
-// ===============================
 
 window.debugAuth = {
     // Test de conexión
@@ -815,37 +771,4 @@ window.debugAuth = {
         console.log('🎯 Resultado selección:', result);
         return result;
     },
-    
-    // Help
-    help: () => {
-        console.log(`
-🛠️ DEBUG AUTH CLIENT COMPLETO:
-════════════════════════════════
-
-CONEXIÓN:
-• debugAuth.testConnection() - Probar conexión con servidor
-
-AUTENTICACIÓN:
-• debugAuth.testLogin(email, password) - Login de prueba
-• debugAuth.testRegister() - Registro de prueba
-• debugAuth.getState() - Estado actual
-• debugAuth.clearAuth() - Limpiar autenticación
-
-SALAS:
-• debugAuth.testRooms() - Listar salas disponibles
-• debugAuth.testSelectRoom(roomId) - Seleccionar sala
-
-INFORMACIÓN:
-• debugAuth.getInfo() - Info del cliente
-• debugAuth.help() - Esta ayuda
-
-URLs configuradas:
-• Auth Service: ${window.authClient.baseURL}
-
-¡Ya puedes probar todas las funcionalidades!
-        `);
-    }
 };
-
-console.log('🛠️ Modo debug completo activado. Usa debugAuth.help() para ver comandos');
-console.log('🚀 AuthClient con todas las funcionalidades listo!');

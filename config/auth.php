@@ -2,7 +2,7 @@
 // config/auth.php - Helper de autenticación simplificado para demo
 
 class AuthHelper {
-    private $authServiceURL = 'http://187.33.158.246/auth';
+    private $authServiceURL = 'http://187.33.158.246:8080/auth';
     
     public function __construct() {
         if (session_status() == PHP_SESSION_NONE) {
