@@ -1,24 +1,24 @@
 <?php
-// public/index.php - Portal exclusivo para Staff (Agentes, Supervisores, Admins)
+// public/index.php - Portal simplificado para Staff (Principio KISS)
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 
 $auth = auth();
 $isAuthenticated = $auth->isAuthenticated();
-$user = $isAuthenticated ? $auth->getUser() : null;
 
-// Redireccionar al personal a su interfaz correspondiente
+// Redireccionar si ya está autenticado
 if ($isAuthenticated && $auth->isStaff()) {
     header("Location: /staff.php");
     exit;
 }
 
-// Verificar si hay un error en la URL
+// Manejar errores de la URL
 $error = $_GET['error'] ?? null;
 $errorMessages = [
     'invalid_token' => 'Token de acceso inválido',
     'access_denied' => 'Acceso denegado',
-    'session_expired' => 'Sesión expirada'
+    'session_expired' => 'Sesión expirada',
+    'cors_error' => 'Error de conexión con el servidor'
 ];
 ?>
 <!DOCTYPE html>
@@ -26,85 +26,55 @@ $errorMessages = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal de Personal - Sistema Médico</title>
+    <title>Portal Médico - Acceso Personal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        medical: {
-                            50: '#f0f9ff',
-                            100: '#e0f2fe',
-                            500: '#0ea5e9',
-                            600: '#0284c7',
-                            700: '#0369a1',
-                            800: '#075985',
-                            900: '#0c4a6e'
-                        }
-                    },
-                    animation: {
-                        'fade-in': 'fadeIn 0.5s ease-in-out',
-                        'slide-up': 'slideUp 0.6s ease-out',
-                    }
-                }
-            }
-        }
-    </script>
     <style>
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        @keyframes slideUp {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        
         .medical-gradient {
-            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #0369a1 100%);
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
         }
         
-        .glass-effect {
+        .glass-card {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
+
+        .shake {
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
     </style>
 </head>
 <body class="h-full medical-gradient">
-    <div class="min-h-full flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        
-        <!-- Header -->
-        <div class="sm:mx-auto sm:w-full sm:max-w-md">
-            <div class="flex justify-center">
-                <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="min-h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full space-y-8">
+            
+            <!-- Header Minimalista -->
+            <div class="text-center">
+                <div class="mx-auto w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-6">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path>
                     </svg>
                 </div>
+                <h2 class="text-3xl font-bold text-white">Portal Médico</h2>
+                <p class="mt-2 text-blue-100">Acceso para personal autorizado</p>
             </div>
-            <h2 class="mt-6 text-center text-3xl font-bold text-white">
-                Portal de Personal Médico
-            </h2>
-            <p class="mt-2 text-center text-lg text-blue-100">
-                Acceso exclusivo para staff autorizado
-            </p>
-        </div>
 
-        <!-- Login Form -->
-        <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md animate-slide-up">
-            <div class="glass-effect py-8 px-6 shadow-2xl sm:rounded-2xl sm:px-10">
+            <!-- Formulario Limpio -->
+            <div class="glass-card rounded-2xl shadow-2xl p-8">
                 
-                <!-- Error Message -->
+                <!-- Mensaje de Error -->
                 <?php if ($error && isset($errorMessages[$error])): ?>
-                <div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                     <div class="flex">
-                        <div class="flex-shrink-0">
-                            <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                            </svg>
-                        </div>
+                        <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
                         <div class="ml-3">
                             <p class="text-sm text-red-800"><?= htmlspecialchars($errorMessages[$error]) ?></p>
                         </div>
@@ -112,337 +82,337 @@ $errorMessages = [
                 </div>
                 <?php endif; ?>
 
+                <!-- Error dinámico -->
+                <div id="errorMessage" class="hidden mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div class="flex">
+                        <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <div class="ml-3">
+                            <p class="text-sm text-red-800" id="errorText"></p>
+                        </div>
+                    </div>
+                </div>
+
                 <form id="loginForm" class="space-y-6">
+                    <!-- Email Simple -->
                     <div>
-                        <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
-                            Correo Electrónico
-                        </label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"></path>
-                                </svg>
-                            </div>
-                            <input 
-                                id="email" 
-                                name="email" 
-                                type="email" 
-                                autocomplete="email" 
-                                required
-                                class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                                placeholder="tu.email@hospital.com"
-                            >
-                        </div>
+                        <label for="email" class="sr-only">Email</label>
+                        <input 
+                            id="email" 
+                            type="email" 
+                            required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500 transition-colors"
+                            placeholder="tu.email@hospital.com"
+                        >
                     </div>
 
+                    <!-- Password Simple -->
                     <div>
-                        <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
-                            Contraseña
-                        </label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                                </svg>
-                            </div>
-                            <input 
-                                id="password" 
-                                name="password" 
-                                type="password" 
-                                autocomplete="current-password" 
-                                required
-                                class="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                                placeholder="Tu contraseña"
-                            >
-                            <button type="button" onclick="togglePassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center">
-                                <svg id="eyeIcon" class="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                                </svg>
-                            </button>
-                        </div>
+                        <label for="password" class="sr-only">Contraseña</label>
+                        <input 
+                            id="password" 
+                            type="password" 
+                            required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500 transition-colors"
+                            placeholder="Tu contraseña"
+                        >
                     </div>
 
+                    <!-- Opciones -->
                     <div class="flex items-center justify-between">
                         <div class="flex items-center">
                             <input 
-                                id="remember_me" 
-                                name="remember_me" 
+                                id="remember" 
                                 type="checkbox" 
-                                class="h-4 w-4 text-medical-600 focus:ring-medical-500 border-gray-300 rounded"
+                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                             >
-                            <label for="remember_me" class="ml-2 block text-sm text-gray-700">
-                                Recordar sesión
-                            </label>
+                            <label for="remember" class="ml-2 text-sm text-gray-700">Recordarme</label>
                         </div>
-
                         <div class="text-sm">
-                            <a href="#" onclick="showForgotPassword()" class="font-medium text-medical-600 hover:text-medical-500 transition-colors">
+                            <a href="#" onclick="showForgotPassword()" class="font-medium text-blue-600 hover:text-blue-500">
                                 ¿Olvidaste tu contraseña?
                             </a>
                         </div>
                     </div>
 
+                    <!-- Botón Limpio -->
                     <div>
                         <button 
                             type="submit" 
-                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-medical-600 hover:bg-medical-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-medical-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            id="loginButton"
+                            id="submitBtn"
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all font-medium disabled:opacity-50"
                         >
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path>
-                            </svg>
-                            <span id="loginButtonText">Iniciar Sesión</span>
+                            <span id="submitText">Iniciar Sesión</span>
                         </button>
                     </div>
                 </form>
 
-                <!-- Info Section -->
-                <div class="mt-8 pt-6 border-t border-gray-200">
-                    <div class="text-center">
-                        <p class="text-sm text-gray-600 mb-4">
-                            <svg class="w-4 h-4 inline mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            Portal exclusivo para personal médico autorizado
-                        </p>
-                        
-                        <div class="text-xs text-gray-500">
-                            <p>¿Eres paciente? <a href="/preauth.php" class="text-medical-600 hover:text-medical-500 font-medium">Accede con tu enlace personalizado</a></p>
-                        </div>
-                    </div>
+                <!-- Footer Minimalista -->
+                <div class="mt-6 text-center">
+                    <p class="text-sm text-gray-600">
+                        ¿Eres paciente? 
+                        <a href="/preauth.php" class="font-medium text-blue-600 hover:text-blue-500">
+                            Usa tu enlace personalizado
+                        </a>
+                    </p>
                 </div>
             </div>
-        </div>
 
-        <!-- Features for Staff -->
-        <div class="mt-12 sm:mx-auto sm:w-full sm:max-w-2xl">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
-                <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-white">
-                    <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mx-auto mb-3">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-sm font-semibold">Gestión de Chats</h3>
-                    <p class="text-xs text-blue-100 mt-1">Maneja consultas en tiempo real</p>
-                </div>
-                
-                <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-white">
-                    <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mx-auto mb-3">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-sm font-semibold">Reportes</h3>
-                    <p class="text-xs text-blue-100 mt-1">Estadísticas y métricas</p>
-                </div>
-                
-                <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-white">
-                    <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mx-auto mb-3">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-sm font-semibold">Supervisión</h3>
-                    <p class="text-xs text-blue-100 mt-1">Control de calidad</p>
+            <!-- Indicador de Estado -->
+            <div class="text-center">
+                <div id="statusIndicator" class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-white/10 text-white">
+                    <div id="statusDot" class="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                    <span id="statusText">Verificando conexión...</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Loading Spinner -->
-    <div id="loadingSpinner" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
-        <div class="bg-white rounded-2xl p-8 shadow-2xl text-center max-w-sm">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-medical-600 mx-auto mb-4"></div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Verificando credenciales...</h3>
-            <p class="text-gray-600 text-sm">Accediendo al sistema</p>
+    <!-- Loading Overlay Simple -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 shadow-xl text-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p class="text-gray-700">Verificando credenciales...</p>
         </div>
     </div>
 
-    <!-- Include Auth Client -->
-    <script src="assets/js/auth-client.js"></script>
-    
     <script>
-        // Configuración
+        // Configuración simple
         const CONFIG = {
-            AUTH_SERVICE_URL: 'http://187.33.158.246:8080/auth'
+            AUTH_SERVICE_URL: 'http://187.33.158.246:8080/auth',
+            USE_PROXY: true, // Usar proxy PHP para evitar CORS
+            DEBUG: true
         };
 
-        // Inicializar cliente de autenticación
-        window.authClient = new AuthClient(CONFIG.AUTH_SERVICE_URL);
+        // Cliente de auth super simplificado
+        class SimpleAuth {
+            constructor() {
+                this.token = localStorage.getItem('pToken');
+                this.user = this.getUser();
+            }
 
-        // Event listeners
+            async login(email, password, remember = false) {
+                const url = CONFIG.USE_PROXY ? '/api/proxy.php' : CONFIG.AUTH_SERVICE_URL + '/login';
+                
+                const body = CONFIG.USE_PROXY ? {
+                    endpoint: '/login',
+                    method: 'POST',
+                    data: { email, password, remember }
+                } : { email, password, remember };
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const result = await response.json();
+                
+                if (response.ok && (result.success || result.data)) {
+                    const userData = result.data || result;
+                    this.setAuth(userData.access_token, userData.user);
+                    return { success: true, user: userData.user };
+                } else {
+                    return { 
+                        success: false, 
+                        error: result.message || result.error || 'Credenciales inválidas' 
+                    };
+                }
+            }
+
+            setAuth(token, user) {
+                this.token = token;
+                this.user = user;
+                localStorage.setItem('pToken', token);
+                localStorage.setItem('user', JSON.stringify(user));
+            }
+
+            getUser() {
+                try {
+                    const userData = localStorage.getItem('user');
+                    return userData ? JSON.parse(userData) : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            isAuthenticated() {
+                return !!(this.token && this.user);
+            }
+        }
+
+        const auth = new SimpleAuth();
+
+        // Inicialización
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('🚀 Portal de staff iniciado');
+            console.log('🏥 Portal médico iniciado (v2.0 - KISS)');
             
-            // Setup form handler
-            const loginForm = document.getElementById('loginForm');
-            if (loginForm) {
-                loginForm.addEventListener('submit', handleLogin);
+            if (auth.isAuthenticated()) {
+                window.location.href = '/staff.php';
+                return;
             }
 
-            // Check for existing auth
-            if (window.authClient.isAuthenticated()) {
-                console.log('Usuario ya autenticado, redirigiendo...');
-                window.location.href = '/staff.php';
-            }
+            setupForm();
+            checkHealth();
         });
 
-        // Handle login form submission
+        function setupForm() {
+            const form = document.getElementById('loginForm');
+            form.addEventListener('submit', handleLogin);
+
+            // Enter para enviar
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && document.activeElement.tagName !== 'BUTTON') {
+                    e.preventDefault();
+                    form.dispatchEvent(new Event('submit'));
+                }
+            });
+        }
+
         async function handleLogin(event) {
             event.preventDefault();
             
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
-            const remember = document.getElementById('remember_me').checked;
+            const remember = document.getElementById('remember').checked;
             
-            // Validación básica
+            // Validación simple
             if (!email || !password) {
-                showNotification('Por favor completa todos los campos', 'error');
+                showError('Por favor completa todos los campos');
+                shakeForm();
                 return;
             }
             
-            if (!isValidEmail(email)) {
-                showNotification('Formato de email inválido', 'error');
+            if (!email.includes('@') || !email.includes('.')) {
+                showError('Formato de email inválido');
+                shakeForm();
                 return;
             }
             
-            // Mostrar loading
-            setLoginLoading(true);
+            setLoading(true);
+            hideError();
             
             try {
-                const result = await window.authClient.login(email, password, remember);
+                const result = await auth.login(email, password, remember);
                 
                 if (result.success) {
-                    showNotification('¡Bienvenido! Redirigiendo...', 'success');
-                    
-                    // Redireccionar según el rol
+                    showSuccess('¡Bienvenido! Redirigiendo...');
                     setTimeout(() => {
                         window.location.href = '/staff.php';
                     }, 1500);
-                    
                 } else {
-                    showNotification(result.error || 'Credenciales inválidas', 'error');
+                    showError(result.error);
+                    shakeForm();
                 }
                 
             } catch (error) {
                 console.error('Error en login:', error);
-                showNotification('Error de conexión. Verifica tu conexión e inténtalo de nuevo.', 'error');
+                showError('Error de conexión. Verifica tu conexión.');
+                shakeForm();
             } finally {
-                setLoginLoading(false);
+                setLoading(false);
             }
         }
 
-        // Toggle password visibility
-        function togglePassword() {
-            const passwordInput = document.getElementById('password');
-            const eyeIcon = document.getElementById('eyeIcon');
+        async function checkHealth() {
+            try {
+                const response = await fetch('/api/health.php');
+                const data = await response.json();
+                
+                if (data.status === 'ok') {
+                    updateStatus('Sistema conectado', 'success');
+                } else if (data.status === 'degraded') {
+                    updateStatus('Sistema con problemas', 'warning');
+                } else {
+                    updateStatus('Sistema no disponible', 'error');
+                }
+            } catch (error) {
+                updateStatus('Conexión limitada', 'warning');
+            }
+        }
+
+        function setLoading(loading) {
+            const btn = document.getElementById('submitBtn');
+            const text = document.getElementById('submitText');
+            const overlay = document.getElementById('loadingOverlay');
             
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                eyeIcon.innerHTML = `
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"></path>
-                `;
-            } else {
-                passwordInput.type = 'password';
-                eyeIcon.innerHTML = `
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                `;
-            }
+            btn.disabled = loading;
+            text.textContent = loading ? 'Verificando...' : 'Iniciar Sesión';
+            overlay.classList.toggle('hidden', !loading);
         }
 
-        // Show forgot password modal (placeholder)
-        function showForgotPassword() {
-            alert('Contacta al administrador del sistema para recuperar tu contraseña.\n\nEmail: admin@hospital.com\nTeléfono: +57 (1) 234-5678');
-        }
-
-        // Loading state for login button
-        function setLoginLoading(loading) {
-            const button = document.getElementById('loginButton');
-            const buttonText = document.getElementById('loginButtonText');
-            const spinner = document.getElementById('loadingSpinner');
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
             
-            if (loading) {
-                button.disabled = true;
-                buttonText.textContent = 'Verificando...';
-                button.innerHTML = `
-                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    <span>Verificando credenciales...</span>
-                `;
-                spinner.classList.remove('hidden');
-            } else {
-                button.disabled = false;
-                button.innerHTML = `
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path>
-                    </svg>
-                    <span>Iniciar Sesión</span>
-                `;
-                spinner.classList.add('hidden');
-            }
+            errorText.textContent = message;
+            errorDiv.classList.remove('hidden');
+            
+            setTimeout(hideError, 5000);
         }
 
-        // Notification system
-        function showNotification(message, type = 'info', duration = 5000) {
+        function hideError() {
+            document.getElementById('errorMessage').classList.add('hidden');
+        }
+
+        function showSuccess(message) {
             const notification = document.createElement('div');
-            const colors = {
-                success: 'bg-green-500',
-                error: 'bg-red-500',
-                warning: 'bg-yellow-500',
-                info: 'bg-blue-500'
-            };
-            
-            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm text-white ${colors[type]} animate-fade-in`;
-            notification.innerHTML = `
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            ${getNotificationIcon(type)}
-                        </svg>
-                        <span>${message}</span>
-                    </div>
-                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 hover:opacity-75">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-            `;
-            
+            notification.className = 'fixed top-4 right-4 z-50 p-4 bg-green-500 text-white rounded-lg shadow-lg';
+            notification.textContent = message;
             document.body.appendChild(notification);
             
-            setTimeout(() => {
-                notification.style.transform = 'translateX(100%)';
-                setTimeout(() => notification.remove(), 300);
-            }, duration);
+            setTimeout(() => notification.remove(), 3000);
         }
 
-        function getNotificationIcon(type) {
-            const icons = {
-                success: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>',
-                error: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>',
-                warning: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>',
-                info: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
-            };
-            return icons[type] || icons.info;
+        function shakeForm() {
+            const form = document.querySelector('.glass-card');
+            form.classList.add('shake');
+            setTimeout(() => form.classList.remove('shake'), 500);
         }
 
-        // Email validation
-        function isValidEmail(email) {
-            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-        }
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            // Enter to submit form
-            if (e.key === 'Enter' && (e.target.id === 'email' || e.target.id === 'password')) {
-                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+        function updateStatus(text, type) {
+            const statusText = document.getElementById('statusText');
+            const statusDot = document.getElementById('statusDot');
+            
+            statusText.textContent = text;
+            
+            // Actualizar color del indicador
+            statusDot.className = 'w-2 h-2 rounded-full mr-2 ';
+            switch(type) {
+                case 'success':
+                    statusDot.className += 'bg-green-400 animate-pulse';
+                    break;
+                case 'warning':
+                    statusDot.className += 'bg-yellow-400 animate-pulse';
+                    break;
+                case 'error':
+                    statusDot.className += 'bg-red-400 animate-pulse';
+                    break;
+                default:
+                    statusDot.className += 'bg-gray-400';
             }
-        });
+        }
 
-        console.log('🏥 Portal de staff listo - v2.0');
+        function showForgotPassword() {
+            alert('Contacta al administrador del sistema para recuperar tu contraseña:\n\nEmail: admin@hospital.com\nTeléfono: +57 (1) 234-5678');
+        }
+
+        // Debug helpers
+        if (CONFIG.DEBUG) {
+            window.debugAuth = {
+                testCredentials: () => {
+                    document.getElementById('email').value = 'admin@tpsalud.com';
+                    document.getElementById('password').value = 'Admin123';
+                },
+                checkHealth: checkHealth,
+                clearAuth: () => {
+                    localStorage.clear();
+                    location.reload();
+                }
+            };
+            console.log('🔧 Debug helpers disponibles en window.debugAuth');
+        }
     </script>
 </body>
 </html>
