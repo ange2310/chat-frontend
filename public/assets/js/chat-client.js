@@ -1,4 +1,4 @@
-// public/assets/js/chat-client.js - WEBSOCKET REAL
+// public/assets/js/chat-client.js - CORREGIDO PARA BACKEND REAL
 class ChatClient {
     constructor() {
         this.chatServiceUrl = 'http://187.33.158.246:8080/chat';
@@ -10,6 +10,8 @@ class ChatClient {
         this.isAuthenticated = false;
         this.currentRoom = null;
         this.currentSessionId = null;
+        this.currentChatId = null;
+        this.currentUserId = null;
         this.currentPToken = null;
         this.messageQueue = [];
         this.heartbeatInterval = null;
@@ -19,67 +21,196 @@ class ChatClient {
         console.log('🔌 WebSocket:', this.websocketUrl);
     }
 
-    // ====== CONECTAR AL CHAT ======
+    // ====== CONECTAR AL CHAT - FLUJO COMPLETO ======
     async connect(ptoken, roomId) {
-        console.log('💬 Conectando al chat...', { roomId });
+        console.log('💬 === INICIANDO CONEXIÓN AL CHAT ===', { roomId });
         
         this.currentPToken = ptoken;
         this.currentRoom = roomId;
         
         try {
-            // 1. Crear sesión de chat
-            const sessionData = await this.joinChatSession(ptoken, roomId);
-            this.currentSessionId = sessionData.session_id;
+            // Paso 1: Verificar salud del servicio
+            console.log('🔍 Paso 1: Verificando salud del servicio...');
+            await this.checkChatServiceHealth();
             
-            // 2. Conectar WebSocket
+            // Paso 2: Crear sesión de chat
+            console.log('🔍 Paso 2: Creando sesión de chat...');
+            const sessionData = await this.joinChatSession(ptoken, roomId);
+            
+            // Guardar datos de la sesión
+            this.currentSessionId = sessionData.session_id;
+            this.currentChatId = sessionData.chat_id;
+            this.currentUserId = sessionData.user_id;
+            
+            console.log('✅ Sesión creada exitosamente:', {
+                session_id: this.currentSessionId,
+                chat_id: this.currentChatId,
+                user_id: this.currentUserId,
+                status: sessionData.status,
+                queue_position: sessionData.queue_position
+            });
+            
+            // Paso 3: Conectar WebSocket
+            console.log('🔍 Paso 3: Conectando WebSocket...');
             await this.connectWebSocket(ptoken);
             
-            // 3. Unirse a la sala
+            // Paso 4: Unirse a la sala
+            console.log('🔍 Paso 4: Uniéndose a la sala...');
             await this.joinRoom(roomId, this.currentSessionId);
             
             console.log('✅ Chat conectado exitosamente');
             
+            // Retornar datos completos para el frontend
+            return {
+                session_id: this.currentSessionId,
+                chat_id: this.currentChatId,
+                user_id: this.currentUserId,
+                status: sessionData.status,
+                queue_position: sessionData.queue_position,
+                websocket_url: sessionData.websocket_url || this.websocketUrl
+            };
+            
         } catch (error) {
             console.error('❌ Error conectando chat:', error);
             this.onConnectionError(error);
+            throw error; // Re-throw para que el frontend lo maneje
         }
     }
 
-    // ====== CREAR SESIÓN DE CHAT ======
+    // ====== VERIFICAR SALUD DEL SERVICIO ======
+    async checkChatServiceHealth() {
+        try {
+            // El backend expone /health en la raíz
+            const healthUrl = this.chatServiceUrl.replace('/chat', '') + '/health';
+            console.log('🏥 Verificando salud del chat service:', healthUrl);
+            
+            const response = await fetch(healthUrl, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: AbortSignal.timeout(5000) // 5 segundos timeout
+            });
+            
+            if (response.ok) {
+                const health = await response.json();
+                console.log('✅ Chat service saludable:', health);
+                
+                // El backend retorna { status: 'OK', service: 'chat-service', ... }
+                if (health.status === 'OK') {
+                    return true;
+                } else {
+                    throw new Error(`Servicio reporta estado: ${health.status}`);
+                }
+            } else {
+                throw new Error(`Health check falló (${response.status})`);
+            }
+        } catch (error) {
+            console.error('❌ Chat service no disponible:', error);
+            
+            if (error.name === 'TimeoutError') {
+                throw new Error('El servicio de chat no responde (timeout)');
+            } else if (error.message.includes('fetch')) {
+                throw new Error('No se puede conectar al servicio de chat');
+            } else {
+                throw new Error('El servicio de chat no está disponible: ' + error.message);
+            }
+        }
+    }
+
+    // ====== CREAR SESIÓN DE CHAT - FORMATO BACKEND ======
     async joinChatSession(ptoken, roomId) {
         try {
-            console.log('📡 Creando sesión de chat...');
+            console.log('📡 Creando sesión de chat...', { 
+                roomId, 
+                ptoken: ptoken.substring(0, 10) + '...',
+                chatServiceUrl: this.chatServiceUrl 
+            });
+            
+            // Payload EXACTO que espera el backend
+            const payload = {
+                room_id: roomId,        // ✅ Backend espera 'room_id'
+                ptoken: ptoken,         // ✅ Backend espera 'ptoken'
+                user_data: {            // ✅ Backend espera 'user_data' como object
+                    source: 'patient_portal',
+                    browser: navigator.userAgent.substring(0, 100),
+                    timestamp: new Date().toISOString(),
+                    room_selected: roomId,
+                    frontend_version: '2.0'
+                }
+            };
+            
+            console.log('📤 Enviando payload EXACTO para backend:', payload);
             
             const response = await fetch(`${this.chatServiceUrl}/join`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'User-Agent': 'PatientPortal/2.0'
                 },
-                body: JSON.stringify({
-                    room_id: roomId,
-                    ptoken: ptoken,
-                    user_data: {
-                        source: 'patient_portal',
-                        browser: navigator.userAgent,
-                        timestamp: new Date().toISOString()
-                    }
-                })
+                body: JSON.stringify(payload)
             });
 
+            console.log('📡 Response status:', response.status, response.statusText);
+            
+            // Manejar respuesta según el formato del backend
+            if (!response.ok) {
+                let errorDetails = { status: response.status, statusText: response.statusText };
+                
+                try {
+                    const errorData = await response.json();
+                    errorDetails.data = errorData;
+                    
+                    // El backend retorna { success: false, message: "..." } para errores
+                    const errorMessage = errorData.message || errorData.error || `Error HTTP ${response.status}`;
+                    console.log('📋 Backend error response:', errorData);
+                    
+                    throw new Error(errorMessage);
+                    
+                } catch (parseError) {
+                    console.log('📋 Error parsing JSON, usando response text');
+                    const errorText = await response.text();
+                    errorDetails.text = errorText;
+                    
+                    throw new Error(`Error del servidor (${response.status}): ${errorText || response.statusText}`);
+                }
+            }
+            
             const result = await response.json();
-            console.log('📋 Sesión response:', result);
+            console.log('📋 Backend response completa:', result);
 
-            if (response.ok && result.success) {
-                this.updateConnectionStatus('Sesión creada');
+            // El backend SIEMPRE retorna { success: boolean, data: {...} }
+            if (result.success && result.data) {
+                this.updateConnectionStatus('Sesión creada exitosamente');
+                
+                console.log('✅ Sesión creada con datos:', {
+                    session_id: result.data.session_id,
+                    chat_id: result.data.chat_id,
+                    status: result.data.status,
+                    queue_position: result.data.queue_position
+                });
+                
                 return result.data;
             } else {
-                throw new Error(result.message || 'Error creando sesión');
+                throw new Error(result.message || 'Backend no retornó datos de sesión válidos');
             }
 
         } catch (error) {
-            console.error('❌ Error join session:', error);
-            throw error;
+            console.error('❌ Error en joinChatSession:', error);
+            
+            // Mejorar el mensaje de error según el tipo
+            let userFriendlyMessage = 'Error conectando al chat';
+            
+            if (error.message.includes('fetch')) {
+                userFriendlyMessage = 'Error de conexión con el servidor de chat';
+            } else if (error.message.includes('HTTP 500')) {
+                userFriendlyMessage = 'Error interno del servidor. El servicio puede estar iniciándose.';
+            } else if (error.message.includes('pToken')) {
+                userFriendlyMessage = 'Token de acceso inválido o expirado';
+            } else if (error.message.includes('room')) {
+                userFriendlyMessage = 'Sala de chat no disponible';
+            }
+            
+            throw new Error(userFriendlyMessage);
         }
     }
 
@@ -87,14 +218,14 @@ class ChatClient {
     async connectWebSocket(ptoken) {
         return new Promise((resolve, reject) => {
             try {
-                console.log('🔌 Conectando WebSocket...');
+                console.log('🔌 Conectando WebSocket...', this.websocketUrl);
                 
                 this.socket = new WebSocket(this.websocketUrl);
                 
                 this.socket.onopen = () => {
                     console.log('✅ WebSocket conectado');
                     this.isConnected = true;
-                    this.updateConnectionStatus('Conectado');
+                    this.updateConnectionStatus('WebSocket conectado');
                     
                     // Autenticar inmediatamente
                     this.authenticateSocket(ptoken);
@@ -106,30 +237,41 @@ class ChatClient {
                         const data = JSON.parse(event.data);
                         this.handleSocketMessage(data);
                     } catch (error) {
-                        console.error('Error parsing message:', error);
+                        console.error('Error parsing message:', error, event.data);
                     }
                 };
                 
-                this.socket.onclose = () => {
-                    console.log('🔌 WebSocket desconectado');
+                this.socket.onclose = (event) => {
+                    console.log('🔌 WebSocket cerrado:', event.code, event.reason);
                     this.isConnected = false;
                     this.isAuthenticated = false;
                     this.updateConnectionStatus('Desconectado');
                     this.stopHeartbeat();
+                    
+                    // Intentar reconexión automática si no fue intencional
+                    if (event.code !== 1000 && this.currentPToken) {
+                        console.log('🔄 Intentando reconectar en 5 segundos...');
+                        setTimeout(() => {
+                            if (!this.isConnected) {
+                                this.connectWebSocket(this.currentPToken).catch(console.error);
+                            }
+                        }, 5000);
+                    }
                 };
                 
                 this.socket.onerror = (error) => {
                     console.error('❌ WebSocket error:', error);
-                    this.onConnectionError(error);
-                    reject(error);
+                    this.updateConnectionStatus('Error de conexión WebSocket');
+                    reject(new Error('Error conectando WebSocket'));
                 };
                 
-                // Timeout de conexión
+                // Timeout de conexión más largo
                 setTimeout(() => {
                     if (!this.isConnected) {
+                        console.error('⏰ Timeout conectando WebSocket');
                         reject(new Error('Timeout conectando WebSocket'));
                     }
-                }, 10000);
+                }, 15000);
                 
             } catch (error) {
                 console.error('❌ Error creating WebSocket:', error);
@@ -215,7 +357,7 @@ class ChatClient {
         }
     }
 
-    // ====== HANDLERS ======
+    // ====== HANDLERS DE EVENTOS ======
     handleAuthenticated(data) {
         console.log('✅ Socket autenticado:', data);
         this.isAuthenticated = true;
@@ -312,46 +454,6 @@ class ChatClient {
         console.log('📤 Mensaje enviado:', content);
     }
 
-    // ====== SUBIR ARCHIVO ======
-    async uploadFile(file, description = '') {
-        if (!file) return;
-        
-        if (!this.currentSessionId) {
-            this.showError('No hay sesión activa');
-            return;
-        }
-        
-        try {
-            console.log('📎 Subiendo archivo:', file.name);
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('session_id', this.currentSessionId);
-            formData.append('user_id', this.currentPToken); // Usar pToken como user_id temporal
-            if (description) formData.append('description', description);
-            
-            const response = await fetch(`${this.fileServiceUrl}/upload`, {
-                method: 'POST',
-                body: formData
-            });
-            
-            const result = await response.json();
-            console.log('📁 Upload result:', result);
-            
-            if (response.ok && result.success) {
-                console.log('✅ Archivo subido exitosamente');
-                // El WebSocket debería notificar automáticamente
-                return result.data;
-            } else {
-                throw new Error(result.message || 'Error subiendo archivo');
-            }
-            
-        } catch (error) {
-            console.error('❌ Error upload:', error);
-            this.showError('Error subiendo archivo: ' + error.message);
-        }
-    }
-
     // ====== CARGAR HISTORIAL ======
     async loadMessageHistory() {
         if (!this.currentSessionId) return;
@@ -413,38 +515,6 @@ class ChatClient {
         }
     }
 
-    addFileMessageToChat(fileData) {
-        const messagesContainer = document.getElementById('chatMessages');
-        if (!messagesContainer) return;
-        
-        const messageElement = document.createElement('div');
-        messageElement.className = 'flex justify-start mb-4';
-        
-        messageElement.innerHTML = `
-            <div class="max-w-xs lg:max-w-md">
-                <div class="bg-white rounded-2xl px-4 py-3 shadow-sm border border-gray-200">
-                    <div class="flex items-center space-x-3">
-                        <div class="flex-shrink-0">
-                            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
-                            </svg>
-                        </div>
-                        <div class="flex-1">
-                            <p class="text-sm font-medium text-gray-900">${fileData.file_name}</p>
-                            <p class="text-xs text-gray-500">${this.formatFileSize(fileData.file_size)}</p>
-                            <a href="${fileData.download_url}" target="_blank" 
-                               class="text-xs text-blue-600 hover:text-blue-800">Descargar</a>
-                        </div>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-2">${new Date(fileData.timestamp).toLocaleTimeString()}</p>
-                </div>
-            </div>
-        `;
-        
-        messagesContainer.appendChild(messageElement);
-        this.scrollToBottom();
-    }
-
     createMessageElement(messageData) {
         const messageDiv = document.createElement('div');
         const isUser = messageData.sender_type === 'patient' || messageData.sender_id === 'user';
@@ -469,7 +539,7 @@ class ChatClient {
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                 </svg>
                             </div>
-                            <span class="text-sm font-medium text-gray-700">Dr. Asistente</span>
+                            <span class="text-sm font-medium text-gray-700">Especialista</span>
                         </div>
                     ` : ''}
                     <p class="text-sm ${isUser ? 'text-white' : 'text-gray-700'}">${this.formatMessage(messageData.content)}</p>
@@ -487,14 +557,6 @@ class ChatClient {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="underline">$1</a>');
-    }
-
-    formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
     clearChatMessages() {
@@ -625,6 +687,8 @@ class ChatClient {
             isAuthenticated: this.isAuthenticated,
             currentRoom: this.currentRoom,
             currentSessionId: this.currentSessionId,
+            currentChatId: this.currentChatId,
+            currentUserId: this.currentUserId,
             socketReadyState: this.socket ? this.socket.readyState : null
         };
     }
@@ -661,21 +725,6 @@ function sendMessage() {
     messageInput.focus();
 }
 
-// Manejo de archivos
-function handleFileUpload(files) {
-    if (!files || files.length === 0) return;
-    
-    const file = files[0];
-    
-    // Validar tamaño (10MB máximo)
-    if (file.size > 10 * 1024 * 1024) {
-        window.authClient?.showError('Archivo muy grande (máximo 10MB)');
-        return;
-    }
-    
-    window.chatClient.uploadFile(file);
-}
-
 // Función para finalizar chat
 function endChat() {
     if (confirm('¿Finalizar consulta?')) {
@@ -694,4 +743,169 @@ function endChat() {
     }
 }
 
-console.log('💬 ChatClient v2.0 cargado - WebSocket REAL');
+// ====== DEBUG HELPERS COMPLETOS ======
+window.debugChat = {
+    // Estado del chat
+    getState: () => {
+        if (!window.chatClient) return 'Chat client no inicializado';
+        
+        return {
+            isConnected: window.chatClient.isConnected,
+            isAuthenticated: window.chatClient.isAuthenticated,
+            currentRoom: window.chatClient.currentRoom,
+            currentSessionId: window.chatClient.currentSessionId,
+            currentChatId: window.chatClient.currentChatId,
+            currentUserId: window.chatClient.currentUserId,
+            currentPToken: window.chatClient.currentPToken ? 
+                window.chatClient.currentPToken.substring(0, 15) + '...' : null,
+            socketReadyState: window.chatClient.socket ? 
+                window.chatClient.socket.readyState : null,
+            chatServiceUrl: window.chatClient.chatServiceUrl,
+            websocketUrl: window.chatClient.websocketUrl
+        };
+    },
+    
+    // Test de conectividad del chat service
+    testHealth: async () => {
+        if (!window.chatClient) {
+            console.error('❌ Chat client no inicializado');
+            return false;
+        }
+        try {
+            await window.chatClient.checkChatServiceHealth();
+            console.log('✅ Chat service saludable');
+            return true;
+        } catch (error) {
+            console.error('❌ Chat service no disponible:', error.message);
+            return false;
+        }
+    },
+    
+    // Test de join session directo
+    testJoinSession: async (ptoken = null, roomId = 'general') => {
+        if (!window.chatClient) {
+            console.error('❌ Chat client no inicializado');
+            return;
+        }
+        
+        const token = ptoken || (window.currentSession ? window.currentSession.ptoken : null);
+        if (!token) {
+            console.error('❌ Necesitas un pToken válido');
+            console.log('💡 Usa: window.debugChat.testJoinSession("CC678AVEZVKADBT", "general")');
+            return;
+        }
+        
+        try {
+            const result = await window.chatClient.joinChatSession(token, roomId);
+            console.log('✅ Join session exitoso:', result);
+            return result;
+        } catch (error) {
+            console.error('❌ Error en join session:', error.message);
+            return null;
+        }
+    },
+    
+    // Reconectar manualmente
+    reconnect: async (ptoken = null, roomId = null) => {
+        if (!window.chatClient) {
+            console.error('❌ Chat client no inicializado');
+            return;
+        }
+        
+        const token = ptoken || window.chatClient.currentPToken;
+        const room = roomId || window.chatClient.currentRoom;
+        
+        if (!token || !room) {
+            console.error('❌ Faltan ptoken o roomId para reconectar');
+            console.log('💡 Usa: window.debugChat.reconnect("tu-ptoken", "room-id")');
+            return;
+        }
+        
+        try {
+            const result = await window.chatClient.connect(token, room);
+            console.log('✅ Reconectado exitosamente:', result);
+            return result;
+        } catch (error) {
+            console.error('❌ Error reconectando:', error.message);
+            return null;
+        }
+    },
+    
+    // Información detallada de la sesión actual
+    getSessionInfo: () => {
+        if (!window.currentSession) {
+            return 'No hay sesión activa';
+        }
+        
+        return {
+            ...window.currentSession,
+            chatClientState: window.debugChat.getState(),
+            connectionActive: window.chatClient ? window.chatClient.isConnected : false,
+            lastActivity: new Date().toISOString()
+        };
+    },
+    
+    // Enviar mensaje de prueba
+    testMessage: (message = 'Mensaje de prueba desde debug') => {
+        if (!window.chatClient || !window.chatClient.isConnected) {
+            console.error('❌ Chat no conectado');
+            return;
+        }
+        
+        window.chatClient.sendMessage(message);
+        console.log('✅ Mensaje de prueba enviado:', message);
+    },
+    
+    // Verificar logs del backend
+    checkBackendLogs: async () => {
+        try {
+            const healthUrl = window.chatClient.chatServiceUrl.replace('/chat', '') + '/health';
+            const response = await fetch(healthUrl);
+            const health = await response.json();
+            
+            console.log('📊 Estado del backend:', health);
+            return health;
+        } catch (error) {
+            console.error('❌ Error verificando backend:', error);
+            return null;
+        }
+    },
+    
+    // Limpiar estado para testing
+    reset: () => {
+        if (window.chatClient) {
+            window.chatClient.disconnect();
+        }
+        window.chatClient = null;
+        window.currentSession = null;
+        console.log('🧹 Estado del chat limpiado');
+    },
+    
+    // Ayuda de comandos disponibles
+    help: () => {
+        console.log(`
+🛠️ COMANDOS DEBUG DISPONIBLES:
+
+📊 Estado:
+- window.debugChat.getState()          // Estado actual del chat
+- window.debugChat.getSessionInfo()    // Info de la sesión
+- window.debugChat.checkBackendLogs()  // Estado del backend
+
+🔧 Testing:
+- window.debugChat.testHealth()        // Test de salud del servicio
+- window.debugChat.testJoinSession()   // Test de crear sesión
+- window.debugChat.testMessage()       // Enviar mensaje de prueba
+
+🔄 Reconexión:
+- window.debugChat.reconnect()         // Reconectar con datos actuales
+- window.debugChat.reset()             // Limpiar todo el estado
+
+💡 Ejemplo:
+window.debugChat.testJoinSession('CC678AVEZVKADBT', 'general')
+        `);
+    }
+};
+
+console.log('💬 ChatClient v2.0 CORREGIDO cargado');
+console.log('🛠️ Debug disponible en: window.debugChat');
+console.log('💡 Usa window.debugChat.help() para ver todos los comandos');
