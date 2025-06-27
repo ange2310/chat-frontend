@@ -1,4 +1,5 @@
 <?php
+// public/index.php - Portal exclusivo para Staff (Agentes, Supervisores, Admins)
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 
@@ -6,18 +7,26 @@ $auth = auth();
 $isAuthenticated = $auth->isAuthenticated();
 $user = $isAuthenticated ? $auth->getUser() : null;
 
-// Redirecciona al personal a su interfaz
+// Redireccionar al personal a su interfaz correspondiente
 if ($isAuthenticated && $auth->isStaff()) {
     header("Location: /staff.php");
     exit;
 }
+
+// Verificar si hay un error en la URL
+$error = $_GET['error'] ?? null;
+$errorMessages = [
+    'invalid_token' => 'Token de acceso inválido',
+    'access_denied' => 'Acceso denegado',
+    'session_expired' => 'Sesión expirada'
+];
 ?>
 <!DOCTYPE html>
 <html lang="es" class="h-full bg-gray-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal Médico - Sistema de Consulta</title>
+    <title>Portal de Personal - Sistema Médico</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -33,475 +42,221 @@ if ($isAuthenticated && $auth->isStaff()) {
                             800: '#075985',
                             900: '#0c4a6e'
                         }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-up': 'slideUp 0.6s ease-out',
                     }
                 }
             }
         }
     </script>
     <style>
-        /* Asegurar que los elementos auth-required se muestren cuando sea necesario */
-        .auth-required.show { display: block !important; }
-        .guest-only.hide { display: none !important; }
-        
-        /* Animaciones suaves para transiciones */
-        .auth-required, .guest-only {
-            transition: opacity 0.3s ease-in-out;
-        }
-        
-        /* Asegurar que el spinner esté visible */
-        .animate-spin {
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        /* Animaciones para modales */
-        .modal-overlay {
-            backdrop-filter: blur(4px);
-            animation: fadeIn 0.3s ease-out;
-        }
-        
-        .modal-content {
-            animation: slideIn 0.3s ease-out;
-        }
-        
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
         
-        @keyframes slideIn {
-            from { transform: translateY(-50px) scale(0.95); opacity: 0; }
-            to { transform: translateY(0) scale(1); opacity: 1; }
+        .medical-gradient {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #0369a1 100%);
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
-<body class="h-full">
-    <!-- Header -->
-    <header class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 bg-medical-600 rounded-lg flex items-center justify-center mr-3">
-                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path>
-                                </svg>
-                            </div>
-                            <h1 class="text-xl font-semibold text-gray-900">Portal Médico</h1>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="flex items-center space-x-4">
-                    <!-- Usuario autenticado -->
-                    <div id="userAuthenticatedSection" class="auth-required hidden flex items-center space-x-3">
-                        <div class="flex items-center space-x-2">
-                            <div class="w-8 h-8 bg-medical-100 rounded-full flex items-center justify-center">
-                                <span id="userInitial" class="text-medical-700 text-sm font-medium">
-                                    <?= $isAuthenticated ? strtoupper(substr($user['name'] ?? 'U', 0, 1)) : 'U' ?>
-                                </span>
-                            </div>
-                            <span id="userDisplayName" class="text-sm font-medium text-gray-700 user-name">
-                                <?= $isAuthenticated ? htmlspecialchars($user['name'] ?? 'Usuario') : 'Usuario' ?>
-                            </span>
-                        </div>
-                        <button onclick="confirmLogout()" 
-                                class="text-gray-500 hover:text-gray-700 text-sm transition-colors">
-                            Cerrar Sesión
-                        </button>
-                    </div>
-                    
-                    <!-- Usuario no autenticado -->
-                    <div id="userGuestSection" class="guest-only flex items-center space-x-3">
-                        <button onclick="showAuthModal('login')" 
-                                class="text-medical-600 hover:text-medical-700 text-sm font-medium transition-colors">
-                            Iniciar Sesión
-                        </button>
-                        <button onclick="showAuthModal('register')" 
-                                class="bg-medical-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-medical-700 transition-colors">
-                            Crear Cuenta
-                        </button>
-                    </div>
+<body class="h-full medical-gradient">
+    <div class="min-h-full flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="sm:mx-auto sm:w-full sm:max-w-md">
+            <div class="flex justify-center">
+                <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path>
+                    </svg>
                 </div>
             </div>
+            <h2 class="mt-6 text-center text-3xl font-bold text-white">
+                Portal de Personal Médico
+            </h2>
+            <p class="mt-2 text-center text-lg text-blue-100">
+                Acceso exclusivo para staff autorizado
+            </p>
         </div>
-    </header>
 
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        
-        <!-- SECCIÓN DE SALAS - Solo se muestra cuando está autenticado -->
-        <div id="roomSelectionSection" class="auth-required" style="<?= $isAuthenticated ? '' : 'display: none;' ?>">
-            <div class="bg-white shadow rounded-lg">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-900">
-                                Bienvenido, <span class="user-name"><?= $isAuthenticated ? htmlspecialchars($user['name'] ?? 'Usuario') : 'Usuario' ?></span>
-                            </h3>
-                            <p class="text-sm text-gray-600 mt-1">Selecciona el tipo de consulta que necesitas</p>
-                        </div>
-                        <button onclick="refreshRooms()" 
-                                class="bg-medical-100 text-medical-700 px-3 py-2 rounded-lg text-sm hover:bg-medical-200 transition-colors">
-                            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                            </svg>
-                            Actualizar
-                        </button>
-                    </div>
-                </div>
-                <div class="p-6">
-                    <!-- Loading de salas -->
-                    <div id="roomsLoading" class="text-center py-8">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-medical-600 mx-auto"></div>
-                        <p class="text-gray-500 mt-2">Cargando salas disponibles...</p>
-                    </div>
-                    
-                    <!-- Grid de salas -->
-                    <div id="roomsGrid" class="hidden grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
-                        <!-- Las salas se cargarán dinámicamente aquí -->
-                    </div>
-                    
-                    <!-- Error de salas -->
-                    <div id="roomsError" class="hidden text-center py-8">
-                        <div class="text-red-500 mb-4">
-                            <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <!-- Login Form -->
+        <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md animate-slide-up">
+            <div class="glass-effect py-8 px-6 shadow-2xl sm:rounded-2xl sm:px-10">
+                
+                <!-- Error Message -->
+                <?php if ($error && isset($errorMessages[$error])): ?>
+                <div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                             </svg>
                         </div>
-                        <h3 class="text-lg font-medium text-gray-900 mb-2">Error cargando salas</h3>
-                        <p class="text-gray-600 mb-4">No se pudieron cargar las salas disponibles</p>
-                        <button onclick="refreshRooms()" 
-                                class="bg-medical-600 text-white px-4 py-2 rounded-lg hover:bg-medical-700 transition-colors">
-                            Reintentar
-                        </button>
+                        <div class="ml-3">
+                            <p class="text-sm text-red-800"><?= htmlspecialchars($errorMessages[$error]) ?></p>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
+                <?php endif; ?>
 
-        <!-- SECCIÓN DE CHAT - Solo aparece después de seleccionar una sala -->
-        <div id="chatSection" class="hidden">
-            <div class="bg-white shadow rounded-lg">
-                <div class="h-96 flex flex-col">
-                    <!-- Chat Header -->
-                    <div class="flex-shrink-0 bg-medical-600 text-white px-6 py-4 rounded-t-lg">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h3 id="chatRoomName" class="font-medium">Chat Médico</h3>
-                                    <p id="chatStatus" class="text-sm text-blue-100">Conectando...</p>
-                                </div>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <button onclick="minimizeChat()" class="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
-                                    </svg>
-                                </button>
-                                <button onclick="confirmEndChat()" class="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Messages Area -->
-                    <div id="chatMessages" class="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50">
-                        <!-- Messages will be loaded here -->
-                    </div>
-
-                    <!-- Typing indicator -->
-                    <div id="typingIndicator" class="hidden px-4 py-2">
-                        <div class="flex justify-start">
-                            <div class="bg-white rounded-lg px-4 py-2 shadow-sm border">
-                                <div class="flex items-center space-x-2">
-                                    <div class="flex space-x-1">
-                                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-                                    </div>
-                                    <span class="text-sm text-gray-500">Escribiendo...</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Message Input -->
-                    <div class="flex-shrink-0 bg-white border-t border-gray-200 p-4">
-                        <div class="flex items-end space-x-2">
-                            <div class="flex-1">
-                                <textarea 
-                                    id="messageInput" 
-                                    placeholder="Escribe tu mensaje..."
-                                    rows="1"
-                                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500 focus:border-transparent resize-none"
-                                    style="min-height: 40px; max-height: 120px;"
-                                ></textarea>
-                            </div>
-                            <button 
-                                id="emojiButton" 
-                                onclick="toggleEmojiPicker()"
-                                class="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                <form id="loginForm" class="space-y-6">
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+                            Correo Electrónico
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"></path>
                                 </svg>
-                            </button>
-                            <button 
-                                id="sendButton" 
-                                onclick="sendMessage()"
-                                disabled
-                                class="p-2 bg-medical-600 text-white rounded-lg hover:bg-medical-700 focus:outline-none focus:ring-2 focus:ring-medical-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                            </div>
+                            <input 
+                                id="email" 
+                                name="email" 
+                                type="email" 
+                                autocomplete="email" 
+                                required
+                                class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                                placeholder="tu.email@hospital.com"
+                            >
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+                            Contraseña
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                </svg>
+                            </div>
+                            <input 
+                                id="password" 
+                                name="password" 
+                                type="password" 
+                                autocomplete="current-password" 
+                                required
+                                class="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                                placeholder="Tu contraseña"
+                            >
+                            <button type="button" onclick="togglePassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                <svg id="eyeIcon" class="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                                 </svg>
                             </button>
                         </div>
-                        
-                        <!-- Emoji Picker -->
-                        <div id="emojiPicker" class="hidden mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                            <div class="grid grid-cols-8 gap-2">
-                                <button onclick="insertEmoji('😊')" class="p-2 hover:bg-gray-200 rounded text-lg">😊</button>
-                                <button onclick="insertEmoji('😢')" class="p-2 hover:bg-gray-200 rounded text-lg">😢</button>
-                                <button onclick="insertEmoji('😟')" class="p-2 hover:bg-gray-200 rounded text-lg">😟</button>
-                                <button onclick="insertEmoji('😷')" class="p-2 hover:bg-gray-200 rounded text-lg">😷</button>
-                                <button onclick="insertEmoji('🤒')" class="p-2 hover:bg-gray-200 rounded text-lg">🤒</button>
-                                <button onclick="insertEmoji('👍')" class="p-2 hover:bg-gray-200 rounded text-lg">👍</button>
-                                <button onclick="insertEmoji('👎')" class="p-2 hover:bg-gray-200 rounded text-lg">👎</button>
-                                <button onclick="insertEmoji('🙏')" class="p-2 hover:bg-gray-200 rounded text-lg">🙏</button>
-                            </div>
-                        </div>
-
-                        <!-- Botón para volver a salas -->
-                        <div class="mt-3 pt-3 border-t border-gray-200">
-                            <button onclick="backToRooms()" 
-                                    class="text-sm text-medical-600 hover:text-medical-700 flex items-center transition-colors">
-                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                                </svg>
-                                Volver a selección de salas
-                            </button>
-                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- SECCIÓN DE INVITADO -->
-        <div class="guest-only text-center" style="<?= $isAuthenticated ? 'display: none;' : '' ?>">
-            <div class="mx-auto max-w-md">
-                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-medical-100 mb-4">
-                    <svg class="h-8 w-8 text-medical-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
-                    </svg>
-                </div>
-                <h2 class="text-2xl font-bold text-gray-900 mb-2">Portal de Consulta Médica</h2>
-                <p class="text-gray-600 mb-6">
-                    Conecta con profesionales de la salud las 24 horas del día.
-                </p>
-                <div class="space-y-3">
-                    <button onclick="showAuthModal('register')" 
-                            class="w-full flex justify-center py-3 px-4 rounded-lg text-sm font-medium text-white bg-medical-600 hover:bg-medical-700 transition-colors">
-                        Crear Cuenta
-                    </button>
-                    <button onclick="showAuthModal('login')" 
-                            class="w-full flex justify-center py-3 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors">
-                        Iniciar Sesión
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Features - Solo para invitados -->
-        <div class="guest-only mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3" style="<?= $isAuthenticated ? 'display: none;' : '' ?>">
-            <div class="text-center p-6">
-                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                    <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                </div>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Consulta Privada</h3>
-                <p class="text-sm text-gray-600">Todas las conversaciones son privadas y confidenciales.</p>
-            </div>
-            
-            <div class="text-center p-6">
-                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
-                    <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                </div>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Disponible 24/7</h3>
-                <p class="text-sm text-gray-600">Atención médica cuando la necesites.</p>
-            </div>
-            
-            <div class="text-center p-6">
-                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
-                    <svg class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                </div>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Respuesta Rápida</h3>
-                <p class="text-sm text-gray-600">Conecta con profesionales en minutos.</p>
-            </div>
-        </div>
-    </main>
-
-    <!-- Auth Modal -->
-    <div id="authModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50 modal-overlay">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content">
-                <div class="px-6 py-4 border-b border-gray-200">
                     <div class="flex items-center justify-between">
-                        <h3 id="authModalTitle" class="text-lg font-medium text-gray-900">Acceder</h3>
-                        <button onclick="closeAuthModal()" class="text-gray-400 hover:text-gray-600">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        <div class="flex items-center">
+                            <input 
+                                id="remember_me" 
+                                name="remember_me" 
+                                type="checkbox" 
+                                class="h-4 w-4 text-medical-600 focus:ring-medical-500 border-gray-300 rounded"
+                            >
+                            <label for="remember_me" class="ml-2 block text-sm text-gray-700">
+                                Recordar sesión
+                            </label>
+                        </div>
+
+                        <div class="text-sm">
+                            <a href="#" onclick="showForgotPassword()" class="font-medium text-medical-600 hover:text-medical-500 transition-colors">
+                                ¿Olvidaste tu contraseña?
+                            </a>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button 
+                            type="submit" 
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-medical-600 hover:bg-medical-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-medical-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            id="loginButton"
+                        >
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path>
                             </svg>
+                            <span id="loginButtonText">Iniciar Sesión</span>
                         </button>
                     </div>
-                </div>
+                </form>
 
-                <!-- Login Form -->
-                <div id="loginForm" class="p-6">
-                    <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico</label>
-                            <input type="email" id="loginEmail" required
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500"
-                                   placeholder="tu@email.com">
+                <!-- Info Section -->
+                <div class="mt-8 pt-6 border-t border-gray-200">
+                    <div class="text-center">
+                        <p class="text-sm text-gray-600 mb-4">
+                            <svg class="w-4 h-4 inline mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Portal exclusivo para personal médico autorizado
+                        </p>
+                        
+                        <div class="text-xs text-gray-500">
+                            <p>¿Eres paciente? <a href="/preauth.php" class="text-medical-600 hover:text-medical-500 font-medium">Accede con tu enlace personalizado</a></p>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                            <input type="password" id="loginPassword" required
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500"
-                                   placeholder="Tu contraseña">
-                        </div>
-                        <div class="flex items-center">
-                            <input id="rememberMe" type="checkbox" class="h-4 w-4 text-medical-600 focus:ring-medical-500 border-gray-300 rounded">
-                            <label for="rememberMe" class="ml-2 block text-sm text-gray-700">
-                                Recordarme
-                            </label>
-                        </div>
-                        <button type="submit" 
-                                class="w-full bg-medical-600 text-white py-2 px-4 rounded-lg hover:bg-medical-700 transition-colors">
-                            Iniciar Sesión
-                        </button>
-                    </form>
-                    <p class="mt-4 text-center text-sm text-gray-600">
-                        ¿No tienes cuenta? 
-                        <button onclick="showRegisterForm()" class="text-medical-600 hover:text-medical-700 font-medium">
-                            Regístrate aquí
-                        </button>
-                    </p>
-                </div>
-
-                <!-- Register Form -->
-                <div id="registerForm" class="hidden p-6">
-                    <form onsubmit="handleRegisterSubmit(event)" class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                                <input type="text" id="firstName" required
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500"
-                                       placeholder="Tu nombre">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Apellido</label>
-                                <input type="text" id="lastName" required
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500"
-                                       placeholder="Tu apellido">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico</label>
-                            <input type="email" id="registerEmail" required
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500"
-                                   placeholder="tu@email.com">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                            <input type="password" id="registerPassword" required
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500"
-                                   placeholder="Mínimo 8 caracteres">
-                            <p class="text-xs text-gray-500 mt-1">Debe contener al menos una mayúscula, una minúscula y un número</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar Contraseña</label>
-                            <input type="password" id="confirmPassword" required
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-medical-500"
-                                   placeholder="Repite tu contraseña">
-                        </div>
-                        <div class="flex items-center">
-                            <input id="acceptTerms" type="checkbox" required class="h-4 w-4 text-medical-600 focus:ring-medical-500 border-gray-300 rounded">
-                            <label for="acceptTerms" class="ml-2 block text-sm text-gray-700">
-                                Acepto los <a href="#" class="text-medical-600 hover:text-medical-500">términos y condiciones</a>
-                            </label>
-                        </div>
-                        <button type="submit" 
-                                class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">
-                            Crear Cuenta
-                        </button>
-                    </form>
-                    <p class="mt-4 text-center text-sm text-gray-600">
-                        ¿Ya tienes cuenta? 
-                        <button onclick="showLoginForm()" class="text-medical-600 hover:text-medical-700 font-medium">
-                            Inicia sesión aquí
-                        </button>
-                    </p>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Modal de Confirmación Personalizado -->
-    <div id="confirmModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50 modal-overlay">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content">
-                <div class="p-6">
-                    <div class="flex items-center">
-                        <div id="confirmIcon" class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center">
-                            <!-- Icon will be set dynamically -->
-                        </div>
-                        <div class="ml-4">
-                            <h3 id="confirmTitle" class="text-lg font-medium text-gray-900">Confirmar acción</h3>
-                            <p id="confirmMessage" class="text-sm text-gray-500 mt-1">¿Estás seguro de que quieres continuar?</p>
-                        </div>
+        <!-- Features for Staff -->
+        <div class="mt-12 sm:mx-auto sm:w-full sm:max-w-2xl">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+                <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-white">
+                    <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mx-auto mb-3">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
+                        </svg>
                     </div>
-                    
-                    <div class="mt-6 flex space-x-3 justify-end">
-                        <button id="confirmCancel" onclick="closeConfirmModal()" 
-                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-medical-500 transition-colors">
-                            Cancelar
-                        </button>
-                        <button id="confirmAccept" 
-                                class="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
-                            Confirmar
-                        </button>
+                    <h3 class="text-sm font-semibold">Gestión de Chats</h3>
+                    <p class="text-xs text-blue-100 mt-1">Maneja consultas en tiempo real</p>
+                </div>
+                
+                <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-white">
+                    <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mx-auto mb-3">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
                     </div>
+                    <h3 class="text-sm font-semibold">Reportes</h3>
+                    <p class="text-xs text-blue-100 mt-1">Estadísticas y métricas</p>
+                </div>
+                
+                <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-white">
+                    <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mx-auto mb-3">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-sm font-semibold">Supervisión</h3>
+                    <p class="text-xs text-blue-100 mt-1">Control de calidad</p>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Loading Spinner -->
-    <div id="loadingSpinner" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50 flex items-center justify-center modal-overlay">
-        <div class="bg-white rounded-lg p-6 shadow-xl modal-content">
-            <div class="flex items-center space-x-3">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-medical-600"></div>
-                <span class="text-gray-700">Procesando...</span>
-            </div>
+    <div id="loadingSpinner" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl text-center max-w-sm">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-medical-600 mx-auto mb-4"></div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Verificando credenciales...</h3>
+            <p class="text-gray-600 text-sm">Accediendo al sistema</p>
         </div>
     </div>
 
@@ -509,575 +264,185 @@ if ($isAuthenticated && $auth->isStaff()) {
     <script src="assets/js/auth-client.js"></script>
     
     <script>
-        // Configuration
+        // Configuración
         const CONFIG = {
-            AUTH_SERVICE_URL: 'http://187.33.158.246:8080/auth',
-            CHAT_SERVICE_URL: 'http://187.33.158.246:8080/chat',
-            WS_URL: 'ws://187.33.158.246:8080/ws'
+            AUTH_SERVICE_URL: 'http://187.33.158.246:8080/auth'
         };
 
-        // Global state
-        let currentUser = <?= $isAuthenticated ? json_encode($user) : 'null' ?>;
-        let currentSession = null;
-        let currentRooms = [];
-
-        // ====== SISTEMA DE CONFIRMACIONES PERSONALIZADAS ======
-        function showConfirmModal(title, message, onConfirm, options = {}) {
-            const modal = document.getElementById('confirmModal');
-            const titleEl = document.getElementById('confirmTitle');
-            const messageEl = document.getElementById('confirmMessage');
-            const iconEl = document.getElementById('confirmIcon');
-            const acceptBtn = document.getElementById('confirmAccept');
-            const cancelBtn = document.getElementById('confirmCancel');
-            
-            // Configurar contenido
-            titleEl.textContent = title;
-            messageEl.textContent = message;
-            acceptBtn.textContent = options.confirmText || 'Confirmar';
-            cancelBtn.textContent = options.cancelText || 'Cancelar';
-            
-            // Configurar icono y colores según el tipo
-            const type = options.type || 'warning';
-            iconEl.innerHTML = '';
-            
-            if (type === 'warning') {
-                iconEl.className = 'flex-shrink-0 w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center';
-                iconEl.innerHTML = `<svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                </svg>`;
-                acceptBtn.className = 'px-4 py-2 text-sm font-medium text-white bg-yellow-600 border border-transparent rounded-md shadow-sm hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors';
-            } else if (type === 'danger') {
-                iconEl.className = 'flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center';
-                iconEl.innerHTML = `<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                </svg>`;
-                acceptBtn.className = 'px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors';
-            } else if (type === 'info') {
-                iconEl.className = 'flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center';
-                iconEl.innerHTML = `<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>`;
-                acceptBtn.className = 'px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors';
-            }
-            
-            // Configurar evento de confirmación
-            acceptBtn.onclick = () => {
-                closeConfirmModal();
-                onConfirm();
-            };
-            
-            // Mostrar modal
-            modal.classList.remove('hidden');
-        }
-
-        function closeConfirmModal() {
-            document.getElementById('confirmModal').classList.add('hidden');
-        }
-
-        // Funciones de confirmación específicas
-        function confirmLogout() {
-            showConfirmModal(
-                'Cerrar Sesión',
-                '¿Estás seguro de que quieres cerrar sesión? Perderás cualquier chat activo.',
-                () => {
-                    if (window.authClient) {
-                        window.authClient.logout();
-                    }
-                },
-                { 
-                    type: 'warning', 
-                    confirmText: 'Sí, cerrar sesión',
-                    cancelText: 'Cancelar'
-                }
-            );
-        }
-
-        function confirmEndChat() {
-            showConfirmModal(
-                'Finalizar Consulta',
-                '¿Estás seguro de que quieres terminar la consulta? Esta acción no se puede deshacer.',
-                () => {
-                    actuallyEndChat();
-                },
-                { 
-                    type: 'danger', 
-                    confirmText: 'Sí, finalizar',
-                    cancelText: 'Continuar chat'
-                }
-            );
-        }
-
-        function actuallyEndChat() {
-            // Ocultar chat y mostrar salas
-            document.getElementById('chatSection').classList.add('hidden');
-            document.getElementById('roomSelectionSection').classList.remove('hidden');
-            
-            currentSession = null;
-            
-            // Limpiar mensajes del chat
-            document.getElementById('chatMessages').innerHTML = '';
-            
-            if (window.authClient) {
-                window.authClient.showSuccess('Consulta finalizada exitosamente');
-            }
-            
-            console.log('Chat finalizado por el usuario');
-        }
-
-        // ====== INICIALIZACIÓN SIMPLIFICADA ======
+        // Inicializar cliente de autenticación
         window.authClient = new AuthClient(CONFIG.AUTH_SERVICE_URL);
-        
-        // Solo inicializar una vez después de que todo esté listo
+
+        // Event listeners
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('Portal iniciado');
+            console.log('🚀 Portal de staff iniciado');
             
-            // Determinar estado inicial
-            const isAuth = currentUser || (window.authClient && window.authClient.isAuthenticated());
-            
-            if (isAuth) {
-                showAuthenticatedView();
-            } else {
-                showGuestView();
+            // Setup form handler
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.addEventListener('submit', handleLogin);
             }
-            
-            setupEventListeners();
+
+            // Check for existing auth
+            if (window.authClient.isAuthenticated()) {
+                console.log('Usuario ya autenticado, redirigiendo...');
+                window.location.href = '/staff.php';
+            }
         });
 
-        function showAuthenticatedView() {
-            console.log('Mostrando vista de usuario autenticado');
+        // Handle login form submission
+        async function handleLogin(event) {
+            event.preventDefault();
             
-            // Mostrar solo las salas
-            document.getElementById('roomSelectionSection').style.display = 'block';
-            document.getElementById('chatSection').style.display = 'none';
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const remember = document.getElementById('remember_me').checked;
             
-            // Header
-            document.getElementById('userAuthenticatedSection').style.display = 'flex';
-            document.getElementById('userGuestSection').style.display = 'none';
-            
-            // Ocultar secciones de invitado
-            document.querySelectorAll('.guest-only').forEach(el => {
-                el.style.display = 'none';
-            });
-            
-            // Actualizar datos del usuario
-            const user = currentUser || window.authClient?.getUser();
-            if (user?.name) {
-                document.getElementById('userInitial').textContent = user.name.charAt(0).toUpperCase();
-                document.getElementById('userDisplayName').textContent = user.name;
-                document.querySelectorAll('.user-name').forEach(el => {
-                    el.textContent = user.name;
-                });
-            }
-            
-            // Cargar salas
-            loadAvailableRooms();
-        }
-        
-        function showGuestView() {
-            console.log('✅ Mostrando vista de invitado');
-            
-            // Ocultar secciones autenticadas
-            document.getElementById('roomSelectionSection').style.display = 'none';
-            document.getElementById('chatSection').style.display = 'none';
-            
-            // Header
-            document.getElementById('userAuthenticatedSection').style.display = 'none';
-            document.getElementById('userGuestSection').style.display = 'flex';
-            
-            // Mostrar secciones de invitado
-            document.querySelectorAll('.guest-only').forEach(el => {
-                el.style.display = 'block';
-            });
-        }
-
-        async function loadAvailableRooms() {
-            console.log('🏠 Cargando salas disponibles...');
-            
-            if (!window.authClient || !window.authClient.isAuthenticated()) {
-                console.log('❌ Usuario no autenticado');
-                showRoomsError('Debes iniciar sesión para ver las salas disponibles');
+            // Validación básica
+            if (!email || !password) {
+                showNotification('Por favor completa todos los campos', 'error');
                 return;
             }
             
-            const loadingEl = document.getElementById('roomsLoading');
-            const gridEl = document.getElementById('roomsGrid');
-            const errorEl = document.getElementById('roomsError');
+            if (!isValidEmail(email)) {
+                showNotification('Formato de email inválido', 'error');
+                return;
+            }
             
-            if (loadingEl) loadingEl.classList.remove('hidden');
-            if (gridEl) gridEl.classList.add('hidden');
-            if (errorEl) errorEl.classList.add('hidden');
+            // Mostrar loading
+            setLoginLoading(true);
             
             try {
-                const rooms = await window.authClient.getAvailableRooms();
-                console.log('📋 Respuesta de salas:', rooms);
-                
-                if (rooms && Array.isArray(rooms) && rooms.length > 0) {
-                    currentRooms = rooms;
-                    console.log('✅ Salas válidas recibidas, mostrando...');
-                    displayRooms(rooms);
-                } else {
-                    console.log('⚠️ No hay salas disponibles');
-                    showRoomsError('No hay salas disponibles en este momento.');
-                }
-                
-            } catch (error) {
-                console.error('❌ Error cargando salas:', error);
-                showRoomsError('Error de conexión. Verifica tu conexión e inténtalo de nuevo.');
-            }
-        }
-
-        function showRoomsError(message) {
-            console.log('🔧 Mostrando error de salas:', message);
-            
-            const loadingEl = document.getElementById('roomsLoading');
-            const gridEl = document.getElementById('roomsGrid');
-            const errorEl = document.getElementById('roomsError');
-            
-            if (loadingEl) loadingEl.classList.add('hidden');
-            if (gridEl) gridEl.classList.add('hidden');
-            
-            if (errorEl) {
-                errorEl.classList.remove('hidden');
-                const errorMessage = errorEl.querySelector('p');
-                if (errorMessage) {
-                    errorMessage.textContent = message;
-                }
-            }
-        }
-
-        function displayRooms(rooms) {
-            console.log('🏠 Mostrando', rooms.length, 'salas');
-            
-            const roomsGrid = document.getElementById('roomsGrid');
-            const roomsLoading = document.getElementById('roomsLoading');
-            
-            if (!roomsGrid) {
-                console.error('❌ ERROR: elemento roomsGrid no encontrado');
-                return;
-            }
-            
-            if (roomsLoading) roomsLoading.classList.add('hidden');
-            roomsGrid.classList.remove('hidden');
-            
-            roomsGrid.innerHTML = rooms.map(room => `
-                <div onclick="selectRoom('${room.id}', '${room.name}')" 
-                     class="room-card cursor-pointer p-6 border border-gray-200 rounded-lg hover:border-medical-300 hover:shadow-md transition-all group ${!room.available ? 'opacity-60' : ''}">
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0">
-                            <div class="w-12 h-12 ${getRoomColorClass(room.type)} rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
-                                ${getRoomIcon(room.type)}
-                            </div>
-                        </div>
-                        <div class="ml-4 flex-1">
-                            <div class="flex items-center justify-between">
-                                <h4 class="text-sm font-medium text-gray-900">${room.name}</h4>
-                                ${room.available ? 
-                                    '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Disponible</span>' :
-                                    '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">No disponible</span>'
-                                }
-                            </div>
-                            <p class="text-sm text-gray-500 mt-1">${room.description}</p>
-                            <div class="flex items-center justify-between mt-2">
-                                <p class="text-xs text-gray-400">
-                                    ${room.available ? 
-                                        `Tiempo estimado: ${room.estimated_wait || '5-10 min'}` : 
-                                        room.estimated_wait || 'Fuera de horario'
-                                    }
-                                </p>
-                                ${room.current_queue > 0 ? 
-                                    `<span class="text-xs text-orange-600">${room.current_queue} en cola</span>` : 
-                                    ''
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-            
-            console.log('✅ Salas mostradas en el DOM exitosamente');
-        }
-
-        function getRoomColorClass(roomType) {
-            const colors = {
-                'general': 'bg-blue-100',
-                'medical': 'bg-green-100', 
-                'support': 'bg-purple-100',
-                'emergency': 'bg-red-100'
-            };
-            return colors[roomType] || 'bg-blue-100';
-        }
-
-        function getRoomIcon(roomType) {
-            const icons = {
-                'general': '<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path></svg>',
-                'medical': '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path></svg>',
-                'support': '<svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>',
-                'emergency': '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>'
-            };
-            return icons[roomType] || icons['general'];
-        }
-
-        async function selectRoom(roomId, roomName) {
-            console.log('🎯 Seleccionando sala:', roomId, roomName);
-            
-            if (!window.authClient?.isAuthenticated()) {
-                window.authClient?.showError('Debes iniciar sesión para acceder a las salas');
-                showAuthModal('login');
-                return;
-            }
-            
-            showLoading();
-            
-            try {
-                const result = await window.authClient.selectRoom(roomId, {
-                    selected_at: new Date().toISOString(),
-                    source: 'patient_portal'
-                });
+                const result = await window.authClient.login(email, password, remember);
                 
                 if (result.success) {
-                    window.authClient.showSuccess(`Conectado a ${roomName} exitosamente`);
+                    showNotification('¡Bienvenido! Redirigiendo...', 'success');
                     
-                    currentSession = {
-                        roomId: roomId,
-                        roomName: roomName,
-                        ptoken: result.ptoken,
-                        sessionData: result.room_data
-                    };
-                    
-                    // MOSTRAR EL CHAT
-                    openChatForRoom(roomName);
+                    // Redireccionar según el rol
+                    setTimeout(() => {
+                        window.location.href = '/staff.php';
+                    }, 1500);
                     
                 } else {
-                    window.authClient.showError(result.error || 'Error seleccionando sala');
+                    showNotification(result.error || 'Credenciales inválidas', 'error');
                 }
                 
             } catch (error) {
-                console.error('❌ Error seleccionando sala:', error);
-                window.authClient.showError('Error de conexión al seleccionar sala');
+                console.error('Error en login:', error);
+                showNotification('Error de conexión. Verifica tu conexión e inténtalo de nuevo.', 'error');
             } finally {
-                hideLoading();
+                setLoginLoading(false);
             }
         }
 
-        function openChatForRoom(roomName) {
-            console.log('💬 Abriendo chat para:', roomName);
+        // Toggle password visibility
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const eyeIcon = document.getElementById('eyeIcon');
             
-            // Ocultar salas, mostrar chat
-            document.getElementById('roomSelectionSection').style.display = 'none';
-            document.getElementById('chatSection').style.display = 'block';
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"></path>
+                `;
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                `;
+            }
+        }
+
+        // Show forgot password modal (placeholder)
+        function showForgotPassword() {
+            alert('Contacta al administrador del sistema para recuperar tu contraseña.\n\nEmail: admin@hospital.com\nTeléfono: +57 (1) 234-5678');
+        }
+
+        // Loading state for login button
+        function setLoginLoading(loading) {
+            const button = document.getElementById('loginButton');
+            const buttonText = document.getElementById('loginButtonText');
+            const spinner = document.getElementById('loadingSpinner');
             
-            // Configurar chat
-            document.getElementById('chatRoomName').textContent = roomName;
-            document.getElementById('chatStatus').textContent = 'Conectando...';
+            if (loading) {
+                button.disabled = true;
+                buttonText.textContent = 'Verificando...';
+                button.innerHTML = `
+                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                    <span>Verificando credenciales...</span>
+                `;
+                spinner.classList.remove('hidden');
+            } else {
+                button.disabled = false;
+                button.innerHTML = `
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path>
+                    </svg>
+                    <span>Iniciar Sesión</span>
+                `;
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Notification system
+        function showNotification(message, type = 'info', duration = 5000) {
+            const notification = document.createElement('div');
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500',
+                info: 'bg-blue-500'
+            };
             
-            // Limpiar mensajes y agregar bienvenida
-            const messagesContainer = document.getElementById('chatMessages');
-            messagesContainer.innerHTML = `
-                <div class="flex justify-center">
-                    <div class="bg-white px-4 py-2 rounded-full shadow-sm border">
-                        <p class="text-sm text-gray-600">Consulta médica iniciada en ${roomName}</p>
+            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm text-white ${colors[type]} animate-fade-in`;
+            notification.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            ${getNotificationIcon(type)}
+                        </svg>
+                        <span>${message}</span>
                     </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 hover:opacity-75">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
                 </div>
             `;
             
-            // Simular conexión
-            setTimeout(() => {
-                document.getElementById('chatStatus').textContent = 'Conectado';
-                addMessageToChat(
-                    `¡Hola! Te damos la bienvenida a ${roomName}. Un profesional te atenderá en breve. ¿En qué podemos ayudarte hoy?`,
-                    'agent',
-                    'Sistema Médico'
-                );
-            }, 1500);
-        }
-
-        function backToRooms() {
-            // Confirmar antes de volver a las salas si hay un chat activo
-            if (currentSession) {
-                showConfirmModal(
-                    'Volver a Salas',
-                    '¿Quieres volver a la selección de salas? Esto terminará tu consulta actual.',
-                    () => {
-                        actuallyBackToRooms();
-                    },
-                    { 
-                        type: 'warning', 
-                        confirmText: 'Sí, volver',
-                        cancelText: 'Continuar chat'
-                    }
-                );
-            } else {
-                actuallyBackToRooms();
-            }
-        }
-
-        function actuallyBackToRooms() {
-            // OCULTAR la sección de chat
-            document.getElementById('chatSection').classList.add('hidden');
-            
-            // MOSTRAR la sección de salas
-            document.getElementById('roomSelectionSection').classList.remove('hidden');
-            
-            currentSession = null;
-            
-            // Limpiar el chat
-            document.getElementById('chatMessages').innerHTML = '';
-            
-            console.log('🔄 Volviendo a la selección de salas');
-        }
-
-        function refreshRooms() {
-            console.log('🔄 Actualizando salas...');
-            window.authClient?.showInfo('Actualizando salas disponibles...');
-            loadAvailableRooms();
-        }
-
-        function addMessageToChat(content, senderType, senderName = null) {
-            const messagesContainer = document.getElementById('chatMessages');
-            const messageElement = document.createElement('div');
-            
-            const isUser = senderType === 'user';
-            const time = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-            
-            messageElement.className = `flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`;
-            messageElement.innerHTML = `
-                <div class="max-w-xs lg:max-w-md">
-                    <div class="${isUser ? 'bg-medical-600 text-white' : 'bg-white border border-gray-200'} rounded-lg px-4 py-2 shadow-sm">
-                        ${!isUser && senderName ? `
-                            <div class="flex items-center space-x-2 mb-2">
-                                <div class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                                    <svg class="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                                    </svg>
-                                </div>
-                                <span class="text-sm font-medium text-gray-900">${senderName}</span>
-                            </div>
-                        ` : ''}
-                        <p class="text-sm">${content}</p>
-                        <p class="text-xs ${isUser ? 'text-blue-100' : 'text-gray-500'} mt-1">${time}</p>
-                    </div>
-                </div>
-            `;
-            
-            messagesContainer.appendChild(messageElement);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-
-        function setupEventListeners() {
-            const messageInput = document.getElementById('messageInput');
-            if (messageInput) {
-                messageInput.addEventListener('input', function() {
-                    this.style.height = 'auto';
-                    this.style.height = this.scrollHeight + 'px';
-                    
-                    const sendButton = document.getElementById('sendButton');
-                    if (sendButton) {
-                        sendButton.disabled = this.value.trim() === '';
-                    }
-                });
-
-                messageInput.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        if (this.value.trim()) {
-                            sendMessage();
-                        }
-                    }
-                });
-            }
-        }
-
-        function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-            
-            if (!message) return;
-            
-            addMessageToChat(message, 'user');
-            
-            input.value = '';
-            input.style.height = 'auto';
-            document.getElementById('sendButton').disabled = true;
-            
-            simulateAgentResponse(message);
-        }
-
-        function simulateAgentResponse(userMessage) {
-            showTypingIndicator();
-            
-            const responses = [
-                "Entiendo tu consulta. Déjame revisar la información que me proporcionas.",
-                "Gracias por esa información. ¿Podrías contarme más detalles sobre tus síntomas?",
-                "Basado en lo que me describes, te haré algunas preguntas adicionales.",
-                "Es importante que me proporciones todos los detalles para poder ayudarte mejor.",
-                "Te voy a dar algunas recomendaciones. ¿Tienes alguna pregunta específica?"
-            ];
+            document.body.appendChild(notification);
             
             setTimeout(() => {
-                hideTypingIndicator();
-                const response = responses[Math.floor(Math.random() * responses.length)];
-                addMessageToChat(response, 'agent', 'Dr. García');
-            }, 2000 + Math.random() * 2000);
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => notification.remove(), 300);
+            }, duration);
         }
 
-        function showTypingIndicator() {
-            document.getElementById('typingIndicator').classList.remove('hidden');
-            const messagesContainer = document.getElementById('chatMessages');
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        function getNotificationIcon(type) {
+            const icons = {
+                success: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>',
+                error: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>',
+                warning: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>',
+                info: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
+            };
+            return icons[type] || icons.info;
         }
 
-        function hideTypingIndicator() {
-            document.getElementById('typingIndicator').classList.add('hidden');
+        // Email validation
+        function isValidEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         }
 
-        function toggleEmojiPicker() {
-            const picker = document.getElementById('emojiPicker');
-            picker.classList.toggle('hidden');
-        }
-
-        function insertEmoji(emoji) {
-            const input = document.getElementById('messageInput');
-            const cursorPos = input.selectionStart;
-            const textBefore = input.value.substring(0, cursorPos);
-            const textAfter = input.value.substring(cursorPos);
-            
-            input.value = textBefore + emoji + textAfter;
-            input.focus();
-            input.setSelectionRange(cursorPos + emoji.length, cursorPos + emoji.length);
-            
-            input.dispatchEvent(new Event('input'));
-            
-            document.getElementById('emojiPicker').classList.add('hidden');
-        }
-
-        function minimizeChat() {
-            const chatSection = document.getElementById('chatSection');
-            chatSection.classList.toggle('minimized');
-        }
-
-        function showLoading() {
-            document.getElementById('loadingSpinner').classList.remove('hidden');
-        }
-
-        function hideLoading() {
-            document.getElementById('loadingSpinner').classList.add('hidden');
-        }
-
-        // Escuchar cambios de autenticación (simplificado)
-        window.addEventListener('authStateChanged', function(event) {
-            const { isAuthenticated, user } = event.detail;
-            console.log('🔄 Cambio de autenticación:', { isAuthenticated, user: user?.name });
-            
-            if (isAuthenticated && user) {
-                currentUser = user;
-                showAuthenticatedView();
-            } else {
-                currentUser = null;
-                showGuestView();
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Enter to submit form
+            if (e.key === 'Enter' && (e.target.id === 'email' || e.target.id === 'password')) {
+                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
             }
         });
 
-        console.log('Portal Médico cargado - versión simplificada');
+        console.log('🏥 Portal de staff listo - v2.0');
     </script>
 </body>
 </html>
