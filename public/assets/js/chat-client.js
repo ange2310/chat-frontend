@@ -1,7 +1,5 @@
-// public/assets/js/chat-client.js - VERSIÓN MINIMALISTA CON AVATARES
 class ChatClient {
     constructor() {
-        // ✅ URLS CORREGIDAS PARA NGINX PROXY
         this.chatServiceUrl = 'http://187.33.158.246:8080/chats';
         this.websocketUrl = 'ws://187.33.158.246:8080';
         this.fileServiceUrl = 'http://187.33.158.246:8080/chats';
@@ -757,19 +755,5 @@ function handleFileUpload(files) {
     window.chatClient.uploadFile(file);
 }
 
-function endChat() {
-    window.chatClient.disconnect();
-    
-    const chatContainer = document.getElementById('chatSection');
-    if (chatContainer) {
-        chatContainer.classList.add('hidden');
-    }
-    
-    window.authClient?.showSuccess('Consulta finalizada');
-    
-    setTimeout(() => {
-        window.location.href = 'https://www.tpsalud.com';
-    }, 2000);
-}
 
 console.log('💬 ChatClient v3.0 - DISEÑO MINIMALISTA CON AVATARES');

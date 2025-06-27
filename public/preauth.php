@@ -1,5 +1,4 @@
 <?php
-// public/preauth.php - Portal de pacientes PROFESIONAL
 require_once __DIR__ . '/../config/config.php';
 
 // Obtener pToken de la URL
@@ -200,11 +199,6 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 </div>
                 
                 <div class="flex items-center space-x-2">
-                    <button onclick="minimizeChat()" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="Minimizar">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
-                        </svg>
-                    </button>
                     <button onclick="confirmEndChat()" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="Finalizar consulta">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -360,9 +354,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 if (validationResult.success) {
                     console.log('✅ pToken válido');
                     console.log('📋 Datos recibidos:', validationResult.data);
-                    
-                    // Guardar datos del paciente
-                    // Extraer datos de la membresía
+
                 // Extraer datos de la membresía
                 if (validationResult.data && validationResult.data.data && validationResult.data.data.membresias && validationResult.data.data.membresias.length > 0) {
                     const membresia = validationResult.data.data.membresias[0];
@@ -534,37 +526,47 @@ if (empty($pToken) || strlen($pToken) < 10) {
             document.getElementById('roomSelectionSection').classList.add('hidden');
             document.getElementById('chatSection').classList.remove('hidden');
             
-            // Mostrar información del chat
-            // Mostrar información del chat
-            if (patientData && patientData.nomTomador) {
-                document.getElementById('nomTomador').textContent = patientData.nomTomador;
-            } else {
-                document.getElementById('nomTomador').textContent = 'Sistema de Atención';
+            // Mostrar información del chat con verificaciones
+            const nomTomadorElement = document.getElementById('nomTomador');
+            if (nomTomadorElement) {
+                if (patientData && patientData.nomTomador) {
+                    nomTomadorElement.textContent = patientData.nomTomador;
+                } else {
+                    nomTomadorElement.textContent = 'Sistema de Atención';
+                }
             }
 
-            // Mostrar nombre del beneficiario
-            if (patientData && patientData.nombreCompleto) {
-                document.getElementById('nombrePaciente').textContent = patientData.nombreCompleto;
-            } else {
-                document.getElementById('nombrePaciente').textContent = 'Paciente';
+            // Mostrar nombre del beneficiario con verificación
+            const nombrePacienteElement = document.getElementById('nombrePaciente');
+            if (nombrePacienteElement) {
+                if (patientData && patientData.nombreCompleto) {
+                    nombrePacienteElement.textContent = patientData.nombreCompleto;
+                } else {
+                    nombrePacienteElement.textContent = 'Paciente';
+                }
             }
 
-            console.log('👤 Nombres asignados - Tomador:', document.getElementById('nomTomador').textContent, 'Beneficiario:', document.getElementById('nombrePaciente').textContent);
-                        
-            // Actualizar hora del mensaje del sistema
-            const now = new Date();
-            document.getElementById('systemMessageTime').textContent = now.toLocaleTimeString('es-ES', {
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            console.log('👤 Nombres asignados - Tomador:', nomTomadorElement?.textContent, 'Beneficiario:', nombrePacienteElement?.textContent);
+                            
+            // Actualizar hora del mensaje del sistema con verificación
+            const systemMessageTimeElement = document.getElementById('systemMessageTime');
+            if (systemMessageTimeElement) {
+                const now = new Date();
+                systemMessageTimeElement.textContent = now.toLocaleTimeString('es-ES', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
             
             chatActive = true;
             console.log('💬 Chat abierto:', roomName);
             
-            // Scroll al final
+            // Scroll al final con verificación
             setTimeout(() => {
                 const messagesContainer = document.getElementById('chatMessages');
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                if (messagesContainer) {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
             }, 100);
         }
 
@@ -636,16 +638,30 @@ if (empty($pToken) || strlen($pToken) < 10) {
             }
         }
 
-        function confirmEndChat() {
-            if (confirm('¿Finalizar consulta?')) {
-                endChat();
+        function backToRoomSelection() {
+            if (window.chatClient) {
+                window.chatClient.disconnect();
             }
+            
+            document.getElementById('chatSection').classList.add('hidden');
+            document.getElementById('roomSelectionSection').classList.remove('hidden');
+            
+            showNotification('Chat finalizado', 'success');
+            chatActive = false;
         }
 
-        function minimizeChat() {
-            console.log('Minimizar chat');
+        function confirmEndChat() {
+            document.getElementById('confirmEndChatModal').classList.remove('hidden');
         }
 
+        function closeConfirmModal() {
+            document.getElementById('confirmEndChatModal').classList.add('hidden');
+        }
+
+        function acceptEndChat() {
+            closeConfirmModal();
+            backToRoomSelection();
+        }
         function refreshRooms() {
             showNotification('Actualizando salas...', 'info');
             loadAvailableRooms();
@@ -691,5 +707,27 @@ if (empty($pToken) || strlen($pToken) < 10) {
 
         console.log('🏥 Portal de pacientes PROFESIONAL v4.0');
     </script>
+    <!-- Modal de Confirmación -->
+    <div id="confirmEndChatModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl p-6 shadow-2xl max-w-sm w-full mx-4">
+            <div class="text-center">
+                <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">¿Finalizar consulta?</h3>
+                <p class="text-gray-600 mb-6">Esta acción cerrará la consulta médica actual y regresará a la selección de salas.</p>
+                <div class="flex space-x-3">
+                    <button onclick="closeConfirmModal()" class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors">
+                        Cancelar
+                    </button>
+                    <button onclick="acceptEndChat()" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                        Finalizar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

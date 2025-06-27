@@ -1,4 +1,3 @@
-/* ===== VARIABLES MINIMALISTAS ===== */
 :root {
   /* Paleta minimalista */
   --primary: #2563eb;
@@ -525,7 +524,6 @@ body {
   }
 }
 
-/* ===== SCROLLBAR PERSONALIZADA ===== */
 ::-webkit-scrollbar {
   width: 6px;
 }

@@ -1,5 +1,5 @@
 <?php
-// Widget de chat médico mejorado con notificaciones reales
+
 ?>
 
 <!-- Chat Widget Container -->
