@@ -293,6 +293,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
 
     <!-- Scripts -->
     <script src="assets/js/auth-client.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="assets/js/chat-client.js"></script>
     
     <script>
@@ -424,6 +425,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
         }
 
         // FLUJO REAL: 4. Seleccionar sala → auth-service
+        // FLUJO REAL: 4. Seleccionar sala → auth-service
         async function selectRoom(roomId, roomName) {
             console.log('🎯 Seleccionando sala:', roomId);
             showLoading('Conectando con ' + roomName + '...');
@@ -441,17 +443,15 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 
                 console.log('✅ Sala seleccionada en auth-service');
                 
+                // CRÍTICO: Usar el pToken actualizado que devolvió selectRoom
+                const updatedPToken = selectResult.ptoken || CONFIG.PATIENT_TOKEN;
+                console.log('🔑 Usando pToken actualizado para chat:', updatedPToken.substring(0, 15) + '...');
+                
                 // Paso 2: Crear instancia de chat client
                 window.chatClient = new ChatClient();
                 
-                // Paso 3: Conectar al chat service
-                await window.chatClient.connect(CONFIG.PATIENT_TOKEN, roomId);
-                
-                currentSession = {
-                    roomId: roomId,
-                    roomName: roomName,
-                    ptoken: CONFIG.PATIENT_TOKEN
-                };
+                // Paso 3: Conectar al chat service con pToken actualizado
+                await window.chatClient.connect(updatedPToken, roomId);
                 
                 showNotification(`Conectado a ${roomName}`, 'success');
                 openChat(roomName);
