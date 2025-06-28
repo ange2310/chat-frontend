@@ -56,6 +56,75 @@ if (empty($pToken) || strlen($pToken) < 10) {
         .typing-dot:nth-child(1) { animation-delay: -0.32s; }
         .typing-dot:nth-child(2) { animation-delay: -0.16s; }
         @keyframes typing { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
+        :root {
+        --primary: #2563eb;
+        --primary-light: #3b82f6;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --error: #ef4444;
+        --gray-100: #f1f5f9;
+        --gray-200: #e2e8f0;
+        --gray-300: #cbd5e1;
+        --gray-400: #94a3b8;
+        --gray-500: #64748b;
+        --gray-600: #475569;
+        --gray-700: #334155;
+        --user-color: #3b82f6;
+        --agent-color: #10b981;
+        --space-1: 0.25rem;
+        --space-2: 0.5rem;
+        --space-3: 0.75rem;
+        --space-4: 1rem;
+        --radius-sm: 0.375rem;
+        --radius-lg: 1rem;
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        --transition: all 0.15s ease-in-out;
+        }
+
+        /* Avatares bonitos */
+        .avatar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-weight: 600;
+        color: white;
+        flex-shrink: 0;
+        }
+        .avatar-sm { width: 32px; height: 32px; font-size: 12px; }
+        .avatar-md { width: 40px; height: 40px; font-size: 14px; }
+        .avatar-user { background: linear-gradient(135deg, var(--user-color), #1d4ed8); }
+        .avatar-agent { background: linear-gradient(135deg, var(--agent-color), #059669); }
+        .avatar-system { background: linear-gradient(135deg, var(--gray-500), var(--gray-600)); }
+
+        /* Botones bonitos */
+        .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-4);
+        font-size: 14px;
+        font-weight: 500;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        transition: var(--transition);
+        cursor: pointer;
+        text-decoration: none;
+        }
+        .btn-ghost { background: transparent; color: var(--gray-600); }
+        .btn-ghost:hover { background: var(--gray-100); }
+
+        /* Iconos */
+        .icon { width: 20px; height: 20px; stroke-width: 1.5; }
+        .icon-sm { width: 16px; height: 16px; }
+
+        /* Chat header mejorado */
+        .chat-header-info { display: flex; align-items: center; gap: var(--space-3); }
+        .chat-header-actions { display: flex; align-items: center; gap: var(--space-2); }
+
+        /* Mejoras a los mensajes */
+        .message-content { box-shadow: var(--shadow-sm); }
     </style>
 </head>
 <body class="h-full bg-gray-50">
