@@ -136,7 +136,6 @@ class ChatClient {
         });
     }
 
-    // ✅ CONFIGURAR TODOS LOS EVENT HANDLERS
     setupSocketEventHandlers() {
         this.socket.on('authenticated', (data) => this.handleAuthenticated(data));
         this.socket.on('auth_error', (data) => this.handleAuthError(data));
@@ -261,16 +260,50 @@ class ChatClient {
     }
 
     handleFileUploaded(data) {
-        console.log('📎 Archivo subido:', data);
-        const isMe =
-            (data.sender_id  && data.sender_id  === this.stubUserId) ||
-            (data.session_id && data.session_id === this.currentSessionId);
+        console.log('📎 Archivo recibido del servidor:', data);
+        
+        console.log('🔍 Debug archivo:', {
+            myStubUserId: this.stubUserId,
+            mySessionId: this.currentSessionId,
+            fileUserId: data.user_id,
+            fileSenderId: data.sender_id,
+            fileSessionId: data.session_id,
+            fileSenderType: data.sender_type,
+            data: data
+        });
 
+        let isMe = false;
+        
+        // Verificar por user_id
+        if (this.stubUserId && data.user_id === this.stubUserId) {
+            isMe = true;
+            console.log('Es mi archivo (por user_id)');
+        }
+        // Verificar por sender_id  
+        else if (this.stubUserId && data.sender_id === this.stubUserId) {
+            isMe = true;
+            console.log(' Es mi archivo (por sender_id)');
+        }
+        // Verificar por session_id
+        else if (this.currentSessionId && data.session_id === this.currentSessionId) {
+            isMe = true;
+            console.log('Es mi archivo (por session_id)');
+        }
+        // Verificar por sender_type 'patient'
+        else if (data.sender_type === 'patient') {
+            isMe = true;
+            console.log('Es mi archivo (por sender_type: patient)');
+        }
+        else {
+            console.log('NO es mi archivo');
+        }
+
+        console.log('Resultado final isMe:', isMe);
         this.addFileMessageToChat(data, isMe);
     }
 
     handleQueuePosition(data) {
-        console.log('🔢 Posición en cola:', data);
+        console.log('Posición en cola:', data);
         this.updateQueueInfo(data);
     }
 
@@ -280,11 +313,11 @@ class ChatClient {
 
     // ====== MENSAJES AUTOMÁTICOS INICIALES ======
     addInitialSystemMessages() {
-        console.log('📝 Agregando mensajes automáticos del sistema...');
+        console.log('Agregando mensajes automáticos del sistema...');
         
         const messagesContainer = document.getElementById('chatMessages');
         if (!messagesContainer) {
-            console.warn('⚠️ No se encontró el contenedor de mensajes');
+            console.warn('No se encontró el contenedor de mensajes');
             return;
         }
         
@@ -451,36 +484,63 @@ class ChatClient {
         const messagesContainer = document.getElementById('chatMessages');
         if (!messagesContainer) return;
         
+        console.log('📎 Agregando archivo al chat:', { fileName: fileData.file_name, isMe });
+        
         const messageElement = document.createElement('div');
-        messageElement.className = `message ${isMe ? 'message-user' : 'message-agent'}`;
+        
+        messageElement.className = `message ${isMe ? 'message-user' : 'message-system'}`;
 
-        const avatarClass = isMe ? 'avatar-user' : 'avatar-agent';
-        const avatarIcon = isMe ? 'U' : 'D';
-
-        messageElement.innerHTML = `
-            <div class="avatar avatar-md ${avatarClass}">
-                ${avatarIcon}
-            </div>
-            <div class="message-content">
-                <div class="flex items-center gap-3">
-                    <div class="flex-shrink-0">
-                        <svg class="icon text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
-                        </svg>
-                    </div>
-                    <div class="flex-1">
-                        <p class="font-medium">${fileData.file_name}</p>
-                        <p class="text-sm opacity-75">${this.formatFileSize(fileData.file_size)}</p>
-                        <a href="${this.getFullFileUrl(fileData.download_url)}" target="_blank" download 
-                           class="text-sm underline hover:no-underline">Descargar</a>
-                    </div>
+        if (isMe) {
+            messageElement.innerHTML = `
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style="background: #0372B9;">
+                    U
                 </div>
-                <div class="message-time">${this.formatTime(fileData.timestamp)}</div>
-            </div>
-        `;
+                <div class="message-content">
+                    <div class="flex items-center gap-3">
+                        <div class="flex-shrink-0">
+                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-medium text-white">${fileData.file_name || 'Archivo'}</p>
+                            <p class="text-sm opacity-75">${this.formatFileSize(fileData.file_size || 0)}</p>
+                            <a href="${this.getFullFileUrl(fileData.download_url)}" target="_blank" download 
+                            class="text-sm underline hover:no-underline text-blue-200">Descargar</a>
+                        </div>
+                    </div>
+                    <div class="message-time">${this.formatTime(fileData.timestamp || new Date().toISOString())}</div>
+                </div>
+            `;
+        } else {
+            messageElement.innerHTML = `
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style="background: #8CF79D; color: #065f46;">
+                    C
+                </div>
+                <div class="message-content">
+                    <div class="text-sm font-medium text-gray-700 mb-1">CEM:</div>
+                    <div class="flex items-center gap-3">
+                        <div class="flex-shrink-0">
+                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-medium">${fileData.file_name || 'Archivo'}</p>
+                            <p class="text-sm opacity-75">${this.formatFileSize(fileData.file_size || 0)}</p>
+                            <a href="${this.getFullFileUrl(fileData.download_url)}" target="_blank" download 
+                            class="text-sm underline hover:no-underline text-blue-600">Descargar</a>
+                        </div>
+                    </div>
+                    <div class="message-time">${this.formatTime(fileData.timestamp || new Date().toISOString())}</div>
+                </div>
+            `;
+        }
         
         messagesContainer.appendChild(messageElement);
         this.scrollToBottom();
+        
+        console.log('Archivo agregado al chat como:', isMe ? 'MI archivo (U)' : 'Archivo del doctor (C)');
     }
 
     createMessageElement(messageData) {
@@ -494,7 +554,6 @@ class ChatClient {
             messageDiv.className = `message ${isUser ? 'message-user' : 'message-system'}`;
             
             if (isUser) {
-                // Mensaje del usuario - alineado a la derecha, azul, con avatar azul
                 messageDiv.innerHTML = `
                     <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style="background: #0372B9;">
                         U
@@ -505,7 +564,6 @@ class ChatClient {
                     </div>
                 `;
             } else {
-                // Mensaje del sistema/doctor - alineado a la izquierda, gris con label CEM, avatar verde
                 messageDiv.innerHTML = `
                     <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style="background: #8CF79D; color: #065f46;">
                         C
@@ -518,7 +576,7 @@ class ChatClient {
                 `;
             }
         } catch (error) {
-            console.error('❌ Error creando elemento de mensaje:', error);
+            console.error('Error creando elemento de mensaje:', error);
             // Fallback simple con avatar
             messageDiv.className = 'message message-system';
             messageDiv.innerHTML = `
@@ -547,7 +605,7 @@ class ChatClient {
                 .replace(/>/g, '&gt;')
                 .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="underline">$1</a>');
         } catch (error) {
-            console.error('❌ Error formateando mensaje:', error);
+            console.error('Error formateando mensaje:', error);
             return message;
         }
     }
@@ -563,7 +621,7 @@ class ChatClient {
                 minute: '2-digit' 
             });
         } catch (error) {
-            console.error('❌ Error formateando tiempo:', error);
+            console.error('Error formateando tiempo:', error);
             return '';
         }
     }
@@ -576,15 +634,35 @@ class ChatClient {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
+    removeDuplicateFiles(fileName) {
+        const messagesContainer = document.getElementById('chatMessages');
+        if (!messagesContainer) return;
+        
+        const fileMessages = messagesContainer.querySelectorAll('.message');
+        let foundCount = 0;
+        
+        fileMessages.forEach(messageEl => {
+            const fileNameEl = messageEl.querySelector('p.font-medium');
+            if (fileNameEl && fileNameEl.textContent === fileName) {
+                foundCount++;
+                // Si ya hay uno, remover duplicados
+                if (foundCount > 1) {
+                    console.log('Removiendo archivo duplicado:', fileName);
+                    messageEl.remove();
+                }
+            }
+        });
+    }
+
     clearChatMessages() {
         try {
             const messagesContainer = document.getElementById('chatMessages');
             if (messagesContainer) {
                 messagesContainer.innerHTML = '';
-                console.log('🧹 Chat limpiado correctamente');
+                console.log('Chat limpiado correctamente');
             }
         } catch (error) {
-            console.error('❌ Error limpiando chat:', error);
+            console.error('Error limpiando chat:', error);
         }
     }
 
@@ -595,7 +673,7 @@ class ChatClient {
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
         } catch (error) {
-            console.error('❌ Error haciendo scroll:', error);
+            console.error('Error haciendo scroll:', error);
         }
     }
 
@@ -615,11 +693,11 @@ class ChatClient {
     }
 
     showQueueInfo(queueInfo) {
-        console.log('🔢 Info de cola:', queueInfo);
+        console.log('Info de cola:', queueInfo);
     }
 
     updateQueueInfo(queueData) {
-        console.log('🔢 Actualización cola:', queueData);
+        console.log('Actualización cola:', queueData);
     }
 
     updateConnectionStatus(status) {
@@ -633,7 +711,7 @@ class ChatClient {
     }
 
     showError(message) {
-        console.error('💬 Chat Error:', message);
+        console.error('Chat Error:', message);
         if (window.authClient) {
             window.authClient.showError(message);
         } else {
@@ -676,13 +754,13 @@ class ChatClient {
     }
 
     onConnectionError(error) {
-        console.error('💬 Error conexión:', error);
+        console.error('Error conexión:', error);
         this.updateConnectionStatus('Error de conexión');
         this.showError('Error de conexión con el chat');
     }
 
     disconnect() {
-        console.log('🔌 Desconectando chat...');
+        console.log('Desconectando chat...');
         
         this.isConnected = false;
         this.isAuthenticated = false;
@@ -696,7 +774,6 @@ class ChatClient {
         this.updateConnectionStatus('Desconectado');
     }
 
-    // ====== ESTADO ======
     getChatStats() {
         return {
             isConnected: this.isConnected,
@@ -711,7 +788,6 @@ class ChatClient {
     }
 }
 
-// ====== FUNCIONES GLOBALES MINIMALISTAS ======
 window.chatClient = new ChatClient();
 
 function sendMessage() {
@@ -754,6 +830,3 @@ function handleFileUpload(files) {
     
     window.chatClient.uploadFile(file);
 }
-
-
-console.log('💬 ChatClient v3.0 - DISEÑO MINIMALISTA CON AVATARES');

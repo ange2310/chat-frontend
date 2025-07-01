@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 
 // Obtener pToken de la URL
 $pToken = $_GET['pToken'] ?? $_POST['pToken'] ?? null;
+$roomId = $_GET['room'] ?? $_GET['roomId'] ?? null;
 
 if (!$pToken) {
     header("Location: /index.php");
@@ -22,7 +23,6 @@ if (empty($pToken) || strlen($pToken) < 10) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Consulta Médica - Portal de Atención</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="assets/css/main.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -81,21 +81,6 @@ if (empty($pToken) || strlen($pToken) < 10) {
         --transition: all 0.15s ease-in-out;
         }
 
-        /* Avatares bonitos */
-        .avatar {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        font-weight: 600;
-        color: white;
-        flex-shrink: 0;
-        }
-        .avatar-sm { width: 32px; height: 32px; font-size: 12px; }
-        .avatar-md { width: 40px; height: 40px; font-size: 14px; }
-        .avatar-user { background: linear-gradient(135deg, var(--user-color), #1d4ed8); }
-        .avatar-agent { background: linear-gradient(135deg, var(--agent-color), #059669); }
-        .avatar-system { background: linear-gradient(135deg, var(--gray-500), var(--gray-600)); }
 
         /* Botones bonitos */
         .btn {
@@ -384,6 +369,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
         // Configuración
         const CONFIG = {
             PATIENT_TOKEN: '<?= $pToken ?>',
+            ROOM_ID: '<?= $roomId ?>',
             DEBUG: true
         };
 
@@ -393,7 +379,6 @@ if (empty($pToken) || strlen($pToken) < 10) {
 
         // Inicialización
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('🚀 Portal de pacientes iniciado');
             updateTime();
             setInterval(updateTime, 1000);
             
@@ -410,10 +395,8 @@ if (empty($pToken) || strlen($pToken) < 10) {
             });
         }
 
-        // FLUJO REAL: 1. Validar pToken
         async function validatePatientAccess() {
             try {
-                console.log('🔑 Validando pToken:', CONFIG.PATIENT_TOKEN.substring(0, 15) + '...');
                 
                 const authClient = new AuthClient();
                 
@@ -421,8 +404,6 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 const validationResult = await authClient.validatePToken(CONFIG.PATIENT_TOKEN);
                 
                 if (validationResult.success) {
-                    console.log('✅ pToken válido');
-                    console.log('📋 Datos recibidos:', validationResult.data);
 
                 // Extraer datos de la membresía
                 if (validationResult.data && validationResult.data.data && validationResult.data.data.membresias && validationResult.data.data.membresias.length > 0) {
@@ -449,26 +430,31 @@ if (empty($pToken) || strlen($pToken) < 10) {
                             beneficiario: beneficiarioPrincipal
                         };
                         
-                        console.log('👤 Datos extraídos:', patientData);
+                        console.log('Datos extraídos:', patientData);
                     } else {
-                        console.warn('⚠️ No se encontró beneficiario principal');
+                        console.warn('No se encontró beneficiario principal');
                     }
                 } else {
-                    console.warn('⚠️ No se encontraron datos de membresía');
+                    console.warn('No se encontraron datos de membresía');
                 }
                     
                     authClient.token = CONFIG.PATIENT_TOKEN;
                     authClient.userType = 'patient';
                     window.authClient = authClient;
                     
-                    await showRoomSelection();
+                    if (CONFIG.ROOM_ID && CONFIG.ROOM_ID.trim() !== '') {
+                        console.log('Sala especificada en URL:', CONFIG.ROOM_ID);
+                        await selectRoomDirectly(CONFIG.ROOM_ID);
+                    } else {
+                        await showRoomSelection(); 
+                    }
                 } else {
-                    console.error('❌ pToken inválido');
+                    console.error('pToken inválido');
                     showValidationError('Token de acceso inválido');
                 }
 
             } catch (error) {
-                console.error('❌ Error validando acceso:', error);
+                console.error('Error validando acceso:', error);
                 showValidationError('Error de conexión. Verifica tu conexión a internet.');
             }
         }
@@ -478,7 +464,6 @@ if (empty($pToken) || strlen($pToken) < 10) {
             document.getElementById('validationError').classList.remove('hidden');
         }
 
-        // FLUJO REAL: 2. Mostrar salas disponibles
         async function showRoomSelection() {
             document.getElementById('validationSection').classList.add('hidden');
             document.getElementById('roomSelectionSection').classList.remove('hidden');
@@ -486,10 +471,9 @@ if (empty($pToken) || strlen($pToken) < 10) {
             await loadAvailableRooms();
         }
 
-        // FLUJO REAL: 3. Cargar salas desde auth-service
         async function loadAvailableRooms() {
             try {
-                console.log('🏠 Cargando salas desde auth-service...');
+                console.log('Cargando salas desde auth-service...');
                 
                 const rooms = await window.authClient.getAvailableRooms(CONFIG.PATIENT_TOKEN);
                 displayRooms(rooms);
@@ -546,9 +530,9 @@ if (empty($pToken) || strlen($pToken) < 10) {
             document.getElementById('roomsError').classList.remove('hidden');
         }
 
-        // FLUJO REAL: 4. Seleccionar sala
+
         async function selectRoom(roomId, roomName) {
-            console.log('🎯 Seleccionando sala:', roomId);
+            console.log('Seleccionando sala:', roomId);
             showLoading('Conectando con ' + roomName + '...');
             
             try {
@@ -561,19 +545,19 @@ if (empty($pToken) || strlen($pToken) < 10) {
                     throw new Error(selectResult.error || 'Error seleccionando sala');
                 }
                 
-                console.log('✅ Sala seleccionada en auth-service');
+                console.log(' Sala seleccionada en auth-service');
 
                 // Guardar datos del paciente si vienen en la respuesta
                 if (selectResult.room_data && selectResult.room_data.patient) {
                     patientData = selectResult.room_data.patient;
-                    console.log('👤 Datos del paciente guardados:', patientData);
+                    console.log('Datos del paciente guardados:', patientData);
                 } else if (selectResult.room_data && selectResult.room_data.user) {
                     patientData = selectResult.room_data.user;
-                    console.log('👤 Datos del usuario guardados:', patientData);
+                    console.log('Datos del usuario guardados:', patientData);
                 }
 
                 const updatedPToken = selectResult.ptoken || CONFIG.PATIENT_TOKEN;
-                console.log('🔑 Usando pToken actualizado para chat:', updatedPToken.substring(0, 15) + '...');
+                console.log('Usando pToken actualizado para chat:', updatedPToken.substring(0, 15) + '...');
                 
                 window.chatClient = new ChatClient();
                 
@@ -583,7 +567,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 openChat(roomName);
                 
             } catch (error) {
-                console.error('❌ Error seleccionando sala:', error);
+                console.error('Error seleccionando sala:', error);
                 showNotification('Error: ' + error.message, 'error');
             } finally {
                 hideLoading();
@@ -615,7 +599,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 }
             }
 
-            console.log('👤 Nombres asignados - Tomador:', nomTomadorElement?.textContent, 'Beneficiario:', nombrePacienteElement?.textContent);
+            console.log('Nombres asignados - Tomador:', nomTomadorElement?.textContent, 'Beneficiario:', nombrePacienteElement?.textContent);
                             
             // Actualizar hora del mensaje del sistema con verificación
             const systemMessageTimeElement = document.getElementById('systemMessageTime');
@@ -628,7 +612,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
             }
             
             chatActive = true;
-            console.log('💬 Chat abierto:', roomName);
+            console.log('Chat abierto:', roomName);
             
             // Scroll al final con verificación
             setTimeout(() => {
@@ -773,8 +757,80 @@ if (empty($pToken) || strlen($pToken) < 10) {
             };
             return icons[roomType] || icons['general'];
         }
+        async function selectRoomDirectly(roomId) {
+            console.log('Acceso directo a sala:', roomId);
+            
+            // Ocultar sección de validación
+            document.getElementById('validationSection').classList.add('hidden');
+            
+            try {
+                // 1. Primero obtener info de las salas para conseguir el nombre
+                console.log('Obteniendo información de salas...');
+                showLoading('Verificando sala...');
+                
+                const rooms = await window.authClient.getAvailableRooms(CONFIG.PATIENT_TOKEN);
+                
+                // 2. Buscar la sala por ID para obtener su nombre
+                const targetRoom = rooms.find(room => room.id === roomId);
+                const roomName = targetRoom ? targetRoom.name : `Sala ${roomId.substring(0, 8)}...`;
+                
+                console.log('Sala encontrada:', roomName);
+                
+                // 3. Mostrar loading con nombre real
+                showLoading(`Conectando con ${roomName}...`);
+                
+                // 4. Verificar que la sala existe y está disponible
+                if (!targetRoom) {
+                    throw new Error(`La sala "${roomId}" no existe o no está disponible`);
+                }
+                
+                if (!targetRoom.available) {
+                    throw new Error(`La sala "${roomName}" no está disponible en este momento`);
+                }
+                
+                // 5. Continuar con la selección normal
+                const selectResult = await window.authClient.selectRoom(roomId, {
+                    source: 'direct_link',
+                    browser: navigator.userAgent,
+                    room_name: roomName // Enviar también el nombre
+                }, CONFIG.PATIENT_TOKEN);
+                
+                if (!selectResult.success) {
+                    throw new Error(selectResult.error || `Error conectando con ${roomName}`);
+                }
+                
+                console.log('Acceso directo exitoso a:', roomName);
+                
+                // 6. Guardar datos del paciente
+                if (selectResult.room_data && selectResult.room_data.patient) {
+                    patientData = selectResult.room_data.patient;
+                } else if (selectResult.room_data && selectResult.room_data.user) {
+                    patientData = selectResult.room_data.user;
+                }
 
-        console.log('🏥 Portal de pacientes PROFESIONAL v4.0');
+                const updatedPToken = selectResult.ptoken || CONFIG.PATIENT_TOKEN;
+                console.log(' Usando pToken para chat directo');
+                
+                window.chatClient = new ChatClient();
+                await window.chatClient.connect(updatedPToken, roomId);
+                
+                // 7. Mostrar notificación con nombre real
+                showNotification(`Conectado a ${roomName}`, 'success');
+                
+                // 8. Abrir chat con nombre real
+                openChat(roomName); // ← Ahora pasa el nombre real
+                
+            } catch (error) {
+                console.error('Error en acceso directo:', error);
+                showNotification('Error: ' + error.message, 'error');
+                
+                // Fallback: mostrar selección de salas
+                console.log('🔄 Fallback a selección manual de salas');
+                await showRoomSelection();
+            } finally {
+                hideLoading();
+            }
+        }
     </script>
     <!-- Modal de Confirmación -->
     <div id="confirmEndChatModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
