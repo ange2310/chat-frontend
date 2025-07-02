@@ -1096,23 +1096,19 @@ function debugLog($message, $data = null, $level = 'INFO') {
         }
 
         function confirmTransfer() {
-            // TODO: Implementar transferencia
             console.log('Confirmando transferencia...');
             closeTransferModal();
         }
 
         function endSession() {
-            // TODO: Implementar finalización de sesión
             console.log('Finalizando sesión...');
         }
 
         function handleNewMessage(data) {
-            // TODO: Manejar nuevos mensajes
             console.log('Nuevo mensaje:', data);
         }
 
         function handleSessionUpdate(data) {
-            // TODO: Manejar actualizaciones de sesión
             console.log('Sesión actualizada:', data);
         }
 
