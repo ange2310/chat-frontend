@@ -1,12 +1,24 @@
 <?php
-// public/index.php - Login simple
+// public/index.php - ACTUALIZADO con detección de localStorage
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 
 $auth = auth();
+$debug_mode = isset($_GET['debug']) || APP_ENV === 'development';
 
-// Si ya está autenticado, redirigir
-if ($auth->isAuthenticated() && $auth->isStaff()) {
+// FORZAR LOGOUT si se pide
+if (isset($_GET['logout']) || isset($_GET['force_logout'])) {
+    $auth->logout();
+    session_destroy();
+    session_unset();
+    header("Location: /practicas/chat-frontend/public/index.php");
+    exit;
+}
+
+// Si ya está autenticado en PHP, ir directo a staff
+$is_authenticated = $auth->isAuthenticated() && $auth->isStaff();
+
+if ($is_authenticated) {
     header("Location: /practicas/chat-frontend/public/staff.php");
     exit;
 }
@@ -25,7 +37,24 @@ if ($auth->isAuthenticated() && $auth->isStaff()) {
 </head>
 <body class="bg-gray-900">
     
-    <div class="min-h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <!-- Pantalla de Verificación localStorage -->
+    <div id="localStorageCheck" class="min-h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full">
+            <div class="text-center mb-8">
+                <div class="mx-auto h-12 w-12 bg-white rounded-xl flex items-center justify-center mb-4 shadow-lg">
+                    <svg class="h-8 w-8 text-blue-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-white">Verificando Sesión</h2>
+                <p class="text-blue-100 mt-2">Comprobando estado de autenticación...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pantalla Principal de Login -->
+    <div id="loginScreen" class="hidden min-h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-md w-full">
             
             <!-- Header -->
@@ -52,6 +81,7 @@ if ($auth->isAuthenticated() && $auth->isStaff()) {
                             type="email" 
                             required
                             autocomplete="email"
+                            value="admin@tpsalud.com"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             placeholder="tu@email.com"
                         >
@@ -66,6 +96,7 @@ if ($auth->isAuthenticated() && $auth->isStaff()) {
                             type="password" 
                             required
                             autocomplete="current-password"
+                            value="Admin123"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             placeholder="Tu contraseña"
                         >
@@ -86,7 +117,26 @@ if ($auth->isAuthenticated() && $auth->isStaff()) {
                         </span>
                     </button>
                 </form>
+
+                <div class="mt-6 text-center">
+                    <a href="/practicas/chat-frontend/public/logout.php" 
+                       class="text-sm text-gray-500 hover:text-gray-700">
+                        🧹 Limpiar datos de navegador
+                    </a>
+                </div>
             </div>
+
+            <!-- Debug Info -->
+            <?php if ($debug_mode): ?>
+            <div class="mt-6 bg-gray-800 rounded-lg p-4">
+                <h3 class="text-white font-semibold mb-2">🔧 Debug Info</h3>
+                <div class="text-xs text-gray-300 space-y-1">
+                    <p><strong>Auth Status PHP:</strong> <?= $is_authenticated ? 'Authenticated' : 'Not authenticated' ?></p>
+                    <p><strong>Current URL:</strong> <?= $_SERVER['REQUEST_URI'] ?? 'unknown' ?></p>
+                    <p><strong>Session ID:</strong> <?= session_id() ?></p>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -126,6 +176,40 @@ if ($auth->isAuthenticated() && $auth->isStaff()) {
         // Initialize
         const auth = new SimpleAuth();
 
+        // Verificación inicial de localStorage
+        function checkLocalStorageSession() {
+            console.log('🔍 Verificando localStorage...');
+            
+            const token = localStorage.getItem('pToken');
+            const user = localStorage.getItem('user');
+            
+            console.log('💾 Token existe:', !!token);
+            console.log('💾 User existe:', !!user);
+            
+            if (token && user) {
+                console.log('✅ Sesión encontrada en localStorage');
+                console.log('🔄 Redirigiendo a sincronización automática...');
+                
+                // Redirigir a página de sincronización automática
+                setTimeout(() => {
+                    window.location.href = '/practicas/chat-frontend/public/auto-staff.php';
+                }, 1500);
+                
+                return true;
+            } else {
+                console.log('❌ No hay sesión en localStorage');
+                console.log('📝 Mostrando formulario de login...');
+                
+                // Mostrar formulario de login
+                setTimeout(() => {
+                    document.getElementById('localStorageCheck').classList.add('hidden');
+                    document.getElementById('loginScreen').classList.remove('hidden');
+                }, 1000);
+                
+                return false;
+            }
+        }
+
         // Form handler
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -151,8 +235,12 @@ if ($auth->isAuthenticated() && $auth->isStaff()) {
                 const result = await auth.login(email, password);
                 
                 if (result.success) {
-                    alert('Login exitoso');
-                    window.location.href = '/practicas/chat-frontend/public/staff.php';
+                    console.log('✅ Login exitoso');
+                    
+                    // Redirigir a sincronización automática
+                    setTimeout(() => {
+                        window.location.href = '/practicas/chat-frontend/public/auto-staff.php';
+                    }, 500);
                 } else {
                     alert('Error: ' + result.error);
                 }
@@ -165,10 +253,13 @@ if ($auth->isAuthenticated() && $auth->isStaff()) {
             }
         });
 
-        // Redirect if already logged in
-        if (localStorage.getItem('pToken') && localStorage.getItem('user')) {
-            window.location.href = '/practicas/chat-frontend/public/staff.php';
-        }
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🟢 Index.php con sincronización iniciado');
+            
+            // Verificar localStorage automáticamente
+            checkLocalStorageSession();
+        });
     </script>
 </body>
 </html>
