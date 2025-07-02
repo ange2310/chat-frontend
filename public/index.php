@@ -1,13 +1,12 @@
 <?php
-// public/index.php - Portal de staff CORREGIDO
+// public/index.php - Login simple
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 
 $auth = auth();
-$isAuthenticated = $auth->isAuthenticated();
 
-// REDIRECCIÓN CORREGIDA - Solo si ya está autenticado Y es staff
-if ($isAuthenticated && $auth->isStaff()) {
+// Si ya está autenticado, redirigir
+if ($auth->isAuthenticated() && $auth->isStaff()) {
     header("Location: /staff.php");
     exit;
 }
@@ -17,199 +16,159 @@ if ($isAuthenticated && $auth->isStaff()) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal Médico - Acceso Personal</title>
+    <title>Portal Médico - Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="assets/css/main.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
 </head>
-<body class="h-full">
+<body class="bg-gray-900">
+    
     <div class="min-h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div class="max-w-md w-full space-y-8">
+        <div class="max-w-md w-full">
             
             <!-- Header -->
-            <div class="text-center">
-                <div class="mx-auto h-12 w-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <svg class="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="text-center mb-8">
+                <div class="mx-auto h-12 w-12 bg-white rounded-xl flex items-center justify-center mb-4 shadow-lg">
+                    <svg class="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path>
                     </svg>
                 </div>
-                <h2 class="mt-6 text-3xl font-bold text-gray-900">Portal Médico</h2>
-                <p class="mt-2 text-sm text-gray-600">Acceso para personal autorizado</p>
+                <h2 class="text-3xl font-bold text-white">Portal Médico</h2>
+                <p class="text-blue-100 mt-2">Acceso al sistema</p>
             </div>
 
-            <!-- Formulario de Login -->
-            <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-                <form id="loginForm" onsubmit="handleLoginSubmit(event)" class="space-y-6">
+            <!-- Login Form -->
+            <div class="bg-white rounded-xl shadow-xl p-8">
+                <form id="loginForm" class="space-y-6">
+                    
                     <div>
-                        <label for="loginEmail" class="block text-sm font-medium text-gray-700">Email</label>
-                        <div class="mt-1">
-                            <input 
-                                id="loginEmail" 
-                                type="email" 
-                                required
-                                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="tu.email@hospital.com"
-                            >
-                        </div>
-                    </div>
-
-                    <div>
-                        <label for="loginPassword" class="block text-sm font-medium text-gray-700">Contraseña</label>
-                        <div class="mt-1">
-                            <input 
-                                id="loginPassword" 
-                                type="password" 
-                                required
-                                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Tu contraseña"
-                            >
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center">
-                            <input 
-                                id="rememberMe" 
-                                type="checkbox" 
-                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                            >
-                            <label for="rememberMe" class="ml-2 block text-sm text-gray-900">Recordarme</label>
-                        </div>
-                        <div class="text-sm">
-                            <a href="#" onclick="showForgotPassword()" class="font-medium text-blue-600 hover:text-blue-500">
-                                ¿Olvidaste tu contraseña?
-                            </a>
-                        </div>
-                    </div>
-
-                    <div>
-                        <button 
-                            type="submit" 
-                            id="submitBtn"
-                            class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+                            Email
+                        </label>
+                        <input 
+                            id="email" 
+                            type="email" 
+                            required
+                            autocomplete="email"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="tu@email.com"
                         >
-                            <span id="submitText">Iniciar Sesión</span>
-                        </button>
                     </div>
-                </form>
 
-                <div class="mt-6 text-center">
-                    <p class="text-sm text-gray-600">
-                        ¿Eres paciente? 
-                        <a href="/preauth.php" class="font-medium text-blue-600 hover:text-blue-500">
-                            Usa tu enlace personalizado
-                        </a>
-                    </p>
-                </div>
-
-                <!-- Estado de conexión -->
-                <div class="mt-4 text-center">
-                    <div id="connectionStatus" class="inline-flex items-center text-sm text-gray-500">
-                        <div id="statusDot" class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-                        <span id="statusText">Verificando conexión...</span>
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+                            Contraseña
+                        </label>
+                        <input 
+                            id="password" 
+                            type="password" 
+                            required
+                            autocomplete="current-password"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Tu contraseña"
+                        >
                     </div>
-                </div>
 
-                <!-- Datos de prueba (solo desarrollo) -->
-                <?php if (APP_ENV === 'development'): ?>
-                <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <h4 class="text-sm font-medium text-yellow-800">Datos de prueba:</h4>
-                    <p class="text-xs text-yellow-700 mt-1">
-                        Email: <code>admin@tpsalud.com</code><br>
-                        Password: <code>Admin123</code>
-                    </p>
-                    <button onclick="fillTestCredentials()" class="mt-2 text-xs bg-yellow-200 px-2 py-1 rounded">
-                        Llenar automáticamente
+                    <button 
+                        type="submit" 
+                        id="submitBtn"
+                        class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-colors disabled:opacity-50"
+                    >
+                        <span id="normalText">Iniciar Sesión</span>
+                        <span id="loadingText" class="hidden">
+                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Iniciando...
+                        </span>
                     </button>
-                </div>
-                <?php endif; ?>
+                </form>
             </div>
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="assets/js/auth-client.js"></script>
-    
     <script>
-        // Inicializar cliente de auth
-        window.authClient = new AuthClient();
-        
-        // Verificar estado inicial
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('🏥 Portal médico iniciado');
+        // Simple AuthClient
+        class SimpleAuth {
+            constructor() {
+                this.baseURL = 'http://187.33.158.246:8080/auth';
+            }
+
+            async login(email, password) {
+                try {
+                    const response = await fetch(`${this.baseURL}/login`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ email, password })
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        localStorage.setItem('pToken', result.data.access_token);
+                        localStorage.setItem('user', JSON.stringify(result.data.user));
+                        return { success: true, data: result.data };
+                    } else {
+                        return { success: false, error: result.message || 'Error en login' };
+                    }
+                } catch (error) {
+                    return { success: false, error: 'Error de conexión' };
+                }
+            }
+        }
+
+        // Initialize
+        const auth = new SimpleAuth();
+
+        // Form handler
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
             
-            // Si ya está autenticado, redirigir
-            if (window.authClient.isAuthenticated() && window.authClient.isStaff()) {
-                console.log('🔄 Usuario ya autenticado, redirigiendo...');
-                window.location.href = '/staff.php';
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                alert('Complete todos los campos');
                 return;
             }
             
-            checkServerHealth();
-        });
-        
-        // Verificar estado del servidor
-        async function checkServerHealth() {
+            // Show loading
+            const submitBtn = document.getElementById('submitBtn');
+            const normalText = document.getElementById('normalText');
+            const loadingText = document.getElementById('loadingText');
+            
+            submitBtn.disabled = true;
+            normalText.classList.add('hidden');
+            loadingText.classList.remove('hidden');
+            
             try {
-                const response = await fetch('http://187.33.158.246:8080/auth/../health', {
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' }
-                });
+                const result = await auth.login(email, password);
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    updateStatus('Servidor conectado', 'success');
-                    console.log('✅ Servidor OK:', data);
+                if (result.success) {
+                    alert('Login exitoso');
+                    window.location.href = '/staff.php';
                 } else {
-                    updateStatus('Problemas con servidor', 'warning');
+                    alert('Error: ' + result.error);
                 }
             } catch (error) {
-                console.error('❌ Error servidor:', error);
-                updateStatus('Sin conexión', 'error');
+                alert('Error de conexión');
+            } finally {
+                submitBtn.disabled = false;
+                normalText.classList.remove('hidden');
+                loadingText.classList.add('hidden');
             }
+        });
+
+        // Redirect if already logged in
+        if (localStorage.getItem('pToken') && localStorage.getItem('user')) {
+            window.location.href = '/staff.php';
         }
-        
-        function updateStatus(text, type) {
-            const statusText = document.getElementById('statusText');
-            const statusDot = document.getElementById('statusDot');
-            
-            statusText.textContent = text;
-            
-            statusDot.className = 'w-2 h-2 rounded-full mr-2 ';
-            switch(type) {
-                case 'success':
-                    statusDot.className += 'bg-green-400';
-                    break;
-                case 'warning':
-                    statusDot.className += 'bg-yellow-400';
-                    break;
-                case 'error':
-                    statusDot.className += 'bg-red-400';
-                    break;
-                default:
-                    statusDot.className += 'bg-gray-400';
-            }
-        }
-        
-        function showForgotPassword() {
-            window.authClient.showNotification('Contacta al administrador: admin@hospital.com', 'info', 7000);
-        }
-        
-        <?php if (APP_ENV === 'development'): ?>
-        function fillTestCredentials() {
-            document.getElementById('loginEmail').value = 'admin@tpsalud.com';
-            document.getElementById('loginPassword').value = 'Admin123';
-        }
-        <?php endif; ?>
-        
-        // Helper global para debug
-        window.debugAuth = {
-            testConnection: () => checkServerHealth(),
-            getInfo: () => window.authClient.getChatStats?.() || 'No disponible',
-            clearAuth: () => {
-                localStorage.clear();
-                location.reload();
-            }
-        };
     </script>
 </body>
 </html>
