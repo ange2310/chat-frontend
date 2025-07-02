@@ -7,7 +7,7 @@ $auth = auth();
 
 // Si ya está autenticado, redirigir
 if ($auth->isAuthenticated() && $auth->isStaff()) {
-    header("Location: /staff.php");
+    header("Location: /practicas/chat-frontend/public/staff.php");
     exit;
 }
 ?>
@@ -152,7 +152,7 @@ if ($auth->isAuthenticated() && $auth->isStaff()) {
                 
                 if (result.success) {
                     alert('Login exitoso');
-                    window.location.href = '/staff.php';
+                    window.location.href = '/practicas/chat-frontend/public/staff.php';
                 } else {
                     alert('Error: ' + result.error);
                 }
@@ -167,7 +167,7 @@ if ($auth->isAuthenticated() && $auth->isStaff()) {
 
         // Redirect if already logged in
         if (localStorage.getItem('pToken') && localStorage.getItem('user')) {
-            window.location.href = '/staff.php';
+            window.location.href = '/practicas/chat-frontend/public/staff.php';
         }
     </script>
 </body>
