@@ -1,7 +1,7 @@
 class AuthClient {
     constructor(authServiceUrl = null) { 
         // ✅ URLS CORREGIDAS PARA NGINX PROXY
-        this.baseURL = authServiceUrl || 'http://187.33.158.246:8080/auth';
+        this.baseURL = authServiceUrl || 'http://187.33.158.246:8080/auth'; // ← A través de nginx
         this.authServiceUrl = this.baseURL;  
         
         this.token = this.getStoredToken();
@@ -210,37 +210,25 @@ class AuthClient {
 
     async logout() {
         try {
-            console.log('👋 Cerrando sesión...');
-            console.log('🎯 Página actual:', window.location.href);
+            console.log('👋 Cerrando sesión');
             
             if (this.token && this.userType === 'staff') {
                 // Hacer logout en el servidor para JWT
-                try {
-                    await fetch(`${this.baseURL}/logout`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${this.token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    console.log('✅ Logout exitoso en servidor');
-                } catch (serverError) {
-                    console.warn('⚠️ Error en logout del servidor:', serverError);
-                }
+                await fetch(`${this.baseURL}/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
             }
             
             this.clearAuth();
             this.updateUI();
             
-            // ✅ REDIRECCIÓN CORREGIDA Y CLARA:
-            console.log('🔄 Iniciando redirección...');
-            
+            // Redirigir a home
             setTimeout(() => {
-                const targetUrl = '/practicas/chat-frontend/public/index.php?logout=1';
-                console.log('🎯 Redirigiendo a:', targetUrl);
-                
-                // Usar replace para evitar history issues
-                window.location.replace(targetUrl);
+                window.location.href = '/';
             }, 500);
             
         } catch (error) {
@@ -248,11 +236,6 @@ class AuthClient {
             // Limpiar local aunque falle el servidor
             this.clearAuth();
             this.updateUI();
-            
-            // Forzar redirección aún con error
-            setTimeout(() => {
-                window.location.replace('/practicas/chat-frontend/public/logout.php');
-            }, 500);
         }
     }
 
@@ -370,10 +353,6 @@ class AuthClient {
     }
 
     clearAuth() {
-        console.log('🧹 Limpiando autenticación...');
-        console.log('📍 Token anterior:', this.token ? this.token.substring(0, 20) + '...' : 'ninguno');
-        console.log('👤 Usuario anterior:', this.user?.name || 'ninguno');
-        
         this.token = null;
         this.user = null;
         this.userType = 'staff';
@@ -381,29 +360,20 @@ class AuthClient {
         localStorage.removeItem('pToken');
         localStorage.removeItem('user');
         
-        console.log('✅ Autenticación limpiada completamente');
+        console.log('🧹 Autenticación limpiada');
         
         // Disparar evento personalizado
         this.dispatchAuthEvent(false, null);
     }
 
     getStoredToken() {
-        const token = localStorage.getItem('pToken');
-        if (token) {
-            console.log('🔑 Token recuperado del localStorage:', token.substring(0, 20) + '...');
-        }
-        return token;
+        return localStorage.getItem('pToken');
     }
 
     getStoredUser() {
         try {
             const userData = localStorage.getItem('user');
-            if (userData) {
-                const user = JSON.parse(userData);
-                console.log('👤 Usuario recuperado del localStorage:', user.name || user.email || 'unknown');
-                return user;
-            }
-            return null;
+            return userData ? JSON.parse(userData) : null;
         } catch (error) {
             console.error('Error parsing stored user:', error);
             return null;
@@ -753,15 +723,11 @@ window.handleLoginSubmit = async function(event) {
             window.authClient.showSuccess('¡Bienvenido de vuelta!');
             if (typeof closeAuthModal === 'function') closeAuthModal();
             
-            // ✅ REDIRECCIÓN CLARA Y EXPLÍCITA:
-            console.log('🎯 Login exitoso, preparando redirección...');
+            // Redireccionar según el rol
             setTimeout(() => {
                 if (window.authClient.isStaff()) {
-                    const targetUrl = '/practicas/chat-frontend/public/staff.php';
-                    console.log('🏥 Redirigiendo a panel de staff:', targetUrl);
-                    window.location.href = targetUrl;
+                    window.location.href = '/staff.php';
                 } else {
-                    console.log('🔄 Recargando página actual');
                     window.location.reload();
                 }
             }, 1000);
@@ -769,7 +735,6 @@ window.handleLoginSubmit = async function(event) {
             window.authClient.showError(result.error || 'Error en el login');
         }
     } catch (error) {
-        console.error('❌ Error en handleLoginSubmit:', error);
         window.authClient.showError('Error de conexión');
     } finally {
         submitBtn.disabled = false;
@@ -796,11 +761,11 @@ window.debugAuth = {
     // Limpiar autenticación
     clearAuth: () => {
         window.authClient.clearAuth();
-        console.log('🧹 Autenticación limpiada manualmente');
+        console.log('🧹 Autenticación limpiada');
     },
     
     // Login de prueba
-    testLogin: async (email = 'admin@tpsalud.com', password = 'Admin123') => {
+    testLogin: async (email = 'test@test.com', password = 'Password123') => {
         const result = await window.authClient.login(email, password);
         console.log('🔐 Test login result:', result);
         return result;
@@ -838,47 +803,7 @@ window.debugAuth = {
         console.log('🎯 Resultado selección:', result);
         return result;
     },
-    
-    // 🔍 DEBUGGING ESPECÍFICO PARA EL PROBLEMA DEL DASHBOARD
-    trackRedirects: () => {
-        console.log('🕵️ Activando rastreo de redirecciones...');
-        
-        // Interceptar window.location changes
-        let originalLocation = window.location.href;
-        
-        const checkLocationChange = () => {
-            if (originalLocation !== window.location.href) {
-                console.log('🚨 REDIRECCIÓN DETECTADA:', {
-                    from: originalLocation,
-                    to: window.location.href,
-                    stack: new Error().stack
-                });
-                originalLocation = window.location.href;
-            }
-        };
-        
-        setInterval(checkLocationChange, 100);
-        
-        // Interceptar history API
-        const originalPushState = history.pushState;
-        const originalReplaceState = history.replaceState;
-        
-        history.pushState = function(...args) {
-            console.log('🚨 PUSH STATE:', args);
-            console.trace('Stack trace:');
-            return originalPushState.apply(this, args);
-        };
-        
-        history.replaceState = function(...args) {
-            console.log('🚨 REPLACE STATE:', args);
-            console.trace('Stack trace:');
-            return originalReplaceState.apply(this, args);
-        };
-        
-        console.log('✅ Rastreo de redirecciones activado');
-    }
 };
 
-console.log('🔐 AuthClient v3.0 cargado - SIN REDIRECCIONES RARAS');
+console.log('🔐 AuthClient v2.2 cargado - NGINX PROXY CONFIGURADO');
 console.log('🛠️ Debug disponible en: window.debugAuth');
-console.log('🕵️ Para rastrear el problema del dashboard: window.debugAuth.trackRedirects()');

@@ -1,5 +1,5 @@
 <?php
-// config/auth.php - Helper de autenticación CORREGIDO SIN redirecciones a dashboard
+// config/auth.php - CORREGIDO SIN REDIRECCIONES PROBLEMÁTICAS
 
 class AuthHelper {
     private $authServiceURL = 'http://187.33.158.246:8080/auth';
@@ -28,7 +28,11 @@ class AuthHelper {
      * Obtener datos del usuario actual
      */
     public function getUser() {
-        return $_SESSION['user'] ?? null;
+        $userData = $_SESSION['user'] ?? null;
+        if ($userData && is_string($userData)) {
+            return json_decode($userData, true);
+        }
+        return $userData;
     }
     
     /**
@@ -36,7 +40,17 @@ class AuthHelper {
      */
     public function hasRole($role) {
         $user = $this->getUser();
-        return $user && isset($user['role']) && $user['role'] === $role;
+        if (!$user) return false;
+        
+        $userRole = $user['role']['name'] ?? $user['role'] ?? null;
+        
+        // Manejar roles numéricos
+        if (is_numeric($userRole)) {
+            $roleMap = [1 => 'patient', 2 => 'agent', 3 => 'supervisor', 4 => 'admin'];
+            $userRole = $roleMap[$userRole] ?? null;
+        }
+        
+        return $userRole === $role;
     }
     
     /**
@@ -47,47 +61,18 @@ class AuthHelper {
     }
     
     /**
-     * Redirigir si no está autenticado - CORREGIDO
-     */
-    public function requireAuth($redirectTo = '/practicas/chat-frontend/public/index.php') {
-        if (!$this->isAuthenticated()) {
-            header("Location: $redirectTo");
-            exit;
-        }
-    }
-    
-    /**
-     * Redirigir si no es staff - CORREGIDO
-     */
-    public function requireStaff($redirectTo = '/practicas/chat-frontend/public/index.php') {
-        $this->requireAuth($redirectTo);
-        if (!$this->isStaff()) {
-            header("Location: $redirectTo");
-            exit;
-        }
-    }
-    
-    /**
-     * Redirigir si no tiene rol específico - CORREGIDO
-     */
-    public function requireRole($role, $redirectTo = '/practicas/chat-frontend/public/index.php') {
-        $this->requireAuth($redirectTo);
-        if (!$this->hasRole($role)) {
-            header("Location: $redirectTo");
-            exit;
-        }
-    }
-    
-    /**
      * Logout (limpiar sesión)
      */
     public function logout() {
         session_destroy();
-        session_start();
+        session_unset();
+        if (session_status() == PHP_SESSION_NONE) {
+            session_start();
+        }
     }
     
     /**
-     * Obtener headers para requests AJAX desde JavaScript
+     * Obtener headers para requests
      */
     public function getAuthHeaders() {
         $token = $this->getToken();
@@ -103,36 +88,74 @@ function auth() {
     return new AuthHelper();
 }
 
-// Middleware para proteger páginas - CORREGIDO SIN REDIRECCIÓN A DASHBOARD
-function protectPage($requiredRole = null, $redirectTo = '/practicas/chat-frontend/public/index.php') {
-    $auth = auth();
-    
-    if ($requiredRole) {
-        $auth->requireRole($requiredRole, $redirectTo);
-    } else {
-        $auth->requireAuth($redirectTo);
-    }
-}
+// FUNCIONES DE PROTECCIÓN SIMPLIFICADAS Y CORREGIDAS
 
-// FUNCIÓN CORREGIDA - ESTA ERA LA QUE CAUSABA EL PROBLEMA
-function protectStaffPage($redirectTo = '/practicas/chat-frontend/public/index.php') {
+/**
+ * Proteger página requiriendo autenticación - SIN REDIRECCIONES AUTOMÁTICAS
+ */
+function requireAuth() {
     $auth = auth();
-    
-    // ANTES POSIBLEMENTE TENÍA: $redirectTo = '/dashboard/'
-    // AHORA CORREGIDO PARA IR AL INDEX.PHP
     
     if (!$auth->isAuthenticated()) {
-        header("Location: $redirectTo");
+        http_response_code(401);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => false, 
+            'error' => 'No autenticado',
+            'redirect' => '/practicas/chat-frontend/public/index.php'
+        ]);
+        exit;
+    }
+    
+    return true;
+}
+
+/**
+ * Proteger página de staff - VERSIÓN CORREGIDA SIN BUCLES
+ */
+function protectStaffPage() {
+    $auth = auth();
+    
+    // Debug logging
+    error_log("[AUTH-DEBUG] protectStaffPage() iniciado");
+    error_log("[AUTH-DEBUG] isAuthenticated: " . ($auth->isAuthenticated() ? 'true' : 'false'));
+    
+    if (!$auth->isAuthenticated()) {
+        error_log("[AUTH-DEBUG] No autenticado, redirigiendo a index.php");
+        header("Location: /practicas/chat-frontend/public/index.php?error=not_authenticated");
         exit;
     }
     
     if (!$auth->isStaff()) {
-        header("Location: $redirectTo");
+        error_log("[AUTH-DEBUG] No es staff, redirigiendo a index.php");
+        header("Location: /practicas/chat-frontend/public/index.php?error=not_staff");
         exit;
     }
+    
+    error_log("[AUTH-DEBUG] Staff autenticado correctamente");
+    return true;
 }
 
-// Funciones adicionales para debugging
+/**
+ * Proteger página requiriendo rol específico
+ */
+function requireRole($role) {
+    $auth = auth();
+    
+    if (!$auth->isAuthenticated()) {
+        header("Location: /practicas/chat-frontend/public/index.php?error=not_authenticated");
+        exit;
+    }
+    
+    if (!$auth->hasRole($role)) {
+        header("Location: /practicas/chat-frontend/public/index.php?error=insufficient_permissions");
+        exit;
+    }
+    
+    return true;
+}
+
+// Funciones de debug
 function debugAuth($message) {
     if (defined('APP_ENV') && APP_ENV === 'development') {
         error_log("[AUTH-DEBUG] $message");
