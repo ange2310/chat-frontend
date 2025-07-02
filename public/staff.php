@@ -20,7 +20,7 @@ if (is_numeric($userRole)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel Médico</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="/practicas/chat-frontend/public/assets/css/main.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -399,8 +399,8 @@ if (is_numeric($userRole)) {
     </div>
 
     <!-- Scripts -->
-    <script src="/practicas/chat-frontend/public/assets/js/auth-client.js"></script>
-    <script src="/practicas/chat-frontend/public/assets/js/chat-client.js"></script>
+    <script src="public/assets/js/auth-client.js"></script>
+    <script src="public/assets/js/chat-client.js"></script>
     
     <script>
         // Configuration

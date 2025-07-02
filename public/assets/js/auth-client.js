@@ -226,9 +226,9 @@ class AuthClient {
             this.clearAuth();
             this.updateUI();
             
-            // Redirigir a home
+            // ✅ REDIRECCIÓN CORREGIDA:
             setTimeout(() => {
-                window.location.href = '/';
+                window.location.href = '/practicas/chat-frontend/public/index.php';
             }, 500);
             
         } catch (error) {
@@ -723,10 +723,10 @@ window.handleLoginSubmit = async function(event) {
             window.authClient.showSuccess('¡Bienvenido de vuelta!');
             if (typeof closeAuthModal === 'function') closeAuthModal();
             
-            // Redireccionar según el rol
+            // ✅ REDIRECCIÓN CORREGIDA:
             setTimeout(() => {
                 if (window.authClient.isStaff()) {
-                    window.location.href = '/staff.php';
+                    window.location.href = '/practicas/chat-frontend/public/staff.php';
                 } else {
                     window.location.reload();
                 }

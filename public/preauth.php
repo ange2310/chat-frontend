@@ -22,7 +22,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Consulta Médica - Portal de Atención</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -361,10 +361,9 @@ if (empty($pToken) || strlen($pToken) < 10) {
     </div>
 
     <!-- Scripts -->
-    <script src="assets/js/auth-client.js"></script>
+    <script src="public/assets/js/auth-client.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="assets/js/chat-client.js"></script>
-    
+    <script src="public/assets/js/chat-client.js"></script>
     <script>
         // Configuración
         const CONFIG = {

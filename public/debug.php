@@ -16,7 +16,7 @@ $testPToken = $_GET['ptoken'] ?? 'CC678AVEZVKADBT';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Debug - Sistema de Chat Médico</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         .debug-section {
             margin-bottom: 2rem;
