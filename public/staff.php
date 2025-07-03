@@ -1,5 +1,5 @@
 <?php
-// public/staff.php - PANEL INTEGRADO CON CHAT COMPLETO
+// public/staff.php - PANEL INTEGRADO CON CHAT COMPLETO Y SALAS REALES
 session_start();
 
 // VERIFICACIÓN SIMPLE Y DIRECTA
@@ -52,6 +52,11 @@ function debugLog($message, $data = null, $level = 'INFO') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel Médico - <?= htmlspecialchars($user['name'] ?? 'Staff') ?></title>
+    
+    <!-- Meta para token y datos de staff -->
+    <meta name="staff-token" content="<?= $_SESSION['pToken'] ?? '' ?>">
+    <meta name="staff-user" content='<?= json_encode($user) ?>'>
+    
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -481,7 +486,7 @@ function debugLog($message, $data = null, $level = 'INFO') {
                             <div id="noChatSelected" class="flex-1 flex items-center justify-center bg-gray-50">
                                 <div class="text-center">
                                     <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 103 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
                                     </svg>
                                     <h3 class="text-lg font-medium text-gray-900 mb-2">No hay chat seleccionado</h3>
                                     <p class="text-gray-600">Selecciona una sesión de la lista para comenzar</p>
@@ -762,14 +767,261 @@ function debugLog($message, $data = null, $level = 'INFO') {
                     </div>
                 </div>
 
-                <!-- Otras secciones... -->
-                <div id="rooms-section" class="section-content hidden p-6">
-                    <div class="bg-white rounded-lg shadow">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h3 class="font-semibold text-gray-900">Gestión de Salas</h3>
+                <!-- Sección de Salas - REAL CON DATOS DE BD -->
+                <div id="rooms-section" class="section-content hidden">
+                    
+                    <!-- Lista de Salas -->
+                    <div id="rooms-list-section" class="p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-900">Salas de Atención</h2>
+                                <p class="text-gray-600">Gestiona las salas y sesiones de pacientes</p>
+                            </div>
+                            <button onclick="staffClient.loadRoomsFromDB()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                Actualizar
+                            </button>
                         </div>
+                        
+                        <div id="roomsContainer">
+                            <div class="text-center py-12">
+                                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                <p class="text-gray-500">Cargando salas desde BD...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sesiones de Sala Específica -->
+                    <div id="room-sessions-section" class="hidden">
+                        <div class="border-b border-gray-200 bg-white">
+                            <div class="p-6">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-4">
+                                        <button onclick="staffClient.goBackToRooms()" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                            </svg>
+                                        </button>
+                                        <div>
+                                            <h2 id="currentRoomName" class="text-2xl font-bold text-gray-900">Sala</h2>
+                                            <p class="text-gray-600">Sesiones activas y en cola</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-center space-x-4">
+                                        <div class="text-center">
+                                            <div class="text-2xl font-bold text-blue-600" id="roomSessionsCount">0</div>
+                                            <div class="text-sm text-gray-500">Total</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="text-2xl font-bold text-orange-600" id="roomWaitingCount">0</div>
+                                            <div class="text-sm text-gray-500">En Cola</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="p-6">
-                            <p class="text-gray-600">Funcionalidad de gestión de salas en desarrollo</p>
+                            <div id="sessionsContainer">
+                                <div class="text-center py-12">
+                                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                    <p class="text-gray-500">Cargando sesiones...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panel de Chat del Paciente -->
+                    <div id="patient-chat-panel" class="hidden h-screen flex flex-col">
+                        
+                        <!-- Header del Chat -->
+                        <div class="bg-white border-b border-gray-200 px-6 py-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-4">
+                                    <button onclick="staffClient.goBackToSessions()" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                        </svg>
+                                    </button>
+                                    <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 id="chatPatientName" class="text-xl font-bold text-gray-900">Paciente</h2>
+                                        <p class="text-sm text-gray-500">
+                                            <span id="chatRoomName">Sala</span> • 
+                                            <span id="chatSessionStatus">Estado</span> • 
+                                            ID: <span id="chatPatientId">-</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center space-x-2">
+                                    <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                                        <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 103 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
+                                        </svg>
+                                        Iniciar Chat
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contenido del Chat con Panel de Información -->
+                        <div class="flex-1 flex overflow-hidden">
+                            
+                            <!-- Área de Chat Principal (60%) -->
+                            <div class="flex-1 flex flex-col border-r border-gray-200">
+                                <!-- Mensajes del Chat -->
+                                <div class="flex-1 p-6 overflow-y-auto bg-gray-50">
+                                    <div id="patientChatMessages" class="space-y-4">
+                                        <div class="text-center py-8">
+                                            <svg class="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 103 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
+                                            </svg>
+                                            <p class="text-gray-500">Historial de chat se cargará aquí</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Input del Chat -->
+                                <div class="bg-white border-t border-gray-200 p-4">
+                                    <div class="flex space-x-3">
+                                        <input type="text" placeholder="Escribe tu mensaje al paciente..." 
+                                               class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <button class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                            Enviar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Panel de Información del Paciente (40%) -->
+                            <div class="w-2/5 bg-gray-50 overflow-y-auto">
+                                <div class="p-6 space-y-6">
+                                    
+                                    <!-- Información Personal -->
+                                    <div class="bg-white rounded-lg shadow-sm border">
+                                        <div class="px-4 py-3 border-b border-gray-200 bg-blue-50">
+                                            <div class="flex items-center space-x-2">
+                                                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                                </svg>
+                                                <h3 class="font-semibold text-gray-900">Información Personal</h3>
+                                            </div>
+                                        </div>
+                                        <div class="p-4 space-y-3">
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Nombre:</span>
+                                                <span id="membershipPatientName" class="text-gray-900 text-sm font-medium">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Documento:</span>
+                                                <span id="membershipPatientDoc" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Tipo Doc:</span>
+                                                <span id="membershipPatientDocType" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">F. Nacimiento:</span>
+                                                <span id="membershipPatientBirth" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Género:</span>
+                                                <span id="membershipPatientGender" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Información de Contacto -->
+                                    <div class="bg-white rounded-lg shadow-sm border">
+                                        <div class="px-4 py-3 border-b border-gray-200 bg-green-50">
+                                            <div class="flex items-center space-x-2">
+                                                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                                                </svg>
+                                                <h3 class="font-semibold text-gray-900">Contacto</h3>
+                                            </div>
+                                        </div>
+                                        <div class="p-4 space-y-3">
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Teléfono:</span>
+                                                <span id="membershipPatientPhone" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Email:</span>
+                                                <span id="membershipPatientEmail" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Ciudad:</span>
+                                                <span id="membershipPatientCity" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Información de Membresía -->
+                                    <div class="bg-white rounded-lg shadow-sm border">
+                                        <div class="px-4 py-3 border-b border-gray-200 bg-purple-50">
+                                            <div class="flex items-center space-x-2">
+                                                <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                                </svg>
+                                                <h3 class="font-semibold text-gray-900">Membresía</h3>
+                                            </div>
+                                        </div>
+                                        <div class="p-4 space-y-3">
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">EPS:</span>
+                                                <span id="membershipEPS" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Plan:</span>
+                                                <span id="membershipPlan" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Estado:</span>
+                                                <span id="membershipStatus" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Vigencia:</span>
+                                                <span id="membershipExpiry" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Información del Tomador -->
+                                    <div class="bg-white rounded-lg shadow-sm border">
+                                        <div class="px-4 py-3 border-b border-gray-200 bg-orange-50">
+                                            <div class="flex items-center space-x-2">
+                                                <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                                </svg>
+                                                <h3 class="font-semibold text-gray-900">Tomador</h3>
+                                            </div>
+                                        </div>
+                                        <div class="p-4 space-y-3">
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Nombre:</span>
+                                                <span id="membershipTomadorName" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Documento:</span>
+                                                <span id="membershipTomadorDoc" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600 text-sm">Empresa:</span>
+                                                <span id="membershipTomadorCompany" class="text-gray-900 text-sm">-</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -811,6 +1063,7 @@ function debugLog($message, $data = null, $level = 'INFO') {
     <script src="assets/js/auth-client.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="assets/js/chat-client.js"></script>
+    <script src="assets/js/staff-client.js"></script>
     
     <script>
         /*
@@ -987,6 +1240,11 @@ function debugLog($message, $data = null, $level = 'INFO') {
             // Inicializar funcionalidades específicas
             if (sectionName === 'chats') {
                 initializeAgentChat();
+            } else if (sectionName === 'rooms') {
+                // Inicializar sección de salas con datos reales
+                if (window.staffClient) {
+                    window.staffClient.init();
+                }
             }
         }
 
@@ -1187,7 +1445,7 @@ function debugLog($message, $data = null, $level = 'INFO') {
                 container.innerHTML = `
                     <div class="text-center py-8">
                         <svg class="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 103 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path>
                         </svg>
                         <p class="text-gray-500">${getEmptyMessage()}</p>
                     </div>
@@ -1333,916 +1591,45 @@ function debugLog($message, $data = null, $level = 'INFO') {
             }
         }
 
-        // === SELECCIONAR SESIÓN (ABRIR CHAT) ===
-        async function selectSession(sessionId) {
-            try {
-                console.log('🎯 Seleccionando sesión:', sessionId);
-                
-                const session = sessions.find(s => s.id === sessionId);
-                if (!session) {
-                    throw new Error('Sesión no encontrada');
-                }
-                
-                // Solo permitir abrir chats propios o asignar chats en espera
-                if (session.status === 'waiting') {
-                    await assignToMe(sessionId);
-                    return;
-                }
-                
-                if (session.agent_id !== CONFIG.USER_DATA.id) {
-                    showNotification('Esta sesión está siendo atendida por otro agente', 'warning');
-                    return;
-                }
-                
-                currentSessionId = sessionId;
-                currentAgentSession = session;
-                
-                // Mostrar chat area
-                document.getElementById('noChatSelected').classList.add('hidden');
-                document.getElementById('activeChatArea').classList.remove('hidden');
-                
-                // Actualizar header del chat
-                updateChatHeader(session);
-                
-                // Cargar información completa del paciente
-                await loadPatientInfo(session);
-                
-                // Inicializar chat client si no existe
-                if (!window.chatClient) {
-                    window.chatClient = new ChatClient();
-                }
-                
-                // Conectar al chat como agente
-                await connectToChat(session);
-                
-                // Iniciar timer
-                startSessionTimer(session);
-                
-                console.log('✅ Chat abierto exitosamente');
-                
-            } catch (error) {
-                console.error('❌ Error seleccionando sesión:', error);
-                showNotification('Error: ' + error.message, 'error');
-            }
+        // === UTILIDADES ===
+        function getPatientInitials(name) {
+            return name.split(' ')
+                      .map(part => part.charAt(0))
+                      .join('')
+                      .substring(0, 2)
+                      .toUpperCase();
         }
 
-        // === CONECTAR AL CHAT CON DATOS REALES ===
-        async function connectToChat(session) {
-            try {
-                console.log('🔌 Conectando al chat real de la sesión:', session.id);
-                
-                // Obtener token usando función helper
-                const agentToken = getToken();
-                
-                console.log('🔑 Verificando token para chat:', {
-                    hasToken: !!agentToken,
-                    tokenPreview: agentToken ? `${agentToken.substring(0, 20)}...` : 'No disponible'
-                });
-                
-                if (!agentToken) {
-                    throw new Error('Token de agente no disponible. Por favor, inicia sesión nuevamente.');
-                }
-                
-                // Limpiar mensajes anteriores
-                const messagesContainer = document.getElementById('chatMessages');
-                if (messagesContainer) {
-                    messagesContainer.innerHTML = '';
-                }
-                
-                // Configurar el chat client para modo agente
-                if (!window.chatClient) {
-                    window.chatClient = new ChatClient();
-                }
-                
-                window.chatClient.currentSessionId = session.id;
-                window.chatClient.currentPToken = agentToken;
-                window.chatClient.currentRoom = session.room_id;
-                window.chatClient.isAgentMode = true;
-                
-                console.log('⚙️ ChatClient configurado:', {
-                    sessionId: session.id,
-                    roomId: session.room_id,
-                    hasToken: !!agentToken,
-                    isAgentMode: true
-                });
-                
-                // Cargar historial de mensajes REAL
-                await loadSessionMessages(session.id);
-                
-                // Conectar WebSocket si no está conectado
-                if (!window.chatClient.isConnected) {
-                    console.log('🔌 Conectando WebSocket...');
-                    await window.chatClient.connectWebSocket(agentToken);
-                } else {
-                    console.log('✅ WebSocket ya conectado');
-                }
-                
-                // Unirse a la sala específica de la sesión
-                if (window.chatClient.isAuthenticated) {
-                    console.log('🏠 Uniéndose a sesión...');
-                    window.chatClient.sendToSocket('join_session', {
-                        session_id: session.id,
-                        agent_id: CONFIG.USER_DATA.id,
-                        agent_mode: true
-                    });
-                } else {
-                    console.warn('⚠️ WebSocket no autenticado, esperando...');
-                    // Intentar autenticación
-                    setTimeout(() => {
-                        if (window.chatClient.socket && window.chatClient.socket.connected) {
-                            window.chatClient.authenticateSocket(agentToken);
-                        }
-                    }, 1000);
-                }
-                
-                console.log('✅ Conectado al chat real exitosamente');
-                
-            } catch (error) {
-                console.error('❌ Error conectando al chat real:', error);
-                showNotification('Error conectando al chat: ' + error.message, 'error');
-                throw error;
-            }
+        function getTimeElapsed(timestamp) {
+            const now = new Date();
+            const start = new Date(timestamp);
+            return Math.floor((now - start) / 60000);
         }
 
-        // === CARGAR MENSAJES REALES DE LA SESIÓN ===
-        async function loadSessionMessages(sessionId) {
-            try {
-                console.log('📚 Cargando historial real de mensajes para sesión:', sessionId);
-                
-                const response = await fetch(`${CONFIG.CHAT_SERVICE_URL}/messages/${sessionId}?limit=100`, {
-                    method: 'GET',
-                    headers: getAuthHeaders()
-                });
-                
-                if (!response.ok) {
-                    console.warn(`⚠️ No se pudo cargar historial: ${response.status}`);
-                    return;
-                }
-                
-                const result = await response.json();
-                console.log('📖 Respuesta de mensajes:', result);
-                
-                if (result.success && result.data && result.data.messages) {
-                    const messages = result.data.messages;
-                    console.log(`📨 Cargando ${messages.length} mensajes del historial`);
-                    
-                    // Agregar mensajes al chat en orden cronológico
-                    messages.forEach(message => {
-                        addMessageToChat(
-                            message.content,
-                            message.sender_type,
-                            message.sender_id,
-                            message.timestamp || message.created_at,
-                            false // no scroll automático hasta el final
-                        );
-                        
-                        // Si es un archivo, también agregarlo
-                        if (message.message_type === 'file' && message.file_data) {
-                            window.chatClient.addFileMessageToChat(message.file_data, message.sender_type === 'agent');
-                        }
-                    });
-                    
-                    // Scroll al final después de cargar todos
-                    setTimeout(() => {
-                        scrollToBottom();
-                    }, 100);
-                    
-                } else {
-                    console.log('📝 No hay mensajes previos en esta sesión');
-                    
-                    // Agregar mensaje de bienvenida del sistema si no hay historial
-                    addSystemWelcomeMessage(session);
-                }
-                
-            } catch (error) {
-                console.error('❌ Error cargando historial de mensajes:', error);
-                
-                // Agregar mensaje de bienvenida como fallback
-                addSystemWelcomeMessage(session);
-            }
+        function getTimeRemaining(expiresAt) {
+            const now = new Date();
+            const expires = new Date(expiresAt);
+            return Math.max(0, Math.floor((expires - now) / 60000));
         }
 
-        // === AGREGAR MENSAJES AL CHAT (REAL) ===
-        function addMessageToChat(content, senderType, senderId, timestamp, scroll = true) {
-            const messagesContainer = document.getElementById('chatMessages');
-            if (!messagesContainer) return;
-            
-            try {
-                // Determinar si es mensaje del agente actual
-                const isMyMessage = (senderType === 'agent' && senderId === CONFIG.USER_DATA.id);
-                const isPatientMessage = (senderType === 'patient' || senderType === 'user');
-                const isSystemMessage = (senderType === 'system');
-                
-                const messageElement = document.createElement('div');
-                messageElement.className = `message ${isMyMessage ? 'message-user' : (isPatientMessage ? 'message-system' : 'message-system')}`;
-                
-                const timeLabel = formatMessageTime(timestamp);
-                
-                if (isMyMessage) {
-                    // Mensaje del agente actual (lado derecho, azul)
-                    messageElement.innerHTML = `
-                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style="background: #2563eb;">
-                            ${CONFIG.USER_DATA.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div class="message-content" style="background: #2563eb; color: white;">
-                            <p>${escapeHtml(content)}</p>
-                            <div class="message-time">${timeLabel}</div>
-                        </div>
-                    `;
-                } else if (isPatientMessage) {
-                    // Mensaje del paciente (lado izquierdo, verde)
-                    messageElement.innerHTML = `
-                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style="background: #10b981;">
-                            P
-                        </div>
-                        <div class="message-content">
-                            <div class="text-sm font-medium text-gray-700 mb-1">Paciente:</div>
-                            <p>${escapeHtml(content)}</p>
-                            <div class="message-time">${timeLabel}</div>
-                        </div>
-                    `;
-                } else {
-                    // Mensaje del sistema o de otro agente
-                    messageElement.innerHTML = `
-                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style="background: #6b7280;">
-                            S
-                        </div>
-                        <div class="message-content">
-                            <div class="text-sm font-medium text-gray-700 mb-1">Sistema:</div>
-                            <p>${escapeHtml(content)}</p>
-                            <div class="message-time">${timeLabel}</div>
-                        </div>
-                    `;
-                }
-                
-                messagesContainer.appendChild(messageElement);
-                
-                if (scroll) {
-                    scrollToBottom();
-                }
-                
-            } catch (error) {
-                console.error('❌ Error agregando mensaje al chat:', error);
-            }
+        function formatStatus(status) {
+            const statusMap = {
+                'waiting': 'Esperando',
+                'active': 'Activo',
+                'transferred': 'Transferido',
+                'completed': 'Completado',
+                'expired': 'Expirado'
+            };
+            return statusMap[status] || status;
         }
 
-        // === AGREGAR MENSAJE DE BIENVENIDA ===
-        function addSystemWelcomeMessage(session) {
-            const welcomeMessages = [
-                `Bienvenido/a ${session.patient_name}. Soy ${CONFIG.USER_DATA.name}, su ${CONFIG.USER_ROLE} asignado/a.`,
-                'Estoy aquí para atenderle. ¿En qué puedo ayudarle hoy?'
-            ];
-            
-            welcomeMessages.forEach((message, index) => {
-                setTimeout(() => {
-                    addMessageToChat(
-                        message,
-                        'system',
-                        'welcome',
-                        new Date().toISOString(),
-                        index === welcomeMessages.length - 1 // solo scroll en el último
-                    );
-                }, index * 1000);
-            });
-        }
-
-        // === UTILIDADES PARA MENSAJES ===
-        function formatMessageTime(timestamp) {
-            try {
-                const date = new Date(timestamp);
-                if (isNaN(date.getTime())) {
-                    return '';
-                }
-                return date.toLocaleTimeString('es-ES', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                });
-            } catch (error) {
-                console.error('Error formateando tiempo:', error);
-                return '';
-            }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function scrollToBottom() {
-            const messagesContainer = document.getElementById('chatMessages');
-            if (messagesContainer) {
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            }
-        }
-
-        // === ACTUALIZAR HEADER DEL CHAT ===
-        function updateChatHeader(session) {
-            // Header principal
-            const patientHeaderNameEl = document.getElementById('patientHeaderName');
-            const patientHeaderInitialsEl = document.getElementById('patientHeaderInitials');
-            const roomHeaderNameEl = document.getElementById('roomHeaderName');
-            const sessionStatusEl = document.getElementById('sessionStatus');
-            const sessionStatusDotEl = document.getElementById('sessionStatusDot');
-            
-            if (patientHeaderNameEl) patientHeaderNameEl.textContent = session.patient_name;
-            if (patientHeaderInitialsEl) patientHeaderInitialsEl.textContent = getPatientInitials(session.patient_name);
-            if (roomHeaderNameEl) roomHeaderNameEl.textContent = session.room_name; // Ya es el nombre, no el ID
-            if (sessionStatusEl) sessionStatusEl.textContent = formatStatus(session.status);
-            
-            if (sessionStatusDotEl) {
-                sessionStatusDotEl.className = 'status-dot status-mine';
-            }
-        }
-
-        // === CARGAR INFORMACIÓN COMPLETA DEL PACIENTE ===
-        async function loadPatientInfo(session) {
-            try {
-                console.log('👤 Cargando información completa del paciente...');
-                
-                // Primero intentar extraer de user_data si está disponible
-                if (session.user_data || session.patient_data) {
-                    const userData = session.user_data || session.patient_data;
-                    let patientData = userData;
-                    
-                    // Si user_data es string JSON, parsearlo
-                    if (typeof userData === 'string') {
-                        try {
-                            patientData = JSON.parse(userData);
-                        } catch (e) {
-                            console.warn('Error parseando user_data:', e);
-                        }
-                    }
-                    
-                    console.log('📋 Datos del paciente encontrados:', patientData);
-                    displayPatientInfo(patientData, session);
-                    return;
-                }
-                
-                // Si no hay datos locales, intentar obtenerlos del auth service
-                console.log('🔍 Obteniendo datos del paciente desde auth service...');
-                
-                // Necesitamos el pToken del paciente para validar y obtener sus datos
-                // Este podría estar en session.ptoken o hacer una llamada específica
-                const response = await fetch(`${CONFIG.CHAT_SERVICE_URL}/sessions/${session.id}/patient`, {
-                    method: 'GET',
-                    headers: getAuthHeaders()
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result.success && result.data) {
-                        console.log('✅ Datos del paciente obtenidos del backend:', result.data);
-                        displayPatientInfo(result.data, session);
-                        return;
-                    }
-                }
-                
-                // Fallback: mostrar información básica disponible
-                console.log('⚠️ Usando información básica del paciente');
-                displayBasicPatientInfo(session);
-                
-            } catch (error) {
-                console.error('❌ Error cargando información del paciente:', error);
-                displayBasicPatientInfo(session);
-            }
-        }
-
-        // === MOSTRAR INFORMACIÓN COMPLETA DEL PACIENTE ===
-        function displayPatientInfo(patientData, session) {
-            console.log('📝 Mostrando información completa del paciente:', patientData);
-            
-            // Extraer datos de membresía si están disponibles
-            let membresia = null;
-            let beneficiario = null;
-            
-            if (patientData.membresias && patientData.membresias.length > 0) {
-                membresia = patientData.membresias[0];
-                beneficiario = membresia.beneficiarios?.find(b => b.tipo_ben === 'PPAL') || membresia.beneficiarios?.[0];
-            }
-            
-            // Información Personal
-            updateElement('patientFullName', beneficiario?.primer_nombre && beneficiario?.primer_apellido ? 
-                [beneficiario.primer_nombre, beneficiario.segundo_nombre, beneficiario.primer_apellido, beneficiario.segundo_apellido]
-                .filter(n => n).join(' ') : session.patient_name);
-            
-            updateElement('patientDocument', beneficiario?.numero_documento || 'No disponible');
-            updateElement('patientDocType', beneficiario?.tipo_documento || 'CC');
-            updateElement('patientBirthDate', beneficiario?.fecha_nacimiento ? 
-                new Date(beneficiario.fecha_nacimiento).toLocaleDateString('es-ES') : 'No disponible');
-            updateElement('patientGender', beneficiario?.genero || 'No disponible');
-            
-            // Información de Contacto
-            updateElement('patientPhone', beneficiario?.telefono || membresia?.telefono || 'No disponible');
-            updateElement('patientEmail', beneficiario?.email || membresia?.email || 'No disponible');
-            updateElement('patientCity', beneficiario?.ciudad || membresia?.ciudad || 'No disponible');
-            
-            // Información de Membresía
-            updateElement('patientEPS', membresia?.eps || 'No disponible');
-            updateElement('patientPlan', membresia?.plan || 'No disponible');
-            updateElement('patientStatus', membresia?.estado || 'Activo');
-            updateElement('patientVigencia', membresia?.fecha_fin ? 
-                new Date(membresia.fecha_fin).toLocaleDateString('es-ES') : 'No disponible');
-            
-            // Información del Tomador
-            updateElement('tomadorName', membresia?.nomTomador || 'No disponible');
-            updateElement('tomadorDocument', membresia?.docTomador || 'No disponible');
-            updateElement('tomadorEmpresa', membresia?.empresa || 'No disponible');
-            
-            // Información de Sesión
-            updateElement('sessionRoomName', session.room_name);
-            updateElement('sessionStartTime', new Date(session.created_at).toLocaleString('es-ES'));
-            updateElement('sessionDuration', calculateDuration(session.created_at));
-        }
-
-        // === MOSTRAR INFORMACIÓN BÁSICA DEL PACIENTE ===
-        function displayBasicPatientInfo(session) {
-            console.log('📝 Mostrando información básica del paciente');
-            
-            // Información Personal básica
-            updateElement('patientFullName', session.patient_name);
-            updateElement('patientDocument', session.patient_id || 'No disponible');
-            updateElement('patientDocType', 'CC');
-            updateElement('patientBirthDate', 'No disponible');
-            updateElement('patientGender', 'No disponible');
-            
-            // Información de Contacto
-            updateElement('patientPhone', 'No disponible');
-            updateElement('patientEmail', 'No disponible');
-            updateElement('patientCity', 'No disponible');
-            
-            // Información de Membresía
-            updateElement('patientEPS', 'No disponible');
-            updateElement('patientPlan', 'No disponible');
-            updateElement('patientStatus', 'Activo');
-            updateElement('patientVigencia', 'No disponible');
-            
-            // Información del Tomador
-            updateElement('tomadorName', 'No disponible');
-            updateElement('tomadorDocument', 'No disponible');
-            updateElement('tomadorEmpresa', 'No disponible');
-            
-            // Información de Sesión
-            updateElement('sessionRoomName', session.room_name);
-            updateElement('sessionStartTime', new Date(session.created_at).toLocaleString('es-ES'));
-            updateElement('sessionDuration', calculateDuration(session.created_at));
-        }
-
-        // === UTILIDADES PARA EL PANEL DE INFORMACIÓN ===
-        function updateElement(elementId, value) {
-            const element = document.getElementById(elementId);
-            if (element) {
-                element.textContent = value || 'No disponible';
-            }
-        }
-
-        function calculateDuration(startTime) {
-            try {
-                const start = new Date(startTime);
-                const now = new Date();
-                const diffMs = now - start;
-                const diffMins = Math.floor(diffMs / 60000);
-                
-                if (diffMins < 60) {
-                    return `${diffMins} min`;
-                } else {
-                    const hours = Math.floor(diffMins / 60);
-                    const mins = diffMins % 60;
-                    return `${hours}h ${mins}m`;
-                }
-            } catch (error) {
-                return 'No disponible';
-            }
-        }
-
-        // === TIMER DE SESIÓN ===
-        function startSessionTimer(session) {
-            if (timerInterval) clearInterval(timerInterval);
-            
-            timerInterval = setInterval(() => {
-                const timeRemaining = getTimeRemaining(session.expires_at);
-                const timerTextEl = document.getElementById('timerText');
-                const sessionTimerEl = document.getElementById('sessionTimer');
-                
-                if (timerTextEl) {
-                    timerTextEl.textContent = formatMinutesToMMSS(timeRemaining);
-                }
-                
-                if (sessionTimerEl) {
-                    sessionTimerEl.className = 'text-center';
-                    if (timeRemaining <= 2) {
-                        sessionTimerEl.classList.add('timer-urgent');
-                    } else if (timeRemaining <= 5) {
-                        sessionTimerEl.classList.add('timer-warning');
-                    }
-                }
-                
-                // Si expira
-                if (timeRemaining <= 0) {
-                    clearInterval(timerInterval);
-                    handleSessionExpiry();
-                }
-            }, 1000);
-        }
-
-        // === MANEJAR EXPIRACIÓN DE SESIÓN ===
-        function handleSessionExpiry() {
-            showNotification('⏰ La sesión ha expirado', 'warning');
-            
-            if (currentAgentSession) {
-                currentAgentSession.status = 'expired';
-                updateSessionsList();
-            }
-            
-            closeChat();
-        }
-
-        // === SETUP EVENT LISTENERS REALES ===
-        function setupChatEventListeners() {
-            const messageInput = document.getElementById('messageInput');
-            if (messageInput) {
-                messageInput.addEventListener('input', handleInputChange);
-                messageInput.addEventListener('keydown', handleKeyDown);
-            }
-            
-            // Setup WebSocket event handlers para mensajes en tiempo real
-            if (window.chatClient && window.chatClient.socket) {
-                // Remover listeners anteriores para evitar duplicados
-                window.chatClient.socket.off('message_received');
-                window.chatClient.socket.off('file_uploaded');
-                window.chatClient.socket.off('user_typing');
-                window.chatClient.socket.off('user_stop_typing');
-                window.chatClient.socket.off('session_updated');
-                
-                // Mensaje recibido del paciente
-                window.chatClient.socket.on('message_received', (data) => {
-                    console.log('📨 Mensaje recibido en agente:', data);
-                    
-                    // Solo mostrar si es de la sesión actual
-                    if (data.session_id === currentSessionId && data.sender_type !== 'agent') {
-                        addMessageToChat(
-                            data.content,
-                            data.sender_type,
-                            data.sender_id,
-                            data.timestamp,
-                            true
-                        );
-                        
-                        // Reproducir sonido de notificación
-                        playNotificationSound();
-                    }
-                });
-                
-                // Archivo subido
-                window.chatClient.socket.on('file_uploaded', (data) => {
-                    console.log('📎 Archivo recibido en agente:', data);
-                    
-                    if (data.session_id === currentSessionId) {
-                        const isMyFile = data.sender_type === 'agent' && data.sender_id === CONFIG.USER_DATA.id;
-                        window.chatClient.addFileMessageToChat(data, isMyFile);
-                    }
-                });
-                
-                // Indicadores de escritura
-                window.chatClient.socket.on('user_typing', (data) => {
-                    if (data.session_id === currentSessionId && data.sender_type !== 'agent') {
-                        showTypingIndicator();
-                    }
-                });
-                
-                window.chatClient.socket.on('user_stop_typing', (data) => {
-                    if (data.session_id === currentSessionId) {
-                        hideTypingIndicator();
-                    }
-                });
-                
-                // Actualización de sesión
-                window.chatClient.socket.on('session_updated', (data) => {
-                    console.log('🔄 Sesión actualizada:', data);
-                    
-                    // Actualizar sesión local
-                    const sessionIndex = sessions.findIndex(s => s.id === data.session_id);
-                    if (sessionIndex !== -1) {
-                        sessions[sessionIndex] = { ...sessions[sessionIndex], ...data };
-                        updateSessionsList();
-                        updateStats();
-                    }
-                });
-            }
-        }
-
-        // === INDICADORES DE ESCRITURA ===
-        function showTypingIndicator() {
-            const indicator = document.getElementById('typingIndicator');
-            if (indicator) {
-                indicator.classList.remove('hidden');
-                scrollToBottom();
-            }
-        }
-
-        function hideTypingIndicator() {
-            const indicator = document.getElementById('typingIndicator');
-            if (indicator) {
-                indicator.classList.add('hidden');
-            }
-        }
-
-        // === FINALIZAR SESIÓN CON API REAL ===
-        async function endSession() {
-            if (!currentSessionId || !currentAgentSession) return;
-            
-            if (confirm('¿Estás seguro de que quieres finalizar esta sesión?')) {
-                try {
-                    console.log('🔚 Finalizando sesión:', currentSessionId);
-                    
-                    const response = await fetch(`${CONFIG.CHAT_SERVICE_URL}/sessions/${currentSessionId}/end`, {
-                        method: 'PUT',
-                        headers: getAuthHeaders(),
-                        body: JSON.stringify({
-                            agent_id: CONFIG.USER_DATA.id,
-                            end_reason: 'completed_by_agent',
-                            notes: 'Sesión finalizada por el agente'
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error(`Error HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    
-                    const result = await response.json();
-                    console.log('📋 Respuesta de finalización:', result);
-                    
-                    if (result.success) {
-                        // Actualizar sesión local
-                        if (currentAgentSession) {
-                            currentAgentSession.status = 'completed';
-                        }
-                        
-                        showNotification('Sesión finalizada exitosamente', 'success');
-                        updateSessionsList();
-                        updateStats();
-                        closeChat();
-                    } else {
-                        throw new Error(result.message || 'Error finalizando sesión');
-                    }
-                    
-                } catch (error) {
-                    console.error('❌ Error finalizando sesión:', error);
-                    showNotification('Error: ' + error.message, 'error');
-                }
-            }
-        }
-
-        // === TRANSFERIR SESIÓN CON API REAL ===
-        async function confirmTransfer() {
-            if (!currentSessionId) return;
-            
-            const transferRoom = document.getElementById('transferRoom').value;
-            const transferReason = document.getElementById('transferReason').value;
-            
-            try {
-                console.log('🔄 Transfiriendo sesión:', currentSessionId);
-                
-                const response = await fetch(`${CONFIG.CHAT_SERVICE_URL}/sessions/${currentSessionId}/transfer`, {
-                    method: 'PUT',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({
-                        from_agent_id: CONFIG.USER_DATA.id,
-                        target_room: transferRoom,
-                        reason: transferReason,
-                        transfer_type: 'room_transfer'
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Error HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const result = await response.json();
-                console.log('📋 Respuesta de transferencia:', result);
-                
-                if (result.success) {
-                    showNotification(`Sesión transferida a ${transferRoom}`, 'success');
-                    
-                    // Actualizar sesión local
-                    if (currentAgentSession) {
-                        currentAgentSession.status = 'transferred';
-                        currentAgentSession.agent_id = null;
-                    }
-                    
-                    updateSessionsList();
-                    updateStats();
-                    closeChat();
-                } else {
-                    throw new Error(result.message || 'Error transfiriendo sesión');
-                }
-                
-            } catch (error) {
-                console.error('❌ Error transfiriendo sesión:', error);
-                showNotification('Error: ' + error.message, 'error');
-            }
-            
-            closeTransferModal();
-        }
-
-        // === NOTIFICACIÓN DE AUDIO ===
-        function playNotificationSound() {
-            try {
-                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmYfBSuPze/R');
-                audio.volume = 0.3;
-                audio.play().catch(() => {});
-            } catch (error) {
-                // Ignorar errores de audio
-            }
-        }
-
-        function handleInputChange(e) {
-            const charCount = e.target.value.length;
-            const charCountEl = document.getElementById('charCount');
-            const sendButton = document.getElementById('sendButton');
-            
-            if (charCountEl) charCountEl.textContent = charCount;
-            if (sendButton) sendButton.disabled = charCount === 0;
-            
-            // Auto-resize
-            e.target.style.height = 'auto';
-            e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-        }
-
-        function handleKeyDown(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (e.target.value.trim()) {
-                    sendMessage();
-                }
-            }
-        }
-
-        // === FUNCIONES DE CHAT CON API REAL ===
-        function sendMessage() {
-            const messageInput = document.getElementById('messageInput');
-            if (!messageInput || !currentSessionId) return;
-            
-            const message = messageInput.value.trim();
-            if (!message) return;
-            
-            // Enviar mensaje real a través del WebSocket
-            if (window.chatClient && window.chatClient.isConnected) {
-                window.chatClient.sendToSocket('send_message', {
-                    content: message,
-                    message_type: 'text',
-                    session_id: currentSessionId,
-                    sender_type: 'agent',
-                    sender_id: CONFIG.USER_DATA.id,
-                    timestamp: new Date().toISOString()
-                });
-                
-                // Agregar el mensaje inmediatamente a la UI (optimistic update)
-                addMessageToChat(
-                    message,
-                    'agent',
-                    CONFIG.USER_DATA.id,
-                    new Date().toISOString(),
-                    true
-                );
-                
-                console.log('📤 Mensaje de agente enviado:', message);
-            } else {
-                console.error('❌ No hay conexión WebSocket disponible');
-                console.log('🔍 Estado del chat client:', {
-                    chatClient: !!window.chatClient,
-                    isConnected: window.chatClient?.isConnected,
-                    socket: !!window.chatClient?.socket,
-                    socketConnected: window.chatClient?.socket?.connected
-                });
-                showNotification('Error: No hay conexión con el servidor', 'error');
-                return;
-            }
-            
-            // Limpiar input
-            messageInput.value = '';
-            messageInput.style.height = 'auto';
-            
-            // Actualizar UI
-            const charCountEl = document.getElementById('charCount');
-            const sendButton = document.getElementById('sendButton');
-            
-            if (charCountEl) charCountEl.textContent = '0';
-            if (sendButton) sendButton.disabled = true;
-            
-            messageInput.focus();
-        }
-
-        async function handleFileUpload(files) {
-            if (!files || files.length === 0 || !currentSessionId) return;
-            
-            const file = files[0];
-            
-            // Validar tamaño (10MB máximo)
-            if (file.size > 10 * 1024 * 1024) {
-                showNotification('Archivo muy grande (máximo 10MB)', 'error');
-                return;
-            }
-            
-            try {
-                console.log('📎 Subiendo archivo desde agente:', file.name);
-                
-                // Obtener token correcto usando función helper
-                const token = getToken();
-                
-                if (!token) {
-                    throw new Error('Token no disponible para subir archivo');
-                }
-                
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('session_id', currentSessionId);
-                formData.append('sender_id', CONFIG.USER_DATA.id);
-                formData.append('sender_type', 'agent');
-                
-                const response = await fetch(`${CONFIG.CHAT_SERVICE_URL}/files/upload`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                        // No agregar Content-Type para FormData
-                    },
-                    body: formData
-                });
-                
-                const result = await response.json();
-                console.log('📁 Resultado upload:', result);
-                
-                if (response.ok && result.success) {
-                    console.log('✅ Archivo subido exitosamente por agente');
-                    showNotification('Archivo enviado exitosamente', 'success');
-                } else {
-                    throw new Error(result.message || 'Error subiendo archivo');
-                }
-                
-            } catch (error) {
-                console.error('❌ Error upload archivo:', error);
-                showNotification('Error subiendo archivo: ' + error.message, 'error');
-            }
-        }
-
-        function closeChat() {
-            currentSessionId = null;
-            currentAgentSession = null;
-            
-            if (timerInterval) {
-                clearInterval(timerInterval);
-                timerInterval = null;
-            }
-            
-            // No desconectar WebSocket global, solo limpiar la sesión actual
-            if (window.chatClient) {
-                window.chatClient.currentSessionId = null;
-            }
-            
-            document.getElementById('activeChatArea').classList.add('hidden');
-            document.getElementById('noChatSelected').classList.remove('hidden');
-            
-            console.log('🔒 Chat cerrado');
-        }
-
-        function transferSession() {
-            if (!currentSessionId) return;
-            document.getElementById('transferModal').classList.remove('hidden');
-        }
-
-        function closeTransferModal() {
-            document.getElementById('transferModal').classList.add('hidden');
-        }
-
-        function endSession() {
-            if (!currentSessionId || !currentAgentSession) return;
-            
-            if (confirm('¿Estás seguro de que quieres finalizar esta sesión?')) {
-                currentAgentSession.status = 'completed';
-                
-                showNotification('Sesión finalizada exitosamente', 'success');
-                updateSessionsList();
-                updateStats();
-                closeChat();
-            }
-        }
-
-        // === FILTROS ===
-        function filterSessions(filter) {
-            currentFilter = filter;
-            
-            // Actualizar botones de filtro
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.classList.remove('active', 'bg-blue-100', 'text-blue-700');
-                btn.classList.add('bg-gray-100', 'text-gray-700');
-            });
-            
-            if (event && event.target) {
-                event.target.classList.remove('bg-gray-100', 'text-gray-700');
-                event.target.classList.add('active', 'bg-blue-100', 'text-blue-700');
-            }
-            
-            updateSessionsList();
+        function getEmptyMessage() {
+            const messages = {
+                'all': 'No hay sesiones disponibles',
+                'waiting': 'No hay pacientes en cola',
+                'mine': 'No tienes chats activos'
+            };
+            return messages[currentFilter] || 'No hay datos';
         }
 
         // === ESTADÍSTICAS ===
@@ -2271,6 +1658,24 @@ function debugLog($message, $data = null, $level = 'INFO') {
             }
         }
 
+        // === FILTROS ===
+        function filterSessions(filter) {
+            currentFilter = filter;
+            
+            // Actualizar botones de filtro
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active', 'bg-blue-100', 'text-blue-700');
+                btn.classList.add('bg-gray-100', 'text-gray-700');
+            });
+            
+            if (event && event.target) {
+                event.target.classList.remove('bg-gray-100', 'text-gray-700');
+                event.target.classList.add('active', 'bg-blue-100', 'text-blue-700');
+            }
+            
+            updateSessionsList();
+        }
+
         // === AUTO-REFRESH ===
         function startAutoRefresh() {
             if (refreshInterval) clearInterval(refreshInterval);
@@ -2280,54 +1685,50 @@ function debugLog($message, $data = null, $level = 'INFO') {
             }, CONFIG.REFRESH_INTERVAL);
         }
 
-        // === UTILIDADES ===
-        function getPatientInitials(name) {
-            return name.split(' ')
-                      .map(part => part.charAt(0))
-                      .join('')
-                      .substring(0, 2)
-                      .toUpperCase();
-        }
-
-        function getTimeElapsed(timestamp) {
-            const now = new Date();
-            const start = new Date(timestamp);
-            return Math.floor((now - start) / 60000);
-        }
-
-        function getTimeRemaining(expiresAt) {
-            const now = new Date();
-            const expires = new Date(expiresAt);
-            return Math.max(0, Math.floor((expires - now) / 60000));
-        }
-
-        function formatMinutesToMMSS(minutes) {
-            if (minutes <= 0) return '00:00';
-            
-            const mins = Math.floor(minutes);
-            const secs = Math.floor((minutes - mins) * 60);
-            
-            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        }
-
-        function formatStatus(status) {
-            const statusMap = {
-                'waiting': 'Esperando',
-                'active': 'Activo',
-                'transferred': 'Transferido',
-                'completed': 'Completado',
-                'expired': 'Expirado'
-            };
-            return statusMap[status] || status;
-        }
-
-        function getEmptyMessage() {
-            const messages = {
-                'all': 'No hay sesiones disponibles',
-                'waiting': 'No hay pacientes en cola',
-                'mine': 'No tienes chats activos'
-            };
-            return messages[currentFilter] || 'No hay datos';
+        // === SELECCIONAR SESIÓN ===
+        async function selectSession(sessionId) {
+            try {
+                console.log('🎯 selectSession llamada desde staff.php para:', sessionId);
+                
+                // Si staff-client está disponible y estamos en modo salas, usar staff-client
+                if (window.staffClient && window.staffClient.currentRoom) {
+                    console.log('📋 Delegando a staff-client (modo salas)');
+                    await window.staffClient.openPatientChat(sessionId);
+                    return;
+                }
+                
+                // Modo chat tradicional (para compatibilidad)
+                console.log('📋 Usando modo chat tradicional');
+                
+                const session = sessions.find(s => s.id === sessionId);
+                if (!session) {
+                    throw new Error('Sesión no encontrada');
+                }
+                
+                // Solo permitir abrir chats propios o asignar chats en espera
+                if (session.status === 'waiting') {
+                    await assignToMe(sessionId);
+                    return;
+                }
+                
+                if (session.agent_id !== CONFIG.USER_DATA.id) {
+                    showNotification('Esta sesión está siendo atendida por otro agente', 'warning');
+                    return;
+                }
+                
+                currentSessionId = sessionId;
+                currentAgentSession = session;
+                
+                // Mostrar chat area
+                document.getElementById('noChatSelected').classList.add('hidden');
+                document.getElementById('activeChatArea').classList.remove('hidden');
+                
+                console.log('✅ Chat tradicional abierto');
+                
+            } catch (error) {
+                console.error('❌ Error en selectSession staff.php:', error);
+                showNotification('Error: ' + error.message, 'error');
+            }
         }
 
         // === FUNCIONES GENERALES ===
@@ -2382,6 +1783,52 @@ function debugLog($message, $data = null, $level = 'INFO') {
                     notification.remove();
                 }
             }, duration);
+        }
+
+        function transferSession() {
+            if (!currentSessionId) return;
+            document.getElementById('transferModal').classList.remove('hidden');
+        }
+
+        function closeTransferModal() {
+            document.getElementById('transferModal').classList.add('hidden');
+        }
+
+        function confirmTransfer() {
+            // Implementación de transferencia
+            closeTransferModal();
+            showNotification('Transferencia realizada', 'success');
+        }
+
+        function endSession() {
+            if (!currentSessionId || !currentAgentSession) return;
+            
+            if (confirm('¿Estás seguro de que quieres finalizar esta sesión?')) {
+                showNotification('Sesión finalizada exitosamente', 'success');
+                updateSessionsList();
+                updateStats();
+            }
+        }
+
+        function closeChat() {
+            currentSessionId = null;
+            currentAgentSession = null;
+            
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            document.getElementById('activeChatArea').classList.add('hidden');
+            document.getElementById('noChatSelected').classList.remove('hidden');
+        }
+
+        function sendMessage() {
+            // Implementación de envío de mensajes
+        }
+
+        function handleFileUpload(files) {
+            // Implementación de subida de archivos
         }
 
         // Limpiar intervalos al cerrar
