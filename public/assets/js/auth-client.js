@@ -1,38 +1,21 @@
 class AuthClient {
     constructor(authServiceUrl = null) { 
-        // ✅ URLS CORREGIDAS PARA NGINX PROXY
-        this.baseURL = authServiceUrl || 'http://187.33.158.246:8080/auth'; // ← A través de nginx
+        // URL del backend via nginx
+        this.baseURL = authServiceUrl || 'http://187.33.158.246:8080/auth';
         this.authServiceUrl = this.baseURL;  
         
-        this.token = this.getStoredToken();
-        this.user = this.getStoredUser();
+        this.token = null;
+        this.user = null;
         this.userType = 'staff'; // 'staff' o 'patient'
         
-        console.log('🔐 AuthClient inicializado');
-        console.log('🌐 Servidor (nginx):', this.baseURL);
-        console.log('👤 Token disponible:', !!this.token);
-        
-        this.init();
-    }
-
-    init() {
-        // Verificar token existente al cargar
-        if (this.token) {
-            this.verifyToken().then(isValid => {
-                if (!isValid) {
-                    this.clearAuth();
-                }
-                this.updateUI();
-            });
-        } else {
-            this.updateUI();
-        }
+        console.log('🔐 AuthClient simplificado inicializado');
+        console.log('🌐 Servidor:', this.baseURL);
     }
 
     // ====== AUTENTICACIÓN STAFF (JWT) ======
     async login(email, password, remember = false) {
         try {
-            console.log('🔐 Iniciando login staff para:', email);
+            console.log('🔐 Login staff:', email);
 
             const response = await fetch(`${this.baseURL}/login`, {
                 method: 'POST',
@@ -43,15 +26,15 @@ class AuthClient {
                 body: JSON.stringify({ email, password, remember })
             });
 
-            console.log('📡 Respuesta del servidor:', response.status);
+            console.log('📡 Respuesta login:', response.status);
             
             const result = await response.json();
-            console.log('📋 Datos recibidos:', result);
+            console.log('📋 Datos login:', result);
 
             if (response.ok && result.success) {
                 this.userType = 'staff';
                 this.setAuth(result.data.access_token, result.data.user);
-                console.log('✅ Login staff exitoso');
+                console.log('✅ Login exitoso');
                 return { 
                     success: true, 
                     user: result.data.user, 
@@ -69,14 +52,14 @@ class AuthClient {
             console.error('❌ Error en login:', error);
             return { 
                 success: false, 
-                error: 'Error de conexión con el servidor: ' + error.message 
+                error: 'Error de conexión: ' + error.message 
             };
         }
     }
 
     async register(userData) {
         try {
-            console.log('📝 Registrando usuario staff:', userData.email);
+            console.log('📝 Registrando usuario:', userData.email);
 
             const response = await fetch(`${this.baseURL}/register`, {
                 method: 'POST',
@@ -88,14 +71,13 @@ class AuthClient {
                     name: userData.name,
                     email: userData.email,
                     password: userData.password,
-                    role: userData.role || 2 // Default: agent
+                    role: userData.role || 2
                 })
             });
 
             console.log('📡 Respuesta registro:', response.status);
             
             const result = await response.json();
-            console.log('📋 Datos registro:', result);
 
             if (response.ok && result.success) {
                 this.userType = 'staff';
@@ -118,12 +100,12 @@ class AuthClient {
             console.error('❌ Error en registro:', error);
             return { 
                 success: false, 
-                error: 'Error de conexión con el servidor: ' + error.message 
+                error: 'Error de conexión: ' + error.message 
             };
         }
     }
 
-    // ====== VALIDACIÓN DE TOKENS (JWT y pToken) ======
+    // ====== VALIDACIÓN DE TOKENS ======
     async verifyToken(token = null) {
         const tokenToVerify = token || this.token;
         if (!tokenToVerify) return false;
@@ -144,13 +126,10 @@ class AuthClient {
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    
-                    // Verificar si es JWT (staff) o pToken (patient)
                     if (result.data.token_type === 'jwt' && result.data.payload) {
                         this.userType = 'staff';
-                        if (!token) { // Solo actualizar si estamos verificando el token actual
+                        if (!token) {
                             this.user = result.data.payload;
-                            this.setStoredUser(this.user);
                         }
                         console.log('✅ JWT válido (staff)');
                         return true;
@@ -170,10 +149,10 @@ class AuthClient {
         }
     }
 
-    // ====== VALIDACIÓN ESPECÍFICA PARA PACIENTES ======
+    // ====== VALIDACIÓN PTOKEN PARA PACIENTES ======
     async validatePToken(pToken) {
         try {
-            console.log('🔍 Validando pToken de paciente...');
+            console.log('🔍 Validando pToken...');
             
             const response = await fetch(`${this.baseURL}/validate-token`, {
                 method: 'POST',
@@ -213,7 +192,6 @@ class AuthClient {
             console.log('👋 Cerrando sesión');
             
             if (this.token && this.userType === 'staff') {
-                // Hacer logout en el servidor para JWT
                 await fetch(`${this.baseURL}/logout`, {
                     method: 'POST',
                     headers: {
@@ -224,24 +202,20 @@ class AuthClient {
             }
             
             this.clearAuth();
-            this.updateUI();
             
-            // Redirigir a home
             setTimeout(() => {
-                window.location.href = '/';
+                window.location.href = '/practicas/chat-frontend/public/logout.php';
             }, 500);
             
         } catch (error) {
             console.error('❌ Error en logout:', error);
-            // Limpiar local aunque falle el servidor
             this.clearAuth();
-            this.updateUI();
         }
     }
 
     // ====== GESTIÓN DE SALAS ======
     async getAvailableRooms(pToken = null) {
-        console.log('📡 Obteniendo salas disponibles...');
+        console.log('📡 Obteniendo salas...');
         
         const tokenToUse = pToken || this.token;
         if (!tokenToUse) {
@@ -258,20 +232,19 @@ class AuthClient {
                 }
             });
 
-            console.log(`📡 Respuesta salas:`, response.status, response.statusText);
+            console.log(`📡 Respuesta salas:`, response.status);
 
             if (response.ok) {
                 const data = await response.json();
-                console.log('✅ Datos de salas recibidos:', data);
+                console.log('✅ Datos de salas:', data);
                 
-                // Extraer salas de la respuesta
                 const rooms = data.data?.rooms || data.rooms || [];
                 
                 if (Array.isArray(rooms)) {
                     console.log(`✅ ${rooms.length} salas encontradas`);
                     return rooms;
                 } else {
-                    console.log('⚠️ Respuesta no contiene array de salas:', data);
+                    console.log('⚠️ Respuesta no contiene salas:', data);
                     return [];
                 }
             } else {
@@ -315,7 +288,7 @@ class AuthClient {
             console.log('📥 Respuesta de sala:', result);
 
             if (result.success) {
-                console.log('✅ Sala seleccionada exitosamente');
+                console.log('✅ Sala seleccionada');
                 return {
                     success: true,
                     ptoken: result.data?.ptoken || tokenToUse,
@@ -334,22 +307,18 @@ class AuthClient {
         }
     }
 
-    // ====== GESTIÓN LOCAL DE AUTH ======
+    // ====== GESTIÓN LOCAL - SIMPLIFICADA ======
     setAuth(token, user) {
         this.token = token;
         this.user = user;
         
-        localStorage.setItem('pToken', token);
-        localStorage.setItem('user', JSON.stringify(user));
+        // SOLO guardar en localStorage si es para pacientes
+        if (this.userType === 'patient') {
+            localStorage.setItem('pToken', token);
+            localStorage.setItem('user', JSON.stringify(user));
+        }
         
-        console.log('💾 Autenticación guardada para:', user.email || user.name);
-        console.log('🔑 Token guardado (length):', token?.length || 0);
-        
-        // Disparar evento personalizado
-        this.dispatchAuthEvent(true, user);
-        
-        // Actualizar UI inmediatamente
-        this.updateUI();
+        console.log('💾 Auth guardada:', user.email || user.name);
     }
 
     clearAuth() {
@@ -357,31 +326,13 @@ class AuthClient {
         this.user = null;
         this.userType = 'staff';
         
-        localStorage.removeItem('pToken');
-        localStorage.removeItem('user');
-        
-        console.log('🧹 Autenticación limpiada');
-        
-        // Disparar evento personalizado
-        this.dispatchAuthEvent(false, null);
-    }
-
-    getStoredToken() {
-        return localStorage.getItem('pToken');
-    }
-
-    getStoredUser() {
-        try {
-            const userData = localStorage.getItem('user');
-            return userData ? JSON.parse(userData) : null;
-        } catch (error) {
-            console.error('Error parsing stored user:', error);
-            return null;
+        // Limpiar localStorage solo si es necesario
+        if (localStorage.getItem('pToken')) {
+            localStorage.removeItem('pToken');
+            localStorage.removeItem('user');
         }
-    }
-
-    setStoredUser(user) {
-        localStorage.setItem('user', JSON.stringify(user));
+        
+        console.log('🧹 Auth limpiada');
     }
 
     // ====== INFORMACIÓN DEL USUARIO ======
@@ -421,7 +372,6 @@ class AuthClient {
             return userRole === role;
         }
         
-        // Si es numérico (legacy)
         const roleMap = { 1: 'patient', 2: 'agent', 3: 'supervisor', 4: 'admin' };
         return roleMap[userRole] === role;
     }
@@ -429,7 +379,7 @@ class AuthClient {
     getAuthHeaders(token = null) {
         const tokenToUse = token || this.token;
         if (!tokenToUse) {
-            console.warn('⚠️ No hay token disponible para headers de auth');
+            console.warn('⚠️ No hay token para headers');
         }
         return {
             'Authorization': `Bearer ${tokenToUse}`,
@@ -438,100 +388,7 @@ class AuthClient {
         };
     }
 
-    // ====== EVENTOS Y UI ======
-    dispatchAuthEvent(isAuthenticated, user) {
-        window.dispatchEvent(new CustomEvent('authStateChanged', {
-            detail: { 
-                isAuthenticated, 
-                user, 
-                userType: this.userType 
-            }
-        }));
-    }
-
-    updateUI() {
-        const isAuth = this.isAuthenticated();
-        
-        console.log('🔄 Actualizando UI:', { 
-            isAuthenticated: isAuth, 
-            user: this.user?.name || 'none',
-            userType: this.userType,
-            token: this.token ? 'disponible' : 'no disponible'
-        });
-        
-        // Solo actualizar UI para staff (los pacientes no tienen UI compleja)
-        if (this.userType === 'staff') {
-            this.updateStaffUI(isAuth);
-        }
-    }
-
-    updateStaffUI(isAuth) {
-        // Manejar secciones principales
-        const authRequired = document.querySelectorAll('.auth-required');
-        const guestOnly = document.querySelectorAll('.guest-only');
-        
-        authRequired.forEach(el => {
-            if (isAuth) {
-                el.classList.remove('hidden');
-            } else {
-                el.classList.add('hidden');
-            }
-        });
-        
-        guestOnly.forEach(el => {
-            if (isAuth) {
-                el.classList.add('hidden');
-            } else {
-                el.classList.remove('hidden');
-            }
-        });
-        
-        // Manejar elementos específicos del header
-        const userAuthSection = document.getElementById('userAuthenticatedSection');
-        const userGuestSection = document.getElementById('userGuestSection');
-        
-        if (userAuthSection && userGuestSection) {
-            if (isAuth) {
-                userAuthSection.classList.remove('hidden');
-                userAuthSection.classList.add('flex');
-                userGuestSection.classList.add('hidden');
-                userGuestSection.classList.remove('flex');
-            } else {
-                userAuthSection.classList.add('hidden');
-                userAuthSection.classList.remove('flex');
-                userGuestSection.classList.remove('hidden');
-                userGuestSection.classList.add('flex');
-            }
-        }
-        
-        // Actualizar información del usuario en el header
-        if (isAuth && this.user) {
-            const userInitial = document.getElementById('userInitial');
-            const userDisplayName = document.getElementById('userDisplayName');
-            
-            if (userInitial) {
-                userInitial.textContent = this.user.name ? this.user.name.charAt(0).toUpperCase() : 'U';
-            }
-            
-            if (userDisplayName) {
-                userDisplayName.textContent = this.user.name || 'Usuario';
-            }
-        }
-        
-        // Actualizar elementos con clase user-name (para compatibilidad)
-        const userNameElements = document.querySelectorAll('.user-name');
-        userNameElements.forEach(el => {
-            if (isAuth && this.user?.name) {
-                el.textContent = this.user.name;
-            } else {
-                el.textContent = 'Usuario';
-            }
-        });
-
-        console.log('✅ UI staff actualizada correctamente');
-    }
-
-    // ====== NOTIFICACIONES ======
+    // ====== NOTIFICACIONES SIMPLES ======
     showSuccess(message, duration = 3000) {
         this.showNotification(message, 'success', duration);
     }
@@ -545,7 +402,6 @@ class AuthClient {
     }
 
     showNotification(message, type = 'info', duration = 5000) {
-        // Crear elemento de notificación
         const notification = document.createElement('div');
         notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm transition-all transform ${
             type === 'success' ? 'bg-green-500 text-white' :
@@ -556,41 +412,18 @@ class AuthClient {
         
         notification.innerHTML = `
             <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        ${this.getNotificationIcon(type)}
-                    </svg>
-                    <span>${message}</span>
-                </div>
-                <button onclick="this.parentElement.parentElement.remove()" class="ml-4 hover:opacity-75">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
+                <span>${message}</span>
+                <button onclick="this.parentElement.parentElement.remove()" class="ml-4 hover:opacity-75">×</button>
             </div>
         `;
         
         document.body.appendChild(notification);
         
-        // Auto-remover
         setTimeout(() => {
-            notification.style.transform = 'translateX(100%)';
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
-                }
-            }, 300);
+            if (notification.parentNode) {
+                notification.remove();
+            }
         }, duration);
-    }
-
-    getNotificationIcon(type) {
-        const icons = {
-            success: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>',
-            error: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>',
-            warning: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>',
-            info: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
-        };
-        return icons[type] || icons.info;
     }
 
     // ====== VALIDACIONES ======
@@ -600,7 +433,6 @@ class AuthClient {
     }
 
     validatePassword(password) {
-        // Al menos 8 caracteres, una mayúscula, una minúscula y un número
         const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
         return strongPasswordRegex.test(password);
     }
@@ -609,24 +441,24 @@ class AuthClient {
         return name && name.trim().length >= 2 && name.trim().length <= 50;
     }
 
-    // ====== TESTING Y DEBUG ======
+    // ====== DEBUG ======
     async testConnection() {
         try {
-            console.log('🔍 Probando conexión con servidor...');
+            console.log('🔍 Probando conexión...');
             
             const response = await fetch(`http://187.33.158.246:8080/health`);
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('✅ Servidor respondiendo:', data);
-                this.showSuccess('Conexión con servidor exitosa');
+                console.log('✅ Servidor OK:', data);
+                this.showSuccess('Conexión exitosa');
                 return true;
             } else {
-                throw new Error(`Error ${response.status}: ${response.statusText}`);
+                throw new Error(`Error ${response.status}`);
             }
         } catch (error) {
-            console.error('❌ Error de conexión:', error);
-            this.showError('Error de conexión con el servidor');
+            console.error('❌ Error conexión:', error);
+            this.showError('Error de conexión');
             return false;
         }
     }
@@ -646,35 +478,18 @@ class AuthClient {
     }
 }
 
-// Event listener para el estado de autenticación
-window.addEventListener('authStateChanged', (event) => {
-    const { isAuthenticated, user, userType } = event.detail;
-    console.log('🔄 Estado de auth cambió:', { 
-        isAuthenticated, 
-        userName: user?.name || 'none',
-        userType
-    });
-});
-
 // ====== FUNCIONES GLOBALES PARA HTML ======
-
-// Funciones de modal de autenticación (para staff)
 window.showAuthModal = function(type = 'login') {
     const modal = document.getElementById('authModal');
     if (modal) {
         modal.classList.remove('hidden');
-        
-        if (type === 'login') {
-            showLoginForm();
-        }
+        if (type === 'login') showLoginForm();
     }
 };
 
 window.closeAuthModal = function() {
     const modal = document.getElementById('authModal');
-    if (modal) {
-        modal.classList.add('hidden');
-    }
+    if (modal) modal.classList.add('hidden');
 };
 
 window.showLoginForm = function() {
@@ -686,12 +501,16 @@ window.showLoginForm = function() {
 };
 
 window.logout = function() {
-    if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-        window.authClient.logout();
+    if (confirm('¿Cerrar sesión?')) {
+        if (window.authClient) {
+            window.authClient.logout();
+        } else {
+            window.location.href = '/practicas/chat-frontend/public/logout.php';
+        }
     }
 };
 
-// Manejo de formulario de login (para páginas que lo usen)
+// SOLO para páginas que lo necesiten
 window.handleLoginSubmit = async function(event) {
     event.preventDefault();
     
@@ -699,40 +518,37 @@ window.handleLoginSubmit = async function(event) {
     const password = document.getElementById('loginPassword').value;
     const remember = document.getElementById('rememberMe')?.checked || false;
     
-    // Validaciones frontend
     if (!email || !password) {
-        window.authClient.showError('Email y contraseña son requeridos');
+        window.authClient.showError('Email y contraseña requeridos');
         return;
     }
     
     if (!window.authClient.validateEmail(email)) {
-        window.authClient.showError('Formato de email inválido');
+        window.authClient.showError('Email inválido');
         return;
     }
     
-    // Mostrar loading
     const submitBtn = event.target.querySelector('button[type="submit"]');
     const originalText = submitBtn.textContent;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Iniciando sesión...';
+    submitBtn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Iniciando...';
     
     try {
         const result = await window.authClient.login(email, password, remember);
         
         if (result.success) {
-            window.authClient.showSuccess('¡Bienvenido de vuelta!');
+            window.authClient.showSuccess('¡Login exitoso!');
             if (typeof closeAuthModal === 'function') closeAuthModal();
             
-            // Redireccionar según el rol
             setTimeout(() => {
                 if (window.authClient.isStaff()) {
-                    window.location.href = '/staff.php';
+                    window.location.href = '/practicas/chat-frontend/public/staff.php';
                 } else {
                     window.location.reload();
                 }
             }, 1000);
         } else {
-            window.authClient.showError(result.error || 'Error en el login');
+            window.authClient.showError(result.error || 'Error en login');
         }
     } catch (error) {
         window.authClient.showError('Error de conexión');
@@ -742,68 +558,30 @@ window.handleLoginSubmit = async function(event) {
     }
 };
 
-// ====== UTILIDADES DEBUG ======
+// ====== DEBUG GLOBAL ======
 window.debugAuth = {
-    // Test de conexión
-    testConnection: () => window.authClient.testConnection(),
-    
-    // Información del cliente
-    getInfo: () => window.authClient.getDebugInfo(),
-    
-    // Estado actual
+    testConnection: () => window.authClient?.testConnection(),
+    getInfo: () => window.authClient?.getDebugInfo(),
     getState: () => ({
-        isAuthenticated: window.authClient.isAuthenticated(),
-        userType: window.authClient.getUserType(),
-        user: window.authClient.getUser(),
-        token: window.authClient.getToken()?.substring(0, 20) + '...'
+        isAuthenticated: window.authClient?.isAuthenticated(),
+        userType: window.authClient?.getUserType(),
+        user: window.authClient?.getUser(),
+        token: window.authClient?.getToken()?.substring(0, 20) + '...'
     }),
-    
-    // Limpiar autenticación
     clearAuth: () => {
-        window.authClient.clearAuth();
-        console.log('🧹 Autenticación limpiada');
+        window.authClient?.clearAuth();
+        console.log('🧹 Auth limpiada');
     },
-    
-    // Login de prueba
     testLogin: async (email = 'test@test.com', password = 'Password123') => {
-        const result = await window.authClient.login(email, password);
-        console.log('🔐 Test login result:', result);
+        const result = await window.authClient?.login(email, password);
+        console.log('🔐 Test login:', result);
         return result;
     },
-    
-    // Test de pToken
     testPToken: async (pToken = 'CC678AVEZVKADBT') => {
-        if (!window.authClient) {
-            console.error('❌ AuthClient no inicializado');
-            return;
-        }
-        const result = await window.authClient.validatePToken(pToken);
-        console.log('🔑 Test pToken result:', result);
+        const result = await window.authClient?.validatePToken(pToken);
+        console.log('🔑 Test pToken:', result);
         return result;
-    },
-    
-    // Test de salas
-    testRooms: async (pToken = null) => {
-        if (!window.authClient.isAuthenticated() && !pToken) {
-            console.error('❌ Debes estar autenticado o proporcionar pToken para probar salas');
-            return;
-        }
-        const rooms = await window.authClient.getAvailableRooms(pToken);
-        console.log('🏠 Salas disponibles:', rooms);
-        return rooms;
-    },
-    
-    // Test de selección de sala
-    testSelectRoom: async (roomId = 'general', pToken = null) => {
-        if (!window.authClient.isAuthenticated() && !pToken) {
-            console.error('❌ Debes estar autenticado o proporcionar pToken para seleccionar salas');
-            return;
-        }
-        const result = await window.authClient.selectRoom(roomId, {}, pToken);
-        console.log('🎯 Resultado selección:', result);
-        return result;
-    },
+    }
 };
 
-console.log('🔐 AuthClient v2.2 cargado - NGINX PROXY CONFIGURADO');
-console.log('🛠️ Debug disponible en: window.debugAuth');
+console.log('🔐 AuthClient v3.0 simplificado cargado');
