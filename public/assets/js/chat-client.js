@@ -13,15 +13,10 @@ class ChatClient {
         this.messageQueue = [];
         this.heartbeatInterval = null;
         
-        console.log('💬 ChatClient minimalista iniciado');
-        console.log('🌐 Chat Service:', this.chatServiceUrl);
-        console.log('🔌 WebSocket:', this.websocketUrl);
-        console.log('📁 File Service:', this.fileServiceUrl);
     }
 
-    // ====== CONECTAR AL CHAT ======
     async connect(ptoken, roomId) {
-        console.log('💬 Conectando al chat...', { roomId });
+        console.log('Conectando al chat...', { roomId });
         
         this.currentPToken = ptoken;
         this.currentRoom = roomId;
@@ -37,15 +32,14 @@ class ChatClient {
             // 3. Unirse a la sala
             await this.joinRoom(roomId, this.currentSessionId);
             
-            console.log('✅ Chat conectado exitosamente');
+            console.log('Chat conectado exitosamente');
             
         } catch (error) {
-            console.error('❌ Error conectando chat:', error);
+            console.error('Error conectando chat:', error);
             this.onConnectionError(error);
         }
     }
 
-    // ====== CREAR SESIÓN DE CHAT ======
     async joinChatSession(ptoken, roomId) {
         try {
             console.log('📡 Creando sesión de chat...');
@@ -68,7 +62,7 @@ class ChatClient {
             });
 
             const result = await response.json();
-            console.log('📋 Sesión response:', result);
+            console.log('Sesión response:', result);
 
             if (response.ok && result.success) {
                 this.updateConnectionStatus('Sesión creada');
@@ -78,12 +72,11 @@ class ChatClient {
             }
 
         } catch (error) {
-            console.error('❌ Error join session:', error);
+            console.error(' Error join session:', error);
             throw error;
         }
     }
 
-    // ====== CONECTAR WEBSOCKET - SOCKET.IO ======
     async connectWebSocket(ptoken) {
         return new Promise((resolve, reject) => {
             try {
@@ -99,7 +92,7 @@ class ChatClient {
                 });
                 
                 this.socket.on('connect', () => {
-                    console.log('✅ Socket.IO conectado via nginx');
+                    console.log('Socket.IO conectado via nginx');
                     this.isConnected = true;
                     this.updateConnectionStatus('Conectado');
                     
@@ -116,7 +109,7 @@ class ChatClient {
                 });
                 
                 this.socket.on('connect_error', (error) => {
-                    console.error('❌ Socket.IO error:', error);
+                    console.error('Socket.IO error:', error);
                     this.onConnectionError(error);
                     reject(error);
                 });
@@ -130,7 +123,7 @@ class ChatClient {
                 }, 10000);
                 
             } catch (error) {
-                console.error('❌ Error creating Socket.IO:', error);
+                console.error('Error creating Socket.IO:', error);
                 reject(error);
             }
         });
