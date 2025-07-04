@@ -1,7 +1,10 @@
 <?php
-// public/index.php - CORREGIDO SIN BUCLES
+// public/index.php - VERSIÓN SIN BUCLES DE REDIRECCIÓN
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
+
+// Prevenir múltiples redirecciones
+$redirected = $_GET['redirected'] ?? false;
 
 $auth = auth();
 
@@ -10,43 +13,55 @@ if (isset($_GET['logout']) || isset($_GET['force_logout'])) {
     $auth->logout();
     session_destroy();
     session_unset();
-    
-    // Limpiar localStorage también
-    echo "<script>localStorage.clear(); sessionStorage.clear();</script>";
-    
     header("Location: /practicas/chat-frontend/public/index.php");
     exit;
 }
 
-// Si ya está autenticado en PHP, ir directo a staff
-if ($auth->isAuthenticated() && $auth->isStaff()) {
-    debugLog("Usuario ya autenticado en PHP, redirigiendo a staff");
-    header("Location: /practicas/chat-frontend/public/staff.php");
+// Solo verificar autenticación si NO venimos de una redirección
+if (!$redirected && $auth->isAuthenticated() && $auth->isStaff()) {
+    debugLog("Usuario ya autenticado, redirigiendo según rol");
+    
+    $user = $auth->getUser();
+    $userRole = $user['role']['name'] ?? $user['role'] ?? 'agent';
+    
+    // Normalizar rol numérico a string
+    if (is_numeric($userRole)) {
+        $roleMap = [1 => 'patient', 2 => 'agent', 3 => 'supervisor', 4 => 'admin'];
+        $userRole = $roleMap[$userRole] ?? 'agent';
+    }
+    
+    // Redirigir según rol con flag para prevenir bucles
+    if ($userRole === 'supervisor' || $userRole === 'admin') {
+        header("Location: /practicas/chat-frontend/public/supervisor.php?from_login=1");
+    } else {
+        header("Location: /practicas/chat-frontend/public/staff.php?from_login=1");
+    }
     exit;
 }
 
-// Verificar si hay datos POST de sincronización
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_token'])) {
+// Manejar sincronización POST SOLO si no es redirección
+if (!$redirected && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_token'])) {
     $token = $_POST['sync_token'];
     $userData = json_decode($_POST['sync_user'] ?? '{}', true);
     
-    if ($token && $userData) {
-        debugLog("Intentando sincronización directa en index.php");
+    if ($token && $userData && validateTokenWithService($token)) {
+        // Guardar en sesión
+        $_SESSION['pToken'] = $token;
+        $_SESSION['user'] = json_encode($userData);
         
-        // Validar token directamente aquí
-        if (validateTokenWithService($token)) {
-            debugLog("Token válido, guardando en sesión");
-            
-            // Guardar en sesión PHP
-            $_SESSION['pToken'] = $token;
-            $_SESSION['user'] = json_encode($userData);
-            
-            // Redirigir inmediatamente a staff
-            header("Location: /practicas/chat-frontend/public/staff.php");
-            exit;
-        } else {
-            debugLog("Token inválido en sincronización", null, 'ERROR');
+        // Determinar redirección
+        $userRole = $userData['role']['name'] ?? $userData['role'] ?? 'agent';
+        if (is_numeric($userRole)) {
+            $roleMap = [1 => 'patient', 2 => 'agent', 3 => 'supervisor', 4 => 'admin'];
+            $userRole = $roleMap[$userRole] ?? 'agent';
         }
+        
+        if ($userRole === 'supervisor' || $userRole === 'admin') {
+            header("Location: /practicas/chat-frontend/public/supervisor.php?from_sync=1");
+        } else {
+            header("Location: /practicas/chat-frontend/public/staff.php?from_sync=1");
+        }
+        exit;
     }
 }
 ?>
@@ -74,6 +89,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_token'])) {
                 <h2 class="text-3xl font-bold text-white">Portal Médico</h2>
                 <p class="text-blue-100 mt-2">Acceso al sistema</p>
             </div>
+
+            <!-- Mostrar errores si existen -->
+            <?php if(isset($_GET['error'])): ?>
+            <div class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+                <?php
+                $errors = [
+                    'no_session' => 'Sesión expirada',
+                    'no_user' => 'Usuario no válido', 
+                    'not_staff' => 'Acceso no autorizado',
+                    'not_supervisor' => 'Requiere permisos de supervisor'
+                ];
+                echo $errors[$_GET['error']] ?? 'Error desconocido';
+                ?>
+            </div>
+            <?php endif; ?>
 
             <!-- Login Form -->
             <div class="bg-white rounded-xl shadow-xl p-8">
@@ -181,29 +211,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_token'])) {
             const eyeClosed = document.getElementById('eyeClosed');
             
             if (passwordField.type === 'password') {
-                // Mostrar contraseña
                 passwordField.type = 'text';
                 eyeOpen.classList.add('hidden');
                 eyeClosed.classList.remove('hidden');
             } else {
-                // Ocultar contraseña
                 passwordField.type = 'password';
                 eyeOpen.classList.remove('hidden');
                 eyeClosed.classList.add('hidden');
             }
         };
 
-        // VERIFICACIÓN INICIAL: localStorage con sincronización directa
+        // VERIFICACIÓN INICIAL SIMPLIFICADA
         window.addEventListener('DOMContentLoaded', () => {
             console.log('🔍 Verificando sesión...');
+            
+            // Solo verificar localStorage si no venimos de redirección
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('redirected')) {
+                console.log('⏭️ Venimos de redirección, saltando verificación');
+                return;
+            }
             
             const token = localStorage.getItem('pToken');
             const user = localStorage.getItem('user');
             
             if (token && user) {
-                console.log('✅ Sesión encontrada en localStorage, sincronizando...');
+                console.log('✅ Sesión encontrada, sincronizando...');
                 
-                // Sincronizar DIRECTAMENTE con PHP via POST
+                // Sincronizar con PHP
                 document.getElementById('syncToken').value = token;
                 document.getElementById('syncUser').value = user;
                 document.getElementById('syncForm').submit();
@@ -211,10 +246,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_token'])) {
                 return;
             }
             
-            console.log('❌ No hay sesión, mostrando login');
+            console.log('❌ No hay sesión');
         });
 
-        // Form handler
+        // Form handler SIMPLIFICADO
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -245,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_token'])) {
                     localStorage.setItem('pToken', result.data.access_token);
                     localStorage.setItem('user', JSON.stringify(result.data.user));
                     
-                    // Sincronizar inmediatamente con PHP
+                    // Sincronizar con PHP
                     document.getElementById('syncToken').value = result.data.access_token;
                     document.getElementById('syncUser').value = JSON.stringify(result.data.user);
                     document.getElementById('syncForm').submit();
@@ -254,6 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_token'])) {
                     alert('Error: ' + result.error);
                 }
             } catch (error) {
+                console.error('Error:', error);
                 alert('Error de conexión');
             } finally {
                 submitBtn.disabled = false;

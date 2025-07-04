@@ -541,8 +541,23 @@ window.handleLoginSubmit = async function(event) {
             if (typeof closeAuthModal === 'function') closeAuthModal();
             
             setTimeout(() => {
+                const userRole = window.authClient.user?.role?.name || window.authClient.user?.role;
+                let normalizedRole = userRole;
+                
+                // Normalizar rol numérico
+                if (typeof userRole === 'number') {
+                    const roleMap = {1: 'patient', 2: 'agent', 3: 'supervisor', 4: 'admin'};
+                    normalizedRole = roleMap[userRole] || 'agent';
+                }
+                
+                console.log('🎯 Redirigiendo según rol:', normalizedRole);
+                
                 if (window.authClient.isStaff()) {
-                    window.location.href = '/practicas/chat-frontend/public/staff.php';
+                    if (normalizedRole === 'supervisor' || normalizedRole === 'admin') {
+                        window.location.href = '/practicas/chat-frontend/public/supervisor.php';
+                    } else {
+                        window.location.href = '/practicas/chat-frontend/public/staff.php';
+                    }
                 } else {
                     window.location.reload();
                 }
