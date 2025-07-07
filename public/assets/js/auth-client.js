@@ -1,7 +1,7 @@
 class AuthClient {
     constructor(authServiceUrl = null) { 
         // URL del backend via nginx
-        this.baseURL = authServiceUrl || 'http://187.33.158.246:8080/auth';
+        this.baseURL = authServiceUrl || 'http://localhost:3010/auth';
         this.authServiceUrl = this.baseURL;  
         
         this.token = null;
@@ -105,158 +105,42 @@ class AuthClient {
         }
     }
 
-    // ====== VALIDACIÓN DE TOKENS ======
     async verifyToken(token = null) {
-        const tokenToVerify = token || this.token;
-        if (!tokenToVerify) return false;
+        const toVerify = token || this.token;
+        if (!toVerify) return false;
+
+        const isJwt = toVerify.includes('.');
+        /* armamos la query:    ?token=...   |   ?ptoken=...   */
+        const qs    = isJwt
+            ? `token=${encodeURIComponent(toVerify)}`
+            : `ptoken=${encodeURIComponent(toVerify)}`;
 
         try {
-            console.log('🔍 Verificando token...');
-            
-            const response = await fetch(`${this.baseURL}/validate-token`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${tokenToVerify}`,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ token: tokenToVerify })
+            const res = await fetch(`${this.baseURL}/validate-token?${qs}`, {
+            headers: {
+                'Accept': 'application/json',
+                ...(isJwt && { 'Authorization': `Bearer ${toVerify}` })
+            }           // ← NO body, NO JSON, NO POST ➜ GET puro
             });
 
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    if (result.data.token_type === 'jwt' && result.data.payload) {
-                        this.userType = 'staff';
-                        if (!token) {
-                            this.user = result.data.payload;
-                        }
-                        console.log('✅ JWT válido (staff)');
-                        return true;
-                    } else if (result.data.token_type === 'ptoken') {
-                        this.userType = 'patient';
-                        console.log('✅ pToken válido (paciente)');
-                        return true;
-                    }
-                }
+            const json = await res.json();
+            if (res.ok && json.success) {
+            this.userType = json.data.token_type === 'jwt' ? 'staff' : 'patient';
+            if (!token && json.data.payload) this.user = json.data.payload;
+            return true;                      // ✔ válido
             }
-
-            console.log('❌ Token inválido');
+            console.warn('verifyToken: inválido', json.message);
             return false;
-        } catch (error) {
-            console.error('❌ Error verificando token:', error);
+        } catch (err) {
+            console.error('verifyToken: error', err);
             return false;
         }
-    }
+        }
+
 
     // ====== VALIDACIÓN PTOKEN PARA PACIENTES ======
     async validatePToken(pToken) {
-        try {
-            console.log('🔍 Validando pToken...');
-            
-            const response = await fetch(`${this.baseURL}/validate-token`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ ptoken: pToken })
-            });
-
-            const result = await response.json();
-            
-            if (response.ok && result.success && result.data.token_type === 'ptoken') {
-                console.log('✅ pToken válido');
-                return {
-                    success: true,
-                    data: result.data
-                };
-            } else {
-                console.log('❌ pToken inválido:', result.message);
-                return {
-                    success: false,
-                    error: result.message || 'pToken inválido'
-                };
-            }
-        } catch (error) {
-            console.error('❌ Error validando pToken:', error);
-            return {
-                success: false,
-                error: 'Error de conexión: ' + error.message
-            };
-        }
-    }
-
-    async logout() {
-        try {
-            console.log('👋 Cerrando sesión');
-            
-            if (this.token && this.userType === 'staff') {
-                await fetch(`${this.baseURL}/logout`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${this.token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-            }
-            
-            this.clearAuth();
-            
-            setTimeout(() => {
-                window.location.href = '/practicas/chat-frontend/public/logout.php';
-            }, 500);
-            
-        } catch (error) {
-            console.error('❌ Error en logout:', error);
-            this.clearAuth();
-        }
-    }
-
-    // ====== GESTIÓN DE SALAS ======
-    async getAvailableRooms(pToken = null) {
-        console.log('📡 Obteniendo salas...');
-        
-        const tokenToUse = pToken || this.token;
-        if (!tokenToUse) {
-            throw new Error('Token requerido para obtener salas');
-        }
-
-        try {
-            const response = await fetch(`${this.baseURL}/rooms/available`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${tokenToUse}`,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
-            });
-
-            console.log(`📡 Respuesta salas:`, response.status);
-
-            if (response.ok) {
-                const data = await response.json();
-                console.log('✅ Datos de salas:', data);
-                
-                const rooms = data.data?.rooms || data.rooms || [];
-                
-                if (Array.isArray(rooms)) {
-                    console.log(`✅ ${rooms.length} salas encontradas`);
-                    return rooms;
-                } else {
-                    console.log('⚠️ Respuesta no contiene salas:', data);
-                    return [];
-                }
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                console.log(`❌ Error ${response.status}:`, errorData);
-                throw new Error(`Error HTTP ${response.status}: ${errorData.message || 'Error obteniendo salas'}`);
-            }
-
-        } catch (error) {
-            console.error('❌ Error obteniendo salas:', error);
-            throw error;
-        }
+        return this.verifyToken(pToken);
     }
 
     async selectRoom(roomId, userData = {}, pToken = null) {
@@ -307,19 +191,19 @@ class AuthClient {
         }
     }
 
-    // ====== GESTIÓN LOCAL - SIMPLIFICADA ======
     setAuth(token, user) {
         this.token = token;
-        this.user = user;
-        
-        // SOLO guardar en localStorage si es para pacientes
+        this.user  = user;
+
         if (this.userType === 'patient') {
             localStorage.setItem('pToken', token);
-            localStorage.setItem('user', JSON.stringify(user));
+        } else {
+            /* mejor en sessionStorage para staff  */
+            sessionStorage.setItem('staffJWT', token);
         }
-        
-        console.log('💾 Auth guardada:', user.email || user.name);
-    }
+        localStorage.setItem('user', JSON.stringify(user));
+        }
+
 
     clearAuth() {
         this.token = null;
