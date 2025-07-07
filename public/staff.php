@@ -37,8 +37,8 @@ if (!in_array($userRole, $validStaffRoles)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Agente - <?= htmlspecialchars($user['name'] ?? 'Staff') ?></title>
     
-    <meta name="staff-token" content="<?= $_SESSION['pToken'] ?>">
-    <meta name="staff-user" content='<?= json_encode($user) ?>'>
+    <meta name="staff-token" content="<?= htmlspecialchars($_SESSION['pToken']) ?>">
+    <meta name="staff-user" content='<?= htmlspecialchars(json_encode($user)) ?>'>
     
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -514,6 +514,7 @@ if (!in_array($userRole, $validStaffRoles)) {
 
         // ====== FUNCIONES DE NAVEGACIÓN ======
         function showPendingSection() {
+            console.log('🧭 [Navigation] Mostrando sección pendientes');
             hideAllSections();
             document.getElementById('pending-conversations-section').classList.remove('hidden');
             document.getElementById('sectionTitle').textContent = 'Conversaciones Pendientes';
@@ -522,6 +523,7 @@ if (!in_array($userRole, $validStaffRoles)) {
         }
 
         function showRoomsSection() {
+            console.log('🧭 [Navigation] Mostrando sección salas');
             hideAllSections();
             document.getElementById('rooms-list-section').classList.remove('hidden');
             document.getElementById('sectionTitle').textContent = 'Salas de Atención';
@@ -532,6 +534,7 @@ if (!in_array($userRole, $validStaffRoles)) {
         }
 
         function goBackToPending() {
+            console.log('🧭 [Navigation] Volviendo a pendientes');
             if (currentSession) {
                 // Desconectar del chat actual
                 if (typeof staffClient !== 'undefined' && staffClient.chatSocket) {
@@ -555,18 +558,29 @@ if (!in_array($userRole, $validStaffRoles)) {
             });
             
             if (active === 'pending') {
-                document.querySelector('a[href="#pending"]').classList.add('active');
-                document.querySelector('a[href="#pending"]').classList.remove('text-gray-600', 'hover:bg-gray-100');
+                const pendingLink = document.querySelector('a[href="#pending"]');
+                if (pendingLink) {
+                    pendingLink.classList.add('active');
+                    pendingLink.classList.remove('text-gray-600', 'hover:bg-gray-100');
+                }
             } else if (active === 'rooms') {
-                document.querySelector('a[href="#rooms"]').classList.add('active');
-                document.querySelector('a[href="#rooms"]').classList.remove('text-gray-600', 'hover:bg-gray-100');
+                const roomsLink = document.querySelector('a[href="#rooms"]');
+                if (roomsLink) {
+                    roomsLink.classList.add('active');
+                    roomsLink.classList.remove('text-gray-600', 'hover:bg-gray-100');
+                }
             }
         }
 
-        // ====== FUNCIONES PARA CONVERSACIONES PENDIENTES - URLs LOCALES ======
+        // ====== FUNCIONES PARA CONVERSACIONES PENDIENTES ======
         async function loadPendingConversations() {
             const container = document.getElementById('pendingConversationsContainer');
             const countBadge = document.getElementById('pendingCount');
+            
+            if (!container || !countBadge) {
+                console.warn('⚠️ [Pending] Elementos de UI no encontrados');
+                return;
+            }
             
             // Mostrar loading
             container.innerHTML = `
@@ -577,10 +591,10 @@ if (!in_array($userRole, $validStaffRoles)) {
             `;
 
             try {
-                console.log('📡 Cargando conversaciones pendientes REALES...');
+                console.log('📡 [Pending] Cargando conversaciones pendientes...');
                 
-                // LLAMADA REAL A LA API LOCAL
-                const response = await fetch('http://localhost:3011/chats/sessions?waiting', {
+                // ✅ CORREGIDO: Usar ?waiting=true en lugar de ?waiting
+                const response = await fetch('http://localhost:3011/chats/sessions?waiting=true', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -589,12 +603,25 @@ if (!in_array($userRole, $validStaffRoles)) {
                     }
                 });
 
+                console.log('📡 [Pending] Respuesta:', response.status, response.statusText);
+
                 if (response.ok) {
                     const result = await response.json();
-                    console.log('📨 Respuesta de sesiones pendientes:', result);
+                    console.log('📨 [Pending] Datos recibidos:', result);
                     
                     if (result.success && result.data && result.data.sessions) {
                         pendingConversations = result.data.sessions;
+                        
+                        // ✅ VALIDAR QUE SOLO SEAN SESIONES REALMENTE WAITING
+                        const actuallyWaiting = pendingConversations.filter(session => 
+                            session.status === 'waiting' && !session.agent_id
+                        );
+                        
+                        console.log(`📊 [Pending] Total recibidas: ${pendingConversations.length}`);
+                        console.log(`📊 [Pending] Realmente waiting: ${actuallyWaiting.length}`);
+                        
+                        // Usar solo las que realmente están waiting
+                        pendingConversations = actuallyWaiting;
                         countBadge.textContent = pendingConversations.length;
                         
                         if (pendingConversations.length === 0) {
@@ -621,7 +648,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                 }
                 
             } catch (error) {
-                console.error('❌ Error cargando conversaciones pendientes:', error);
+                console.error('❌ [Pending] Error cargando conversaciones:', error);
                 countBadge.textContent = '!';
                 container.innerHTML = `
                     <div class="text-center py-8">
@@ -699,6 +726,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                         : session.user_data;
                     
                     if (userData.nombreCompleto) return userData.nombreCompleto;
+                    if (userData.name) return userData.name;
                 } catch (e) {
                     console.warn('Error parseando user_data:', e);
                 }
@@ -740,10 +768,10 @@ if (!in_array($userRole, $validStaffRoles)) {
             return 'text-green-600';
         }
 
-        // ====== FUNCIÓN PARA TOMAR UNA CONVERSACIÓN - URL LOCAL ======
+        // ====== FUNCIÓN PARA TOMAR UNA CONVERSACIÓN ======
         async function takeConversation(sessionId) {
             try {
-                console.log('👤 Tomando sesión REAL:', sessionId);
+                console.log('👤 [Take] Tomando sesión:', sessionId);
                 
                 const response = await fetch(`http://localhost:3011/chats/sessions/${sessionId}/assign/me`, {
                     method: 'PUT',
@@ -763,7 +791,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                 
                 if (response.ok) {
                     const result = await response.json();
-                    console.log('✅ Sesión asignada:', result);
+                    console.log('✅ [Take] Sesión asignada:', result);
                     
                     if (result.success) {
                         // Encontrar la conversación en la lista local
@@ -790,7 +818,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                 }
                 
             } catch (error) {
-                console.error('❌ Error tomando conversación:', error);
+                console.error('❌ [Take] Error tomando conversación:', error);
                 showError('Error al tomar la conversación: ' + error.message);
             }
         }
@@ -814,7 +842,7 @@ if (!in_array($userRole, $validStaffRoles)) {
             // Limpiar chat anterior
             document.getElementById('patientChatMessages').innerHTML = '';
             
-            // Usar StaffClient para conectar (esto manejará la extracción de datos del paciente)
+            // Usar StaffClient para conectar
             if (typeof staffClient !== 'undefined') {
                 staffClient.openPatientChat(conversation.id);
             } else {
@@ -998,14 +1026,18 @@ if (!in_array($userRole, $validStaffRoles)) {
 
         // ====== FUNCIONES UTILITARIAS ======
         function getToken() {
-            return '<?= $_SESSION['pToken'] ?>';
+            const token = '<?= $_SESSION['pToken'] ?>';
+            console.log('🔍 [Token] getToken() llamado:', token ? token.substring(0, 30) + '...' : 'NO TOKEN');
+            return token;
         }
 
         function getCurrentUser() {
             const userMeta = document.querySelector('meta[name="staff-user"]');
             if (userMeta && userMeta.content) {
                 try {
-                    return JSON.parse(userMeta.content);
+                    const user = JSON.parse(userMeta.content);
+                    console.log('🔍 [User] getCurrentUser():', { id: user.id, email: user.email, role: user.role });
+                    return user;
                 } catch (e) {
                     console.warn('Error parsing user meta:', e);
                 }
@@ -1064,18 +1096,37 @@ if (!in_array($userRole, $validStaffRoles)) {
 
         // ====== INICIALIZACIÓN ======
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('✅ Panel de agente con URLs locales cargado');
+            console.log('✅ Panel de agente con debugging cargado');
             
+            // Verificar token inmediatamente
+            const token = getToken();
+            console.log('🔍 [DEBUG] Token al cargar página:', token ? `${token.substring(0, 50)}...` : 'NO TOKEN');
+            
+            // Verificar que el token sea un JWT válido
+            if (token) {
+                try {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(atob(parts[1]));
+                        console.log('✅ [DEBUG] Token parece ser JWT válido:', {
+                            id: payload.id,
+                            email: payload.email,
+                            exp: new Date(payload.exp * 1000).toISOString()
+                        });
+                    } else {
+                        console.log('⚠️ [DEBUG] Token no parece ser JWT (partes:', parts.length, ')');
+                    }
+                } catch (e) {
+                    console.error('❌ [DEBUG] Error decodificando token:', e);
+                }
+            }
+
             updateTime();
             setInterval(updateTime, 1000);
             
-            // Configurar typing del agente
             setupAgentTyping();
-            
-            // Cargar conversaciones pendientes por defecto
             showPendingSection();
             
-            // Inicializar StaffClient
             try {
                 if (typeof staffClient !== 'undefined') {
                     await staffClient.init();
@@ -1087,7 +1138,6 @@ if (!in_array($userRole, $validStaffRoles)) {
                 console.error('❌ Error inicializando StaffClient:', error);
             }
             
-            // Refrescar automáticamente cada 30 segundos
             refreshInterval = setInterval(() => {
                 if (document.getElementById('pending-conversations-section').classList.contains('hidden') === false) {
                     loadPendingConversations();

@@ -1,6 +1,6 @@
 class SupervisorClient {
     constructor() {
-        this.supervisorServiceUrl = 'http://187.33.158.246:8080/supervisor';
+        this.supervisorServiceUrl = 'http://localhost:3014/supervisor';
         this.currentTransfer = null;
         this.refreshInterval = null;
         this.refreshIntervalTime = 30000; // 30 segundos
