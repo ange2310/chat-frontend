@@ -1,5 +1,4 @@
 <?php
-// public/staff.php - MEJORADO CON DATOS REALES
 session_start();
 
 // Verificación básica
