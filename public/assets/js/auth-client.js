@@ -189,7 +189,7 @@ class AuthClient {
                 error: error.message || 'Error de conexión'
             };
         }
-    }
+    }s
 
     setAuth(token, user) {
         this.token = token;
