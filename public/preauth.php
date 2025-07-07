@@ -629,6 +629,38 @@ if (empty($pToken) || strlen($pToken) < 10) {
             if (messageInput) {
                 messageInput.addEventListener('input', handleInputChange);
                 messageInput.addEventListener('keydown', handleKeyDown);
+                
+                // NUEVO: Agregar eventos de typing
+                let typingTimer;
+                let isTyping = false;
+                
+                messageInput.addEventListener('input', (e) => {
+                    // Indicar que está escribiendo
+                    if (!isTyping && window.chatClient) {
+                        window.chatClient.startTyping();
+                        isTyping = true;
+                    }
+                    
+                    // Resetear timer
+                    clearTimeout(typingTimer);
+                    typingTimer = setTimeout(() => {
+                        if (window.chatClient) {
+                            window.chatClient.stopTyping();
+                        }
+                        isTyping = false;
+                    }, 1000); // Parar typing después de 1 segundo sin escribir
+                    
+                    handleInputChange(e);
+                });
+                
+                messageInput.addEventListener('blur', () => {
+                    // Parar typing cuando se pierde el foco
+                    if (isTyping && window.chatClient) {
+                        window.chatClient.stopTyping();
+                        isTyping = false;
+                    }
+                    clearTimeout(typingTimer);
+                });
             }
         }
 
@@ -689,6 +721,38 @@ if (empty($pToken) || strlen($pToken) < 10) {
                     sendMessage();
                 }
             }
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            if (!messageInput) return;
+            
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            // Parar indicador de typing antes de enviar
+            if (window.chatClient) {
+                window.chatClient.stopTyping();
+            }
+            
+            window.chatClient.sendMessage(message);
+            
+            // Limpiar input
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            
+            // Actualizar UI
+            const charCountElement = document.getElementById('charCount');
+            if (charCountElement) {
+                charCountElement.textContent = '0';
+            }
+            
+            const sendButton = document.getElementById('sendButton');
+            if (sendButton) {
+                sendButton.disabled = true;
+            }
+            
+            messageInput.focus();
         }
 
         function backToRoomSelection() {
@@ -764,22 +828,17 @@ if (empty($pToken) || strlen($pToken) < 10) {
             document.getElementById('validationSection').classList.add('hidden');
             
             try {
-                // 1. Primero obtener info de las salas para conseguir el nombre
                 console.log('Obteniendo información de salas...');
                 showLoading('Verificando sala...');
                 
                 const rooms = await window.authClient.getAvailableRooms(CONFIG.PATIENT_TOKEN);
                 
-                // 2. Buscar la sala por ID para obtener su nombre
                 const targetRoom = rooms.find(room => room.id === roomId);
                 const roomName = targetRoom ? targetRoom.name : `Sala ${roomId.substring(0, 8)}...`;
                 
                 console.log('Sala encontrada:', roomName);
-                
-                // 3. Mostrar loading con nombre real
                 showLoading(`Conectando con ${roomName}...`);
                 
-                // 4. Verificar que la sala existe y está disponible
                 if (!targetRoom) {
                     throw new Error(`La sala "${roomId}" no existe o no está disponible`);
                 }
@@ -788,11 +847,10 @@ if (empty($pToken) || strlen($pToken) < 10) {
                     throw new Error(`La sala "${roomName}" no está disponible en este momento`);
                 }
                 
-                // 5. Continuar con la selección normal
                 const selectResult = await window.authClient.selectRoom(roomId, {
                     source: 'direct_link',
                     browser: navigator.userAgent,
-                    room_name: roomName // Enviar también el nombre
+                    room_name: roomName
                 }, CONFIG.PATIENT_TOKEN);
                 
                 if (!selectResult.success) {
@@ -801,7 +859,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 
                 console.log('Acceso directo exitoso a:', roomName);
                 
-                // 6. Guardar datos del paciente
+                // Guardar datos del paciente
                 if (selectResult.room_data && selectResult.room_data.patient) {
                     patientData = selectResult.room_data.patient;
                 } else if (selectResult.room_data && selectResult.room_data.user) {
@@ -809,22 +867,19 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 }
 
                 const updatedPToken = selectResult.ptoken || CONFIG.PATIENT_TOKEN;
-                console.log(' Usando pToken para chat directo');
+                console.log('Usando pToken para chat directo');
                 
+                // CAMBIO: Crear nuevo cliente de chat para asegurar conexión limpia
                 window.chatClient = new ChatClient();
                 await window.chatClient.connect(updatedPToken, roomId);
                 
-                // 7. Mostrar notificación con nombre real
                 showNotification(`Conectado a ${roomName}`, 'success');
-                
-                // 8. Abrir chat con nombre real
-                openChat(roomName); // ← Ahora pasa el nombre real
+                openChat(roomName);
                 
             } catch (error) {
                 console.error('Error en acceso directo:', error);
                 showNotification('Error: ' + error.message, 'error');
                 
-                // Fallback: mostrar selección de salas
                 console.log('🔄 Fallback a selección manual de salas');
                 await showRoomSelection();
             } finally {

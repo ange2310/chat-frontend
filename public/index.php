@@ -1,5 +1,5 @@
 <?php
-// public/index.php - VERSIÓN SIN BUCLES DE REDIRECCIÓN
+
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 
@@ -8,7 +8,7 @@ $redirected = $_GET['redirected'] ?? false;
 
 $auth = auth();
 
-// FORZAR LOGOUT si se pide
+
 if (isset($_GET['logout']) || isset($_GET['force_logout'])) {
     $auth->logout();
     session_destroy();
@@ -175,12 +175,14 @@ if (!$redirected && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_
     <script>
         class SimpleAuth {
             constructor() {
-                this.baseURL = 'http://187.33.158.246:8080/auth';
+                // CORREGIDO: Usar el proxy local en lugar del servidor directo
+                this.baseURL = 'api.php';
             }
 
             async login(email, password) {
                 try {
-                    const response = await fetch(`${this.baseURL}/login`, {
+                    // CORREGIDO: Usar el proxy con parámetro endpoint
+                    const response = await fetch(`${this.baseURL}?endpoint=auth/login`, {
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
@@ -212,12 +214,12 @@ if (!$redirected && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_
             
             if (passwordField.type === 'password') {
                 passwordField.type = 'text';
-                eyeOpen.classList.add('hidden');
-                eyeClosed.classList.remove('hidden');
-            } else {
-                passwordField.type = 'password';
                 eyeOpen.classList.remove('hidden');
                 eyeClosed.classList.add('hidden');
+            } else {
+                passwordField.type = 'password';
+                eyeOpen.classList.add('hidden');
+                eyeClosed.classList.remove('hidden');
             }
         };
 
@@ -236,7 +238,7 @@ if (!$redirected && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_
             const user = localStorage.getItem('user');
             
             if (token && user) {
-                console.log('✅ Sesión encontrada, sincronizando...');
+                console.log('Sesión encontrada, sincronizando...');
                 
                 // Sincronizar con PHP
                 document.getElementById('syncToken').value = token;
@@ -246,7 +248,7 @@ if (!$redirected && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_
                 return;
             }
             
-            console.log('❌ No hay sesión');
+            console.log('No hay sesión');
         });
 
         // Form handler SIMPLIFICADO

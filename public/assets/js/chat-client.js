@@ -134,9 +134,14 @@ class ChatClient {
         this.socket.on('auth_error', (data) => this.handleAuthError(data));
         this.socket.on('room_joined', (data) => this.handleRoomJoined(data));
         this.socket.on('room_error', (data) => this.handleRoomError(data));
+
         this.socket.on('message_received', (data) => this.handleMessageReceived(data));
         this.socket.on('message_sent', (data) => this.handleMessageSent(data));
         this.socket.on('message_error', (data) => this.handleMessageError(data));
+
+        this.socket.on('agent_joined_session', (data) => this.handleAgentJoined(data));
+        this.socket.on('agent_message', (data) => this.handleAgentMessage(data));
+        
         this.socket.on('user_typing', (data) => this.handleUserTyping(data));
         this.socket.on('user_stop_typing', (data) => this.handleUserStopTyping(data));
         this.socket.on('file_uploaded', (data) => this.handleFileUploaded(data));
@@ -151,10 +156,13 @@ class ChatClient {
             return;
         }
         
-        console.log('🔐 Autenticando socket...');
+        console.log('🔐 Autenticando socket como paciente...');
         
+        // CAMBIO 6: Autenticación mejorada del paciente
         this.sendToSocket('authenticate', {
-            ptoken: ptoken
+            ptoken: ptoken,
+            user_type: 'patient',
+            client_type: 'patient_portal'
         });
     }
 
@@ -166,15 +174,58 @@ class ChatClient {
             return;
         }
         
-        console.log('🏠 Uniéndose a sala:', roomId);
+        console.log('🏠 Uniéndose a sala:', roomId, 'sesión:', sessionId);
         
+        // CAMBIO 5: Datos mejorados para unirse a la sala
         this.sendToSocket('join_room', {
             room_id: roomId,
-            session_id: sessionId
+            session_id: sessionId,
+            user_type: 'patient',
+            action: 'patient_join'
         });
     }
 
+
+    startTyping() {
+        if (this.isConnected && this.isAuthenticated && this.currentSessionId) {
+            this.sendToSocket('start_typing', {
+                session_id: this.currentSessionId,
+                sender_type: 'patient'
+            });
+        }
+    }
+
+    stopTyping() {
+        if (this.isConnected && this.isAuthenticated && this.currentSessionId) {
+            this.sendToSocket('stop_typing', {
+                session_id: this.currentSessionId,
+                sender_type: 'patient'
+            });
+        }
+    }
     // ====== HANDLERS ======
+
+    handleAgentJoined(data) {
+        console.log('👨‍⚕️ Agente se unió a la sesión:', data);
+        
+        // Mostrar notificación de que un agente se unió
+        this.addMessageToChat(
+            'Un agente médico se ha unido a la conversación',
+            'system',
+            'system',
+            new Date().toISOString(),
+            true
+        );
+        
+        this.updateConnectionStatus('Agente conectado');
+    }
+
+    handleAgentMessage(data) {
+        console.log('👨‍⚕️ Mensaje específico de agente:', data);
+        this.handleMessageReceived(data);
+    }
+
+
     handleAuthenticated(data) {
         console.log('✅ Socket autenticado:', data);
         this.isAuthenticated = true;
@@ -223,16 +274,29 @@ class ChatClient {
     }
 
     handleMessageReceived(data) {
+        console.log('📨 Mensaje recibido:', data);
+        
         const ts = data.timestamp || data.created_at || data.createdAt || new Date().toISOString();
-
+        
+        // CAMBIO 3: Mejorar detección del tipo de remitente
+        let senderType = data.sender_type;
+        
+        // Si es de un agente, mostrarlo como sistema/agente
+        if (senderType === 'agent' || senderType === 'staff') {
+            senderType = 'system'; // Se mostrará como mensaje del doctor
+        }
+        
         this.addMessageToChat(
             data.content,
-            data.sender_type,
+            senderType,
             data.sender_id,
             ts               
         );
 
-        this.playNotificationSound();
+        // Solo reproducir sonido si NO es nuestro propio mensaje
+        if (senderType !== 'patient' && data.sender_id !== this.stubUserId) {
+            this.playNotificationSound();
+        }
     }
 
     handleMessageSent(data) {
@@ -245,11 +309,18 @@ class ChatClient {
     }
 
     handleUserTyping(data) {
-        this.showTypingIndicator(data.user_id);
+    // Solo mostrar si es de un agente y es de nuestra sesión
+        if (data.session_id === this.currentSessionId && 
+            (data.sender_type === 'agent' || data.sender_type === 'staff')) {
+            this.showTypingIndicator(data.user_id);
+        }
     }
 
     handleUserStopTyping(data) {
-        this.hideTypingIndicator();
+        if (data.session_id === this.currentSessionId && 
+            (data.sender_type === 'agent' || data.sender_type === 'staff')) {
+            this.hideTypingIndicator();
+        }
     }
 
     handleFileUploaded(data) {
@@ -342,16 +413,21 @@ class ChatClient {
             return;
         }
 
+        // CAMBIO 4: Estructura mejorada del mensaje del paciente
         const messageData = {
             content: content.trim(),
             message_type: messageType,
             session_id: this.currentSessionId,
-            timestamp: new Date().toISOString()
+            sender_type: 'patient', // ← Especificar claramente que es del paciente
+            timestamp: new Date().toISOString(),
+            user_id: this.stubUserId // ← Incluir ID del usuario
         };
         
+        console.log('📤 Paciente enviando mensaje:', messageData);
+        
         this.sendToSocket('send_message', messageData);
-        console.log('📤 Mensaje enviado:', content);
     }
+
 
     // ====== SUBIR ARCHIVO ======
     async uploadFile(file, description = '') {

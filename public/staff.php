@@ -1,5 +1,5 @@
 <?php
-// public/staff.php - SIMPLIFICADO
+// public/staff.php - MEJORADO CON DATOS REALES
 session_start();
 
 // Verificación básica
@@ -51,6 +51,17 @@ if (!in_array($userRole, $validStaffRoles)) {
         @keyframes pulse-red { 0%, 100% { color: #dc2626; } 50% { color: #ef4444; } }
         .patient-sidebar { width: 320px; min-width: 320px; }
         .chat-main { flex: 1; min-width: 0; }
+        .typing-dots { display: flex; gap: 4px; }
+        .typing-dot {
+            width: 6px; height: 6px; background: #9ca3af; border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
     </style>
 </head>
 <body class="h-full bg-gray-50">
@@ -62,7 +73,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
                         </svg>
                     </div>
                     <div>
@@ -74,12 +85,21 @@ if (!in_array($userRole, $validStaffRoles)) {
             
             <nav class="flex-1 p-4">
                 <div class="space-y-1">
-                    <a href="#rooms" onclick="showRoomsSection()" 
+                    <a href="#pending" onclick="showPendingSection()" 
                        class="nav-link active flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Conversaciones Pendientes
+                        <span id="pendingCount" class="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">0</span>
+                    </a>
+                    
+                    <a href="#rooms" onclick="showRoomsSection()" 
+                       class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path>
                         </svg>
-                        Salas de Atención
+                        Ver por Salas
                     </a>
                 </div>
             </nav>
@@ -109,7 +129,7 @@ if (!in_array($userRole, $validStaffRoles)) {
             <header class="bg-white border-b border-gray-200">
                 <div class="px-6 py-4">
                     <div class="flex items-center justify-between">
-                        <h2 id="sectionTitle" class="text-xl font-semibold text-gray-900">Salas de Atención</h2>
+                        <h2 id="sectionTitle" class="text-xl font-semibold text-gray-900">Conversaciones Pendientes</h2>
                         <div class="flex items-center gap-4">
                             <span id="currentTime" class="text-sm text-gray-500"></span>
                             <div class="flex items-center gap-2">
@@ -123,8 +143,34 @@ if (!in_array($userRole, $validStaffRoles)) {
 
             <main class="flex-1 overflow-auto">
                 
-                <!-- LISTA DE SALAS -->
-                <div id="rooms-list-section" class="section-content p-6">
+                <!-- CONVERSACIONES PENDIENTES (VISTA PRINCIPAL) -->
+                <div id="pending-conversations-section" class="section-content p-6">
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-semibold text-gray-900">Pacientes Esperando Atención</h3>
+                                    <p class="text-sm text-gray-600 mt-1">Toma una conversación para comenzar a atender</p>
+                                </div>
+                                <button onclick="loadPendingConversations()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                    🔄 Actualizar
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6">
+                            <div id="pendingConversationsContainer">
+                                <div class="text-center py-8">
+                                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                    <p class="text-gray-500">Cargando conversaciones pendientes...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LISTA DE SALAS (VISTA SECUNDARIA) -->
+                <div id="rooms-list-section" class="section-content hidden p-6">
                     <div class="bg-white rounded-lg shadow">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <div class="flex items-center justify-between">
@@ -155,7 +201,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                         <div class="px-6 py-4 border-b border-gray-200">
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center gap-4">
-                                    <button onclick="staffClient.goBackToRooms()" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                                    <button onclick="showRoomsSection()" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                                         </svg>
@@ -164,7 +210,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                                         <h3 class="font-semibold text-gray-900">
                                             Sesiones en: <span id="currentRoomName">Sala</span>
                                         </h3>
-                                        <p class="text-sm text-gray-600">Pacientes esperando atención</p>
+                                        <p class="text-sm text-gray-600">Pacientes en esta sala</p>
                                     </div>
                                 </div>
                                 <button onclick="staffClient.loadSessionsByRoom(staffClient.currentRoom)" 
@@ -185,7 +231,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                     </div>
                 </div>
 
-                <!-- CHAT CON PACIENTE -->
+                <!-- CHAT CON PACIENTE - DISEÑO ORIGINAL MEJORADO -->
                 <div id="patient-chat-panel" class="section-content hidden">
                     <div class="h-full flex">
                         
@@ -196,7 +242,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                             <div class="bg-white border-b border-gray-200 px-6 py-4">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-4">
-                                        <button onclick="staffClient.closeChat()" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                                        <button onclick="goBackToPending()" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                                             </svg>
@@ -235,6 +281,18 @@ if (!in_array($userRole, $validStaffRoles)) {
                             <div class="flex-1 overflow-y-auto p-6 bg-gray-50" id="patientChatMessages">
                                 <!-- Los mensajes aparecerán aquí -->
                             </div>
+                            
+                            <!-- Indicador de typing del paciente -->
+                            <div id="typingIndicator" class="hidden px-6 py-2 bg-gray-50">
+                                <div class="flex items-center space-x-2 text-sm text-gray-500">
+                                    <span>El paciente está escribiendo</span>
+                                    <div class="typing-dots">
+                                        <div class="typing-dot"></div>
+                                        <div class="typing-dot"></div>
+                                        <div class="typing-dot"></div>
+                                    </div>
+                                </div>
+                            </div>
 
                             <!-- Input del Chat -->
                             <div class="bg-white border-t border-gray-200 p-4">
@@ -246,8 +304,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                                             rows="2"
                                             placeholder="Escribe tu respuesta..."
                                             maxlength="500"
-                                            onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); staffClient.sendMessage();}"
-                                            oninput="staffClient.updateSendButton()"
+                                            onkeydown="handleAgentKeyDown(event)"
                                         ></textarea>
                                     </div>
                                     <button 
@@ -316,6 +373,10 @@ if (!in_array($userRole, $validStaffRoles)) {
                                             <label class="text-sm font-medium text-gray-500">Estado</label>
                                             <p id="patientInfoStatus" class="text-sm text-gray-900">-</p>
                                         </div>
+                                        <div>
+                                            <label class="text-sm font-medium text-gray-500">Tomador</label>
+                                            <p id="patientInfoTomador" class="text-sm text-gray-900">-</p>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -342,17 +403,12 @@ if (!in_array($userRole, $validStaffRoles)) {
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
                     <select id="transferType" class="w-full px-3 py-2 border border-gray-300 rounded-lg" onchange="toggleTransferFields()">
-                        <option value="internal">Transferencia Interna</option>
                         <option value="external">Transferencia Externa</option>
+                        <option value="internal">Transferencia Interna</option>
                     </select>
                 </div>
                 
-                <div id="internalTransferFields">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">ID del Agente</label>
-                    <input type="text" id="targetAgentId" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="agent_123">
-                </div>
-                
-                <div id="externalTransferFields" class="hidden">
+                <div id="externalTransferFields">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Sala Destino</label>
                     <select id="targetRoom" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                         <option value="general">Consultas Generales</option>
@@ -360,6 +416,11 @@ if (!in_array($userRole, $validStaffRoles)) {
                         <option value="support">Soporte Técnico</option>
                         <option value="emergency">Emergencias</option>
                     </select>
+                </div>
+                
+                <div id="internalTransferFields" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ID del Agente</label>
+                    <input type="text" id="targetAgentId" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="agent_123">
                 </div>
                 
                 <div>
@@ -445,10 +506,41 @@ if (!in_array($userRole, $validStaffRoles)) {
     <script src="assets/js/staff-client.js"></script>
     
     <script>
+        // ====== VARIABLES GLOBALES ======
+        let currentSession = null;
+        let pendingConversations = [];
+        let refreshInterval = null;
+        let agentTypingTimer;
+        let agentIsTyping = false;
+
+        // ====== FUNCIONES DE NAVEGACIÓN ======
+        function showPendingSection() {
+            hideAllSections();
+            document.getElementById('pending-conversations-section').classList.remove('hidden');
+            document.getElementById('sectionTitle').textContent = 'Conversaciones Pendientes';
+            updateNavigation('pending');
+            loadPendingConversations();
+        }
+
         function showRoomsSection() {
             hideAllSections();
             document.getElementById('rooms-list-section').classList.remove('hidden');
             document.getElementById('sectionTitle').textContent = 'Salas de Atención';
+            updateNavigation('rooms');
+            if (typeof staffClient !== 'undefined') {
+                staffClient.loadRoomsFromAuthService();
+            }
+        }
+
+        function goBackToPending() {
+            if (currentSession) {
+                // Desconectar del chat actual
+                if (typeof staffClient !== 'undefined' && staffClient.chatSocket) {
+                    staffClient.chatSocket.disconnect();
+                }
+                currentSession = null;
+            }
+            showPendingSection();
         }
 
         function hideAllSections() {
@@ -457,6 +549,373 @@ if (!in_array($userRole, $validStaffRoles)) {
             });
         }
 
+        function updateNavigation(active) {
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+                link.classList.add('text-gray-600', 'hover:bg-gray-100');
+            });
+            
+            if (active === 'pending') {
+                document.querySelector('a[href="#pending"]').classList.add('active');
+                document.querySelector('a[href="#pending"]').classList.remove('text-gray-600', 'hover:bg-gray-100');
+            } else if (active === 'rooms') {
+                document.querySelector('a[href="#rooms"]').classList.add('active');
+                document.querySelector('a[href="#rooms"]').classList.remove('text-gray-600', 'hover:bg-gray-100');
+            }
+        }
+
+        // ====== FUNCIONES PARA CONVERSACIONES PENDIENTES - DATOS REALES ======
+        async function loadPendingConversations() {
+            const container = document.getElementById('pendingConversationsContainer');
+            const countBadge = document.getElementById('pendingCount');
+            
+            // Mostrar loading
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p class="text-gray-500">Cargando conversaciones pendientes...</p>
+                </div>
+            `;
+
+            try {
+                console.log('📡 Cargando conversaciones pendientes REALES...');
+                
+                // LLAMADA REAL A LA API
+                const response = await fetch('http://187.33.158.246:8080/chats/sessions?waiting', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('📨 Respuesta de sesiones pendientes:', result);
+                    
+                    if (result.success && result.data && result.data.sessions) {
+                        pendingConversations = result.data.sessions;
+                        countBadge.textContent = pendingConversations.length;
+                        
+                        if (pendingConversations.length === 0) {
+                            container.innerHTML = `
+                                <div class="text-center py-12">
+                                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                    </div>
+                                    <h3 class="text-lg font-semibold text-gray-900 mb-2">¡Todo al día!</h3>
+                                    <p class="text-gray-500">No hay conversaciones pendientes por atender</p>
+                                </div>
+                            `;
+                        } else {
+                            renderPendingConversations(pendingConversations);
+                        }
+                    } else {
+                        throw new Error('Formato de respuesta inesperado');
+                    }
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Error HTTP ${response.status}`);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error cargando conversaciones pendientes:', error);
+                countBadge.textContent = '!';
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Error al cargar</h3>
+                        <p class="text-gray-500 mb-4">No se pudieron cargar las conversaciones: ${error.message}</p>
+                        <button onclick="loadPendingConversations()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            Reintentar
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function renderPendingConversations(conversations) {
+            const container = document.getElementById('pendingConversationsContainer');
+            
+            const html = conversations.map(conv => {
+                const waitTime = getWaitTime(conv.created_at);
+                const urgencyClass = getUrgencyClass(waitTime);
+                const patientName = getPatientNameFromSession(conv);
+                const roomName = getRoomNameFromSession(conv);
+                
+                return `
+                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <span class="text-lg font-semibold text-blue-700">
+                                        ${patientName.charAt(0).toUpperCase()}
+                                    </span>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-gray-900">${patientName}</h4>
+                                    <p class="text-sm text-gray-600">${roomName}</p>
+                                    <p class="text-xs text-gray-500">ID: ${conv.id}</p>
+                                    <p class="text-xs text-gray-400">Estado: ${conv.status || 'waiting'}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="text-right">
+                                <div class="flex items-center gap-3">
+                                    <div class="text-right">
+                                        <p class="text-sm font-medium ${urgencyClass}">
+                                            Esperando ${waitTime}
+                                        </p>
+                                        <p class="text-xs text-gray-500">
+                                            ${new Date(conv.created_at).toLocaleTimeString('es-ES')}
+                                        </p>
+                                    </div>
+                                    <button 
+                                        onclick="takeConversation('${conv.id}')"
+                                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                                        Tomar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = `<div class="space-y-3">${html}</div>`;
+        }
+
+        function getPatientNameFromSession(session) {
+            if (session.user_data) {
+                try {
+                    const userData = typeof session.user_data === 'string' 
+                        ? JSON.parse(session.user_data) 
+                        : session.user_data;
+                    
+                    if (userData.nombreCompleto) return userData.nombreCompleto;
+                } catch (e) {
+                    console.warn('Error parseando user_data:', e);
+                }
+            }
+            return 'Paciente';
+        }
+
+        function getRoomNameFromSession(session) {
+            if (session.room_id) {
+                const roomNames = {
+                    'general': 'Consultas Generales',
+                    'medical': 'Consultas Médicas',
+                    'support': 'Soporte Técnico',
+                    'emergency': 'Emergencias'
+                };
+                return roomNames[session.room_id] || session.room_id;
+            }
+            return 'Sala General';
+        }
+
+        function getWaitTime(createdAt) {
+            const diff = Date.now() - new Date(createdAt).getTime();
+            const minutes = Math.floor(diff / 60000);
+            
+            if (minutes < 1) return 'menos de 1 min';
+            if (minutes < 60) return `${minutes} min`;
+            
+            const hours = Math.floor(minutes / 60);
+            const remainingMins = minutes % 60;
+            return `${hours}h ${remainingMins}m`;
+        }
+
+        function getUrgencyClass(waitTime) {
+            if (waitTime.includes('h') || parseInt(waitTime) > 30) {
+                return 'text-red-600 font-semibold countdown-urgent';
+            } else if (parseInt(waitTime) > 15) {
+                return 'text-yellow-600 font-semibold';
+            }
+            return 'text-green-600';
+        }
+
+        // ====== FUNCIÓN PARA TOMAR UNA CONVERSACIÓN - REAL ======
+        async function takeConversation(sessionId) {
+            try {
+                console.log('👤 Tomando sesión REAL:', sessionId);
+                
+                const response = await fetch(`http://187.33.158.246:8080/chats/sessions/${sessionId}/assign/me`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    },
+                    body: JSON.stringify({
+                        agent_id: getCurrentUser().id,
+                        agent_data: {
+                            name: getCurrentUser().name,
+                            email: getCurrentUser().email
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('✅ Sesión asignada:', result);
+                    
+                    if (result.success) {
+                        // Encontrar la conversación en la lista local
+                        const conversation = pendingConversations.find(c => c.id === sessionId);
+                        if (!conversation) {
+                            throw new Error('Conversación no encontrada en la lista local');
+                        }
+                        
+                        // Establecer como conversación actual
+                        currentSession = conversation;
+                        
+                        showSuccess('Sesión asignada exitosamente');
+                        
+                        // Ir al chat después de un breve delay
+                        setTimeout(() => {
+                            openChat(conversation);
+                        }, 1000);
+                    } else {
+                        throw new Error(result.message || 'Error asignando sesión');
+                    }
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Error HTTP ${response.status}`);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error tomando conversación:', error);
+                showError('Error al tomar la conversación: ' + error.message);
+            }
+        }
+
+        function openChat(conversation) {
+            hideAllSections();
+            document.getElementById('patient-chat-panel').classList.remove('hidden');
+            
+            const patientName = getPatientNameFromSession(conversation);
+            const roomName = getRoomNameFromSession(conversation);
+            
+            document.getElementById('sectionTitle').textContent = `Chat con ${patientName}`;
+            
+            // Actualizar header del chat
+            document.getElementById('chatPatientName').textContent = patientName;
+            document.getElementById('chatPatientInitials').textContent = patientName.charAt(0).toUpperCase();
+            document.getElementById('chatRoomName').textContent = roomName;
+            document.getElementById('chatSessionStatus').textContent = 'Activo';
+            document.getElementById('chatPatientId').textContent = conversation.id;
+            
+            // Limpiar chat anterior
+            document.getElementById('patientChatMessages').innerHTML = '';
+            
+            // Usar StaffClient para conectar (esto manejará la extracción de datos del paciente)
+            if (typeof staffClient !== 'undefined') {
+                staffClient.openPatientChat(conversation.id);
+            } else {
+                console.error('❌ StaffClient no disponible');
+                showError('Error: Cliente de staff no disponible');
+            }
+        }
+
+        // ====== FUNCIONES DE TYPING PARA EL AGENTE ======
+        function setupAgentTyping() {
+            const agentInput = document.getElementById('agentMessageInput');
+            if (!agentInput) return;
+            
+            console.log('🔧 Configurando indicadores de typing para agente');
+            
+            agentInput.addEventListener('input', () => {
+                // Verificar que esté conectado al chat
+                if (!staffClient.isConnectedToChat || !staffClient.chatSocket || !staffClient.currentSessionId) {
+                    return;
+                }
+                
+                // Indicar que está escribiendo
+                if (!agentIsTyping) {
+                    console.log('📝 Agente empezó a escribir');
+                    staffClient.chatSocket.emit('start_typing', {
+                        session_id: staffClient.currentSessionId,
+                        sender_type: 'agent',
+                        user_type: 'agent'
+                    });
+                    agentIsTyping = true;
+                }
+                
+                // Resetear timer
+                clearTimeout(agentTypingTimer);
+                agentTypingTimer = setTimeout(() => {
+                    if (staffClient.chatSocket && staffClient.currentSessionId) {
+                        console.log('📝 Agente paró de escribir (timeout)');
+                        staffClient.chatSocket.emit('stop_typing', {
+                            session_id: staffClient.currentSessionId,
+                            sender_type: 'agent',
+                            user_type: 'agent'
+                        });
+                    }
+                    agentIsTyping = false;
+                }, 1000);
+                
+                // Actualizar botón de enviar
+                updateSendButton();
+            });
+            
+            agentInput.addEventListener('blur', () => {
+                // Parar typing cuando se pierde el foco
+                if (agentIsTyping && staffClient.chatSocket && staffClient.currentSessionId) {
+                    console.log('📝 Agente paró de escribir (blur)');
+                    staffClient.chatSocket.emit('stop_typing', {
+                        session_id: staffClient.currentSessionId,
+                        sender_type: 'agent',
+                        user_type: 'agent'
+                    });
+                    agentIsTyping = false;
+                }
+                clearTimeout(agentTypingTimer);
+            });
+        }
+
+        function handleAgentKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                
+                // Parar typing antes de enviar
+                if (agentIsTyping && staffClient.chatSocket && staffClient.currentSessionId) {
+                    console.log('📝 Agente paró de escribir (enviando mensaje)');
+                    staffClient.chatSocket.emit('stop_typing', {
+                        session_id: staffClient.currentSessionId,
+                        sender_type: 'agent',
+                        user_type: 'agent'
+                    });
+                    agentIsTyping = false;
+                }
+                clearTimeout(agentTypingTimer);
+                
+                // Enviar mensaje si hay contenido
+                const input = document.getElementById('agentMessageInput');
+                if (input && input.value.trim()) {
+                    staffClient.sendMessage();
+                }
+            }
+            updateSendButton();
+        }
+
+        function updateSendButton() {
+            const input = document.getElementById('agentMessageInput');
+            const button = document.getElementById('agentSendButton');
+            
+            if (input && button) {
+                button.disabled = !input.value.trim() || !currentSession;
+            }
+        }
+
+        // ====== FUNCIONES DE MODALES ======
         function showTransferModal() {
             document.getElementById('transferModal').classList.remove('hidden');
         }
@@ -511,7 +970,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                 
                 closeModal('transferModal');
             } catch (error) {
-                alert('Error: ' + error.message);
+                showError('Error: ' + error.message);
             }
         }
 
@@ -523,7 +982,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                 await staffClient.endSession(reason, notes);
                 closeModal('endSessionModal');
             } catch (error) {
-                alert('Error: ' + error.message);
+                showError('Error: ' + error.message);
             }
         }
 
@@ -534,17 +993,30 @@ if (!in_array($userRole, $validStaffRoles)) {
                 await staffClient.returnToQueue(reason);
                 closeModal('returnModal');
             } catch (error) {
-                alert('Error: ' + error.message);
+                showError('Error: ' + error.message);
             }
         }
 
+        // ====== FUNCIONES UTILITARIAS ======
         function getToken() {
             return '<?= $_SESSION['pToken'] ?>';
         }
 
+        function getCurrentUser() {
+            const userMeta = document.querySelector('meta[name="staff-user"]');
+            if (userMeta && userMeta.content) {
+                try {
+                    return JSON.parse(userMeta.content);
+                } catch (e) {
+                    console.warn('Error parsing user meta:', e);
+                }
+            }
+            return { id: 'unknown', name: 'Usuario', email: 'unknown@example.com' };
+        }
+
         function logout() {
             if (confirm('¿Cerrar sesión?')) {
-                if (staffClient.chatSocket) {
+                if (staffClient && staffClient.chatSocket) {
                     staffClient.chatSocket.disconnect();
                 }
                 localStorage.clear();
@@ -557,20 +1029,74 @@ if (!in_array($userRole, $validStaffRoles)) {
             document.getElementById('currentTime').textContent = new Date().toLocaleTimeString('es-ES');
         }
 
+        function showSuccess(message) {
+            showNotification(message, 'success');
+        }
+
+        function showError(message) {
+            showNotification(message, 'error');
+        }
+
+        function showNotification(message, type = 'info', duration = 4000) {
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                info: 'bg-blue-500',
+                warning: 'bg-yellow-500'
+            };
+            
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm text-white ${colors[type]}`;
+            notification.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span>${message}</span>
+                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4">×</button>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, duration);
+        }
+
+        // ====== INICIALIZACIÓN ======
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('✅ Panel de agente cargado');
+            console.log('✅ Panel de agente con datos reales cargado');
             
             updateTime();
             setInterval(updateTime, 1000);
             
+            // Configurar typing del agente
+            setupAgentTyping();
+            
+            // Cargar conversaciones pendientes por defecto
+            showPendingSection();
+            
+            // Inicializar StaffClient
             try {
-                await staffClient.init();
-                console.log('🚀 StaffClient inicializado');
+                if (typeof staffClient !== 'undefined') {
+                    await staffClient.init();
+                    console.log('🚀 StaffClient inicializado');
+                } else {
+                    console.error('❌ StaffClient no disponible');
+                }
             } catch (error) {
-                console.error('❌ Error inicializando:', error);
+                console.error('❌ Error inicializando StaffClient:', error);
             }
+            
+            // Refrescar automáticamente cada 30 segundos
+            refreshInterval = setInterval(() => {
+                if (document.getElementById('pending-conversations-section').classList.contains('hidden') === false) {
+                    loadPendingConversations();
+                }
+            }, 30000);
         });
 
+        // ====== EVENTOS GLOBALES ======
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 document.querySelectorAll('.fixed.inset-0').forEach(modal => {

@@ -13,22 +13,32 @@ class StaffClient {
         this.refreshInterval = null;
         this.chatSocket = null;
         this.isConnectedToChat = false;
+        this.sessionJoined = false;
         
-        console.log('StaffClient simplificado inicializado');
+        // TOKENS MEJORADOS
+        this.agentBearerToken = null;
+        this.patientPToken = null;
+        
+        console.log('✅ StaffClient mejorado inicializado');
     }
 
-    getToken() {
+    // ====== GESTIÓN DE TOKENS MEJORADA ======
+    getAgentBearerToken() {
+        // Primero intentar desde meta tag
         const phpTokenMeta = document.querySelector('meta[name="staff-token"]')?.content;
         if (phpTokenMeta && phpTokenMeta.trim() !== '') {
+            console.log('🔑 Bearer token obtenido desde meta tag');
+            this.agentBearerToken = phpTokenMeta;
             return phpTokenMeta;
         }
-        console.error('NO HAY TOKEN DISPONIBLE');
+        
+        console.error('❌ NO HAY BEARER TOKEN DISPONIBLE');
         return null;
     }
 
     getAuthHeaders() {
-        const token = this.getToken();
-        if (!token) throw new Error('Token no disponible');
+        const token = this.getAgentBearerToken();
+        if (!token) throw new Error('Bearer token no disponible');
         
         return {
             'Content-Type': 'application/json',
@@ -46,11 +56,13 @@ class StaffClient {
                 console.warn('Error parsing user meta:', e);
             }
         }
+        return { id: 'unknown', name: 'Usuario', email: 'unknown@example.com' };
     }
 
+    // ====== CARGAR SALAS ======
     async loadRoomsFromAuthService() {
         try {
-            console.log('Cargando salas...');
+            console.log('📡 Cargando salas...');
             
             const response = await fetch(`${this.chatServiceUrl}/rooms/available`, {
                 method: 'GET',
@@ -71,7 +83,7 @@ class StaffClient {
             throw new Error('No se pudieron cargar las salas');
             
         } catch (error) {
-            console.error('Error cargando salas:', error);
+            console.error('❌ Error cargando salas:', error);
             this.rooms = [
                 {
                     id: 'general',
@@ -375,8 +387,8 @@ class StaffClient {
             
             const currentUser = this.getCurrentUser();
             
-            const response = await fetch(`${this.chatServiceUrl}/sessions/${sessionId}/assign/me`, {
-                method: 'PUT',
+            const response = await fetch(`${this.chatServiceUrl}/sessions/${sessionId}/assign`, {
+                method: 'POST',
                 headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     agent_id: currentUser.id,
@@ -404,22 +416,44 @@ class StaffClient {
         }
     }
 
-    // ====== ABRIR CHAT ======
     async openPatientChat(sessionId) {
         try {
             console.log('💬 Abriendo chat para sesión:', sessionId);
             
+            // Buscar sesión en todas las salas
             const session = this.findSessionById(sessionId);
-            if (!session) throw new Error('Sesión no encontrada');
+            if (!session) {
+                // Si no está en cache, cargar desde el servidor
+                console.log('📡 Sesión no encontrada en cache, cargando desde servidor...');
+                const loadedSession = await this.loadSessionFromServer(sessionId);
+                if (!loadedSession) {
+                    throw new Error('Sesión no encontrada');
+                }
+                this.currentSession = loadedSession;
+            } else {
+                this.currentSession = session;
+            }
 
-            this.currentSession = session;
             this.currentSessionId = sessionId;
             
-            // Extraer datos del paciente
-            this.extractPatientDataFromSession(session);
+            console.log('📋 Sesión cargada para chat:', this.currentSession);
             
-            this.showChatPanel(session);
-            await this.connectToChat(session);
+            // Extraer pToken del paciente desde la sesión
+            this.patientPToken = this.currentSession.ptoken;
+            if (!this.patientPToken) {
+                console.error('❌ No se encontró pToken del paciente en la sesión');
+                throw new Error('No se encontró pToken del paciente');
+            }
+            
+            console.log('🎫 pToken del paciente encontrado:', this.patientPToken.substring(0, 15) + '...');
+            
+            // Mostrar panel de chat
+            this.showChatPanel(this.currentSession);
+            
+            // Conectar al chat DESPUÉS de mostrar el panel
+            await this.connectToChat(this.currentSession);
+            
+            console.log('✅ Chat abierto y conectado para sesión:', sessionId);
             
         } catch (error) {
             console.error('❌ Error abriendo chat:', error);
@@ -427,43 +461,25 @@ class StaffClient {
         }
     }
 
-    // SIMPLIFICADO: extraer datos del paciente de la sesión
-    extractPatientDataFromSession(session) {
-        console.log('🔍 Session completa recibida:', session);
-        
-        this.patientData = {
-            patient_name: 'Paciente',
-            patient_id: session.user_id || session.id || 'N/A',
-            document: 'No disponible',
-            phone: 'No disponible',
-            email: 'No disponible',
-            city: 'No disponible',
-            eps: 'No disponible',
-            plan: 'No disponible',
-            status: 'Activo'
-        };
+    // Cargar sesión desde servidor si no está en cache
+    async loadSessionFromServer(sessionId) {
+        try {
+            const response = await fetch(`${this.chatServiceUrl}/sessions/${sessionId}`, {
+                method: 'GET',
+                headers: this.getAuthHeaders()
+            });
 
-        // Buscar en user_data
-        if (session.user_data) {
-            try {
-                let userData = session.user_data;
-                if (typeof userData === 'string') {
-                    userData = JSON.parse(userData);
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                    return result.data;
                 }
-                console.log('📋 user_data encontrado:', userData);
-                
-                if (userData.nombreCompleto) this.patientData.patient_name = userData.nombreCompleto;
-                if (userData.documento) this.patientData.document = userData.documento;
-                if (userData.telefono) this.patientData.phone = userData.telefono;
-                if (userData.email) this.patientData.email = userData.email;
-                if (userData.ciudad) this.patientData.city = userData.ciudad;
-                
-            } catch (e) {
-                console.warn('Error parseando user_data:', e);
             }
+            return null;
+        } catch (error) {
+            console.error('❌ Error cargando sesión desde servidor:', error);
+            return null;
         }
-
-        console.log('✅ Datos finales del paciente:', this.patientData);
     }
 
     showChatPanel(session) {
@@ -471,7 +487,7 @@ class StaffClient {
         document.getElementById('patient-chat-panel').classList.remove('hidden');
 
         this.updateChatHeader(session);
-        this.displayPatientInfo();
+        // displayPatientInfo se llamará después de cargar los datos con el pToken
     }
 
     updateChatHeader(session) {
@@ -480,7 +496,7 @@ class StaffClient {
         
         const elements = {
             'chatPatientName': patientName,
-            'chatPatientId': `${patientName} - ${roomName}`,
+            'chatPatientId': session.id,
             'chatRoomName': roomName,
             'chatSessionStatus': this.formatStatus(session.status),
             'chatPatientInitials': this.getPatientInitials(patientName)
@@ -492,46 +508,229 @@ class StaffClient {
         });
     }
 
-    // SIMPLIFICADO: mostrar información básica del paciente
+    // ====== EXTRACCIÓN DE DATOS DEL PACIENTE - COMO PREAUTH.PHP ======
+    async validatePatientPToken(pToken) {
+        try {
+            console.log('🔍 Validando pToken del paciente para extraer datos...');
+            
+            const response = await fetch(`${this.authServiceUrl}/validate-token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    ptoken: pToken 
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('📨 Respuesta de validación pToken:', result);
+                
+                if (result.success && result.data && result.data.data) {
+                    return {
+                        success: true,
+                        data: result.data
+                    };
+                } else {
+                    throw new Error('pToken inválido o sin datos');
+                }
+            } else {
+                throw new Error(`Error HTTP ${response.status}`);
+            }
+            
+        } catch (error) {
+            console.error('❌ Error validando pToken:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    async extractPatientDataFromPToken(pToken) {
+        try {
+            console.log('👤 Extrayendo datos del paciente desde pToken...');
+            
+            // Validar pToken igual que en preauth.php
+            const validationResult = await this.validatePatientPToken(pToken);
+            
+            if (validationResult.success) {
+                // Extraer datos de la membresía igual que preauth.php
+                if (validationResult.data && validationResult.data.data && 
+                    validationResult.data.data.membresias && 
+                    validationResult.data.data.membresias.length > 0) {
+                    
+                    const membresia = validationResult.data.data.membresias[0];
+                    console.log('💳 Procesando membresía:', membresia);
+                    
+                    // Extraer nombre del tomador
+                    const nomTomador = membresia.nomTomador || 'Sistema de Atención';
+                    
+                    // Buscar beneficiario principal igual que preauth.php
+                    const beneficiarioPrincipal = membresia.beneficiarios?.find(ben => ben.tipo_ben === 'PPAL');
+                    
+                    if (beneficiarioPrincipal) {
+                        console.log('👤 Beneficiario principal encontrado:', beneficiarioPrincipal);
+                        
+                        // Construir nombre completo igual que preauth.php
+                        const nombreCompleto = [
+                            beneficiarioPrincipal.primer_nombre,
+                            beneficiarioPrincipal.segundo_nombre,
+                            beneficiarioPrincipal.primer_apellido,
+                            beneficiarioPrincipal.segundo_apellido
+                        ].filter(nombre => nombre && nombre.trim()).join(' ');
+                        
+                        // Crear objeto de datos del paciente
+                        this.patientData = {
+                            nombreCompleto: nombreCompleto,
+                            nomTomador: nomTomador,
+                            beneficiario: beneficiarioPrincipal,
+                            // Datos específicos para mostrar en la UI
+                            patient_name: nombreCompleto,
+                            patient_id: beneficiarioPrincipal.id || 'N/A',
+                            document: beneficiarioPrincipal.documento || 'No disponible',
+                            phone: beneficiarioPrincipal.telefono || 'No disponible',
+                            email: beneficiarioPrincipal.email || 'No disponible',
+                            city: beneficiarioPrincipal.ciudad || 'No disponible',
+                            eps: membresia.eps || 'No disponible',
+                            plan: membresia.plan || 'No disponible',
+                            status: membresia.estado || 'Activo'
+                        };
+                        
+                        console.log('✅ Datos del paciente extraídos:', this.patientData);
+                        
+                        // Mostrar en la UI
+                        this.displayPatientInfo();
+                        
+                        // Actualizar nombre en el header del chat también
+                        const chatPatientName = document.getElementById('chatPatientName');
+                        if (chatPatientName && nombreCompleto !== 'Paciente') {
+                            chatPatientName.textContent = nombreCompleto;
+                        }
+                        
+                        return true;
+                    } else {
+                        console.warn('⚠️ No se encontró beneficiario principal');
+                        this.setDefaultPatientData();
+                        return false;
+                    }
+                } else {
+                    console.warn('⚠️ No se encontraron datos de membresía');
+                    this.setDefaultPatientData();
+                    return false;
+                }
+            } else {
+                console.error('❌ Error validando pToken:', validationResult.error);
+                this.setDefaultPatientData();
+                return false;
+            }
+            
+        } catch (error) {
+            console.error('❌ Error extrayendo datos del paciente:', error);
+            this.setDefaultPatientData();
+            return false;
+        }
+    }
+
+    setDefaultPatientData() {
+        this.patientData = {
+            patient_name: 'Paciente',
+            patient_id: 'N/A',
+            document: 'No disponible',
+            phone: 'No disponible',
+            email: 'No disponible',
+            city: 'No disponible',
+            eps: 'No disponible',
+            plan: 'No disponible',
+            status: 'No disponible'
+        };
+        this.displayPatientInfo();
+    }
+
     displayPatientInfo() {
-        if (!this.patientData) return;
+        if (!this.patientData) {
+            console.warn('⚠️ No hay datos del paciente para mostrar');
+            return;
+        }
+
+        console.log('📋 Mostrando información del paciente:', this.patientData);
 
         const updates = {
-            'patientInfoName': this.patientData.patient_name,
-            'patientInfoDocument': this.patientData.document,
-            'patientInfoPhone': this.patientData.phone,
-            'patientInfoEmail': this.patientData.email,
-            'patientInfoCity': this.patientData.city,
-            'patientInfoEPS': this.patientData.eps,
-            'patientInfoPlan': this.patientData.plan,
-            'patientInfoStatus': this.patientData.status
+            'patientInfoName': this.patientData.patient_name || this.patientData.nombreCompleto || 'Paciente',
+            'patientInfoDocument': this.patientData.document || 'No disponible',
+            'patientInfoPhone': this.patientData.phone || 'No disponible',
+            'patientInfoEmail': this.patientData.email || 'No disponible',
+            'patientInfoCity': this.patientData.city || 'No disponible',
+            'patientInfoEPS': this.patientData.eps || 'No disponible',
+            'patientInfoPlan': this.patientData.plan || 'No disponible',
+            'patientInfoStatus': this.patientData.status || 'No disponible',
+            'patientInfoTomador': this.patientData.nomTomador || 'No disponible'
         };
 
         Object.entries(updates).forEach(([id, value]) => {
             const element = document.getElementById(id);
-            if (element) element.textContent = value;
+            if (element) {
+                element.textContent = value;
+                console.log(`📝 Actualizado ${id}: ${value}`);
+            } else {
+                console.warn(`⚠️ Elemento ${id} no encontrado`);
+            }
         });
         
-        console.log('📋 Información del paciente mostrada');
+        console.log('✅ Información del paciente mostrada correctamente');
     }
 
-    // ====== CHAT SOCKET ======
+    // ====== CONEXIÓN AL CHAT - MEJORADA ======
     async connectToChat(session) {
         try {
-            console.log('🔌 Conectando al chat...');
+            console.log('🔌 Conectando al chat como agente...');
             
-            if (!session.ptoken) throw new Error('No hay pToken para conectar al chat');
+            // OBTENER BEARER TOKEN DEL AGENTE
+            const agentBearerToken = this.getAgentBearerToken();
+            if (!agentBearerToken) {
+                throw new Error('No hay Bearer token del agente disponible');
+            }
             
+            console.log('🔑 Usando Bearer token del agente:', agentBearerToken.substring(0, 15) + '...');
+            console.log('🎫 Usando pToken del paciente:', this.patientPToken.substring(0, 15) + '...');
+            
+            // GUARDAR TOKENS
+            this.agentBearerToken = agentBearerToken;
+            
+            // CONECTAR WEBSOCKET
             this.chatSocket = io(this.wsUrl, {
                 path: '/socket.io/',
                 transports: ['websocket', 'polling'],
                 autoConnect: true,
                 auth: {
-                    ptoken: session.ptoken
+                    ptoken: agentBearerToken,           // ← Bearer token para autenticación del agente
+                    ptoken: this.patientPToken,       // ← pToken para acceso a datos del paciente  
+                    agent_mode: true,
+                    user_type: 'staff'
                 }
             });
             
             this.setupChatSocketEvents();
+            
+            // Esperar conexión
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Timeout conectando WebSocket')), 10000);
+                
+                this.chatSocket.on('connect', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                });
+                
+                this.chatSocket.on('connect_error', (error) => {
+                    clearTimeout(timeout);
+                    reject(error);
+                });
+            });
+            
+            // DESPUÉS DE CONECTAR: Extraer datos del paciente y cargar historial
+            await this.extractPatientDataFromPToken(this.patientPToken);
             await this.loadChatHistory(session.id);
             
         } catch (error) {
@@ -541,35 +740,156 @@ class StaffClient {
     }
 
     setupChatSocketEvents() {
+        // CONEXIÓN
         this.chatSocket.on('connect', () => {
-            console.log('✅ Chat conectado');
+            console.log('✅ Agente conectado al WebSocket');
             this.isConnectedToChat = true;
             this.updateChatStatus('Conectado');
             
+            // AUTENTICACIÓN CON BEARER TOKEN DEL AGENTE
+            console.log('🔐 Autenticando agente con Bearer token...');
             this.chatSocket.emit('authenticate', { 
-                ptoken: this.currentSession.ptoken,
-                agent_mode: true 
+                ptoken: this.agentBearerToken,           // ← Bearer token del agente
+                agent_mode: true,
+                user_type: 'staff',
+                session_id: this.currentSessionId
             });
         });
         
-        this.chatSocket.on('authenticated', () => {
-            console.log('✅ Chat autenticado');
+        // AUTENTICACIÓN EXITOSA
+        this.chatSocket.on('authenticated', (data) => {
+            console.log('✅ Agente autenticado con Bearer token:', data);
+            
+            // UNIRSE A LA SESIÓN ESPECÍFICA
+            console.log('🏠 Uniéndose a la sesión:', this.currentSessionId);
             this.chatSocket.emit('join_session', { 
                 session_id: this.currentSessionId,
-                agent_mode: true
+                agent_mode: true,
+                action: 'agent_join',
+                agent_data: {
+                    user_id: this.getCurrentUser()?.id,
+                    name: this.getCurrentUser()?.name,
+                    bearer_token: this.agentBearerToken,
+                    patient_ptoken: this.patientPToken  // ← Para referencia
+                }
             });
         });
         
-        this.chatSocket.on('message_received', (data) => {
-            console.log('📨 Mensaje recibido:', data);
-            this.addMessageToChat(data, false);
+        // CONFIRMACIONES DE UNIÓN
+        this.chatSocket.on('session_joined', (data) => {
+            console.log('✅ Agente unido a sesión exitosamente:', data);
+            this.updateChatStatus('En sesión activa');
+            this.sessionJoined = true;
         });
         
+        this.chatSocket.on('agent_joined_session', (data) => {
+            console.log('✅ Evento agent_joined_session:', data);
+            this.updateChatStatus('Agente en sesión');
+            this.sessionJoined = true;
+        });
+        
+        this.chatSocket.on('room_joined', (data) => {
+            console.log('✅ Sala unida exitosamente:', data);
+            this.updateChatStatus('En sala activa');
+            this.sessionJoined = true;
+        });
+        
+        // ERRORES
+        this.chatSocket.on('join_error', (data) => {
+            console.error('❌ Error uniéndose a sesión:', data);
+            this.updateChatStatus('Error de unión');
+            this.showError('Error uniéndose a la sesión: ' + data.error);
+        });
+        
+        this.chatSocket.on('auth_error', (data) => {
+            console.error('❌ Error de autenticación:', data);
+            this.updateChatStatus('Error de autenticación');
+            this.showError('Error de autenticación: ' + data.error);
+        });
+        
+        // MENSAJES
+        this.chatSocket.on('message_received', (data) => {
+            console.log('📨 Mensaje recibido:', data);
+            
+            if (data.session_id === this.currentSessionId) {
+                const isFromAgent = data.sender_type === 'agent' || data.sender_type === 'staff';
+                this.addMessageToChat(data, isFromAgent);
+                
+                if (!isFromAgent) {
+                    this.playNotificationSound();
+                }
+            }
+        });
+        
+        this.chatSocket.on('message_sent', (data) => {
+            console.log('✅ Mensaje del agente enviado exitosamente:', data);
+        });
+        
+        this.chatSocket.on('message_error', (data) => {
+            console.error('❌ Error enviando mensaje:', data);
+            this.showError('Error enviando mensaje: ' + data.error);
+            
+            // Si el error es de autenticación/sala, reintentar unión
+            if (data.error && (data.error.includes('No en sala') || data.error.includes('autenticado'))) {
+                console.log('🔄 Reintentando unión debido a error...');
+                this.rejoinSession();
+            }
+        });
+        
+        // TYPING
+        this.chatSocket.on('start_typing', (data) => {
+            if (data.session_id === this.currentSessionId && data.sender_type === 'patient') {
+                this.showTypingIndicator();
+            }
+        });
+        
+        this.chatSocket.on('stop_typing', (data) => {
+            if (data.session_id === this.currentSessionId && data.sender_type === 'patient') {
+                this.hideTypingIndicator();
+            }
+        });
+        
+        // DESCONEXIÓN
         this.chatSocket.on('disconnect', () => {
-            console.log('🔌 Chat desconectado');
+            console.log('🔌 Agente desconectado del chat');
             this.isConnectedToChat = false;
+            this.sessionJoined = false;
             this.updateChatStatus('Desconectado');
         });
+        
+        this.chatSocket.on('connect_error', (error) => {
+            console.error('❌ Error de conexión del agente:', error);
+            this.updateChatStatus('Error de conexión');
+        });
+    }
+
+    rejoinSession() {
+        if (!this.currentSessionId || !this.chatSocket || !this.agentBearerToken) return;
+        
+        console.log('🔄 Reintentando unión a sesión con Bearer token...');
+        
+        // Reautenticar primero
+        this.chatSocket.emit('authenticate', { 
+            token: this.agentBearerToken,
+            agent_mode: true,
+            user_type: 'staff',
+            session_id: this.currentSessionId,
+            force_auth: true
+        });
+        
+        // Después intentar unirse
+        setTimeout(() => {
+            this.chatSocket.emit('join_session', { 
+                session_id: this.currentSessionId,
+                agent_mode: true,
+                force_join: true,
+                bearer_token: this.agentBearerToken,
+                agent_data: {
+                    user_id: this.getCurrentUser()?.id,
+                    name: this.getCurrentUser()?.name
+                }
+            });
+        }, 1000);
     }
 
     async loadChatHistory(sessionId) {
@@ -618,6 +938,59 @@ class StaffClient {
         }
     }
 
+    // ====== ENVIAR MENSAJE - MEJORADO ======
+    sendMessage() {
+        const input = document.getElementById('agentMessageInput');
+        const message = input.value.trim();
+        
+        if (!message || !this.isConnectedToChat || !this.chatSocket) {
+            console.warn('⚠️ No se puede enviar: sin mensaje, sin conexión o sin socket');
+            return;
+        }
+
+        if (!this.currentSessionId) {
+            console.warn('⚠️ No hay sesión activa');
+            this.showError('No hay sesión activa');
+            return;
+        }
+        
+        if (!this.sessionJoined) {
+            console.warn('⚠️ No unido a sesión, reintentando...');
+            this.rejoinSession();
+            this.showError('Reintentando unión a la sesión...');
+            return;
+        }
+        
+        console.log('📤 Enviando mensaje del agente:', message);
+        
+        // ESTRUCTURA COMPLETA DEL MENSAJE CON BEARER TOKEN
+        const messageData = {
+            content: message,
+            message_type: 'text',
+            session_id: this.currentSessionId,
+            sender_type: 'agent',
+            sender_id: this.getCurrentUser()?.id,
+            timestamp: new Date().toISOString(),
+            agent_mode: true,
+            bearer_token: this.agentBearerToken  // ← Incluir Bearer token para verificación
+        };
+        
+        console.log('📤 Datos del mensaje completos:', messageData);
+        
+        this.chatSocket.emit('send_message', messageData);
+        
+        // Agregar a UI inmediatamente
+        this.addMessageToChat({
+            content: message,
+            timestamp: new Date().toISOString(),
+            sender_type: 'agent',
+            session_id: this.currentSessionId
+        }, true);
+        
+        input.value = '';
+        this.updateSendButton();
+    }
+
     addMessageToChat(messageData, isFromAgent = false) {
         const messagesContainer = document.getElementById('patientChatMessages');
         if (!messagesContainer) return;
@@ -651,30 +1024,29 @@ class StaffClient {
         this.scrollToBottom();
     }
 
-    sendMessage() {
-        const input = document.getElementById('agentMessageInput');
-        const message = input.value.trim();
-        
-        if (!message || !this.isConnectedToChat || !this.chatSocket) return;
-        
-        console.log('📤 Enviando mensaje del agente:', message);
-        
-        this.chatSocket.emit('send_message', {
-            content: message,
-            message_type: 'text',
-            session_id: this.currentSessionId,
-            sender_type: 'agent'
-        });
-        
-        // Agregar a UI inmediatamente
-        this.addMessageToChat({
-            content: message,
-            timestamp: new Date().toISOString(),
-            sender_type: 'agent'
-        }, true);
-        
-        input.value = '';
-        this.updateSendButton();
+    showTypingIndicator() {
+        const indicator = document.getElementById('typingIndicator');
+        if (indicator) {
+            indicator.classList.remove('hidden');
+            this.scrollToBottom();
+        }
+    }
+
+    hideTypingIndicator() {
+        const indicator = document.getElementById('typingIndicator');
+        if (indicator) {
+            indicator.classList.add('hidden');
+        }
+    }
+
+    playNotificationSound() {
+        try {
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmYfBSuPze/R');
+            audio.volume = 0.2;
+            audio.play().catch(() => {});
+        } catch (error) {
+            // Ignorar errores de audio
+        }
     }
 
     // ====== ACCIONES DE SESIÓN ======
@@ -913,9 +1285,11 @@ class StaffClient {
         }
         
         this.isConnectedToChat = false;
+        this.sessionJoined = false;
         this.currentSession = null;
         this.currentSessionId = null;
         this.patientData = null;
+        this.patientPToken = null;
         
         document.getElementById('patient-chat-panel').classList.add('hidden');
         document.getElementById('room-sessions-section').classList.remove('hidden');
@@ -972,7 +1346,7 @@ class StaffClient {
 
     async init() {
         try {
-            console.log('🚀 Inicializando StaffClient...');
+            console.log('🚀 Inicializando StaffClient mejorado...');
             await this.loadRoomsFromAuthService();
             this.startAutoRefresh();
         } catch (error) {
@@ -996,10 +1370,17 @@ class StaffClient {
     }
 }
 
+// INSTANCIA GLOBAL
 window.staffClient = new StaffClient();
 
-// FUNCIONES DE DEBUG
+// FUNCIONES DE DEBUG MEJORADAS
 window.debugStaff = {
+    // Mostrar todos los tokens
+    showTokens: () => {
+        console.log('🔑 BEARER TOKEN AGENTE:', window.staffClient.agentBearerToken || 'No disponible');
+        console.log('🎫 PTOKEN PACIENTE:', window.staffClient.patientPToken || 'No disponible');
+    },
+    
     // Mostrar datos de la sesión actual
     showSessionData: () => {
         if (window.staffClient.currentSession) {
@@ -1019,16 +1400,31 @@ window.debugStaff = {
     },
     
     // Forzar extracción de datos
-    extractPatientData: () => {
-        if (window.staffClient.currentSession) {
-            window.staffClient.extractPatientDataFromSession(window.staffClient.currentSession);
-            window.staffClient.displayPatientInfo();
+    extractPatientData: async () => {
+        if (window.staffClient.patientPToken) {
+            await window.staffClient.extractPatientDataFromPToken(window.staffClient.patientPToken);
             console.log('🔄 Datos re-extraídos y mostrados');
         } else {
-            console.log('❌ No hay sesión para extraer datos');
+            console.log('❌ No hay pToken para extraer datos');
         }
     },
     
-    // Test de conexión
-    testConnection: () => window.staffClient.getToken()
+    // Test de conexión y autenticación
+    testConnection: () => {
+        const bearerToken = window.staffClient.getAgentBearerToken();
+        console.log('🔑 Bearer token disponible:', bearerToken ? 'SÍ' : 'NO');
+        console.log('🔌 WebSocket conectado:', window.staffClient.isConnectedToChat);
+        console.log('🏠 Sesión unida:', window.staffClient.sessionJoined);
+        return bearerToken;
+    },
+    
+    // Forzar reconexión
+    reconnect: async () => {
+        if (window.staffClient.currentSession) {
+            await window.staffClient.connectToChat(window.staffClient.currentSession);
+            console.log('🔄 Reconexión forzada');
+        } else {
+            console.log('❌ No hay sesión actual para reconectar');
+        }
+    }
 };
