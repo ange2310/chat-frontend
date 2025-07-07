@@ -8,14 +8,14 @@ define('APP_ENV', 'development');
 // URLs DE SERVICIOS BACKEND - A TRAVÉS DE NGINX
 // ===============================
 // ✅ TODAS LAS URLs VAN A TRAVÉS DE NGINX EN EL PUERTO 8080
-define('AUTH_SERVICE_URL', 'http://187.33.158.246:8080/auth');
-define('CHAT_SERVICE_URL', 'http://187.33.158.246:8080/chats');
+define('AUTH_SERVICE_URL', 'http://localhost:3010/auth');
+define('CHAT_SERVICE_URL', 'http://localhost:3011/chats');
 define('CHAT_WS_URL', 'ws://187.33.158.246:8080/socket.io');  // ← WebSocket a través de nginx
 define('ADMIN_SERVICE_URL', 'http://187.33.158.246:8080/admin');
 define('SUPERVISOR_SERVICE_URL', 'http://187.33.158.246:8080/supervisor');
 
 // URLs auxiliares
-define('AUTH_HEALTH_URL', 'http://187.33.158.246:8080/health');
+define('AUTH_HEALTH_URL', 'http://localhost:3010/health');
 define('CHAT_HEALTH_URL', 'http://187.33.158.246:8080/chat/health');
 
 // ===============================

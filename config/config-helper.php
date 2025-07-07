@@ -276,7 +276,7 @@ class ConfigHelper {
         // Test básico de conectividad
         $testUrls = [
             'google_dns' => '8.8.8.8',
-            'auth_service_host' => '187.33.158.246'
+            'auth_service_host' => 'localhost'
         ];
         
         foreach ($testUrls as $name => $host) {
