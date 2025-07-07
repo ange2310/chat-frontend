@@ -564,7 +564,7 @@ if (!in_array($userRole, $validStaffRoles)) {
             }
         }
 
-        // ====== FUNCIONES PARA CONVERSACIONES PENDIENTES - DATOS REALES ======
+        // ====== FUNCIONES PARA CONVERSACIONES PENDIENTES - URLs LOCALES ======
         async function loadPendingConversations() {
             const container = document.getElementById('pendingConversationsContainer');
             const countBadge = document.getElementById('pendingCount');
@@ -580,8 +580,8 @@ if (!in_array($userRole, $validStaffRoles)) {
             try {
                 console.log('📡 Cargando conversaciones pendientes REALES...');
                 
-                // LLAMADA REAL A LA API
-                const response = await fetch('http://187.33.158.246:8080/chats/sessions?waiting', {
+                // LLAMADA REAL A LA API LOCAL
+                const response = await fetch('http://localhost:3011/chats/sessions?waiting', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -741,12 +741,12 @@ if (!in_array($userRole, $validStaffRoles)) {
             return 'text-green-600';
         }
 
-        // ====== FUNCIÓN PARA TOMAR UNA CONVERSACIÓN - REAL ======
+        // ====== FUNCIÓN PARA TOMAR UNA CONVERSACIÓN - URL LOCAL ======
         async function takeConversation(sessionId) {
             try {
                 console.log('👤 Tomando sesión REAL:', sessionId);
                 
-                const response = await fetch(`http://187.33.158.246:8080/chats/sessions/${sessionId}/assign/me`, {
+                const response = await fetch(`http://localhost:3011/chats/sessions/${sessionId}/assign/me`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1065,7 +1065,7 @@ if (!in_array($userRole, $validStaffRoles)) {
 
         // ====== INICIALIZACIÓN ======
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('✅ Panel de agente con datos reales cargado');
+            console.log('✅ Panel de agente con URLs locales cargado');
             
             updateTime();
             setInterval(updateTime, 1000);

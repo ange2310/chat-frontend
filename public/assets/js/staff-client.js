@@ -1,8 +1,8 @@
 class StaffClient {
     constructor() {
-        this.authServiceUrl = 'http://187.33.158.246:8080/auth';
-        this.chatServiceUrl = 'http://187.33.158.246:8080/chats';
-        this.wsUrl = 'ws://187.33.158.246:8080';
+        this.authServiceUrl = 'http://localhost:3010/auth';
+        this.chatServiceUrl = 'http://localhost:3011/chats';
+        this.wsUrl = 'ws://localhost:3011';
         
         this.currentRoom = null;
         this.currentSessionId = null;
@@ -19,7 +19,7 @@ class StaffClient {
         this.agentBearerToken = null;
         this.patientPToken = null;
         
-        console.log('✅ StaffClient mejorado inicializado');
+        console.log('✅ StaffClient mejorado inicializado con URLs locales');
     }
 
     // ====== GESTIÓN DE TOKENS MEJORADA ======
@@ -62,8 +62,9 @@ class StaffClient {
     // ====== CARGAR SALAS ======
     async loadRoomsFromAuthService() {
         try {
-            console.log('📡 Cargando salas...');
+            console.log('📡 Cargando salas desde localhost...');
             
+            // CORREGIDO: Usar chatServiceUrl en lugar de authServiceUrl
             const response = await fetch(`${this.chatServiceUrl}/rooms/available`, {
                 method: 'GET',
                 headers: this.getAuthHeaders()
@@ -699,13 +700,13 @@ class StaffClient {
             // GUARDAR TOKENS
             this.agentBearerToken = agentBearerToken;
             
-            // CONECTAR WEBSOCKET
+            // CONECTAR WEBSOCKET CON URL LOCAL
             this.chatSocket = io(this.wsUrl, {
                 path: '/socket.io/',
                 transports: ['websocket', 'polling'],
                 autoConnect: true,
                 auth: {
-                    ptoken: agentBearerToken,           // ← Bearer token para autenticación del agente
+                    token: agentBearerToken,           // ← Bearer token para autenticación del agente
                     ptoken: this.patientPToken,       // ← pToken para acceso a datos del paciente  
                     agent_mode: true,
                     user_type: 'staff'
@@ -742,14 +743,14 @@ class StaffClient {
     setupChatSocketEvents() {
         // CONEXIÓN
         this.chatSocket.on('connect', () => {
-            console.log('✅ Agente conectado al WebSocket');
+            console.log('✅ Agente conectado al WebSocket local');
             this.isConnectedToChat = true;
             this.updateChatStatus('Conectado');
             
             // AUTENTICACIÓN CON BEARER TOKEN DEL AGENTE
             console.log('🔐 Autenticando agente con Bearer token...');
             this.chatSocket.emit('authenticate', { 
-                ptoken: this.agentBearerToken,           // ← Bearer token del agente
+                token: this.agentBearerToken,           // ← Bearer token del agente
                 agent_mode: true,
                 user_type: 'staff',
                 session_id: this.currentSessionId
@@ -1346,7 +1347,7 @@ class StaffClient {
 
     async init() {
         try {
-            console.log('🚀 Inicializando StaffClient mejorado...');
+            console.log('🚀 Inicializando StaffClient con URLs locales...');
             await this.loadRoomsFromAuthService();
             this.startAutoRefresh();
         } catch (error) {
