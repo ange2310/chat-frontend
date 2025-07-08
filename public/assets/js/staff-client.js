@@ -1,24 +1,24 @@
 class StaffClient {
     constructor() {
-        // 🏠 URLs LOCALES DIRECTAS PARA DESARROLLO
-        this.authServiceUrl = 'http://localhost:3010';  // ✅ Para login, salas, validación
-        this.chatServiceUrl = 'http://localhost:3011/chats'; // ✅ Para sesiones, mensajes
-        this.wsUrl = 'ws://localhost:3011';                  // ✅ Para WebSocket
+        // URLs LOCALES DIRECTAS
+        this.authServiceUrl = 'http://localhost:3010';
+        this.chatServiceUrl = 'http://localhost:3011/chats';
+        this.wsUrl = 'http://localhost:3011';
         
         this.currentRoom = null;
         this.currentSessionId = null;
         this.currentSession = null;
         this.rooms = [];
         this.sessionsByRoom = {};
-        this.patientData = null;
         this.refreshInterval = null;
+        
+        // WebSocket para chat
         this.chatSocket = null;
         this.isConnectedToChat = false;
         this.sessionJoined = false;
         
         // TOKENS
         this.agentBearerToken = null;
-        this.patientPToken = null;
         
         console.log('✅ StaffClient para desarrollo local inicializado');
         console.log('🔗 Auth Service:', this.authServiceUrl);
@@ -26,67 +26,39 @@ class StaffClient {
         console.log('🔌 WebSocket:', this.wsUrl);
     }
 
-    // ====== GESTIÓN DE TOKENS CON DEBUG ======
+    // ====== GESTIÓN DE TOKENS ======
     getAgentBearerToken() {
-        console.log('🔍 [StaffClient] getAgentBearerToken() llamado');
-        
-        // Intentar obtener desde meta tag
         const phpTokenMeta = document.querySelector('meta[name="staff-token"]');
-        console.log('🔍 [StaffClient] Meta tag encontrado:', !!phpTokenMeta);
         
         if (phpTokenMeta && phpTokenMeta.content && phpTokenMeta.content.trim() !== '') {
             const token = phpTokenMeta.content.trim();
-            console.log('🔑 [StaffClient] Token obtenido desde meta tag:', `${token.substring(0, 30)}...`);
             
-            // Verificar que sea un JWT válido
             try {
                 const parts = token.split('.');
                 if (parts.length === 3) {
-                    const payload = JSON.parse(atob(parts[1]));
-                    console.log('✅ [StaffClient] Token es JWT válido:', {
-                        id: payload.id,
-                        email: payload.email,
-                        role: payload.role,
-                        exp: new Date(payload.exp * 1000).toISOString()
-                    });
                     this.agentBearerToken = token;
                     return token;
-                } else {
-                    console.error('❌ [StaffClient] Token no es JWT válido (partes:', parts.length, ')');
                 }
             } catch (e) {
-                console.error('❌ [StaffClient] Error decodificando token:', e);
+                console.error('❌ Error decodificando token:', e);
             }
-        } else {
-            console.error('❌ [StaffClient] Meta tag vacío o no encontrado');
         }
         
-        console.error('❌ [StaffClient] NO HAY BEARER TOKEN DISPONIBLE');
+        console.error('❌ NO HAY BEARER TOKEN DISPONIBLE');
         return null;
     }
 
     getAuthHeaders() {
-        console.log('🔍 [StaffClient] getAuthHeaders() llamado');
-        
         const token = this.getAgentBearerToken();
         if (!token) {
-            console.error('❌ [StaffClient] No hay token para headers');
             throw new Error('Bearer token no disponible');
         }
         
-        const headers = {
+        return {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'Authorization': `Bearer ${token}`
         };
-        
-        console.log('🔍 [StaffClient] Headers generados:', {
-            'Content-Type': headers['Content-Type'],
-            'Accept': headers['Accept'],
-            'Authorization': `Bearer ${token.substring(0, 30)}...`
-        });
-        
-        return headers;
     }
 
     getCurrentUser() {
@@ -101,71 +73,46 @@ class StaffClient {
         return { id: 'unknown', name: 'Usuario', email: 'unknown@example.com' };
     }
 
-    // ====== CARGAR SALAS DESDE AUTH-SERVICE CON DEBUG ======
+    // ====== CARGAR SALAS ======
     async loadRoomsFromAuthService() {
         try {
-            console.log('📡 [StaffClient] loadRoomsFromAuthService() iniciado');
-            
-            // Verificar token antes de hacer la llamada
             const token = this.getAgentBearerToken();
             if (!token) {
                 throw new Error('No hay token disponible');
             }
             
             const url = `${this.authServiceUrl}/rooms/available`;
-            console.log('🔗 [StaffClient] URL:', url);
-            
             const headers = this.getAuthHeaders();
-            console.log('🔍 [StaffClient] Headers para request:', headers);
-            
-            console.log('📡 [StaffClient] Enviando request...');
             
             const response = await fetch(url, {
                 method: 'GET',
                 headers: headers
             });
 
-            console.log('📡 [StaffClient] Respuesta recibida:', {
-                status: response.status,
-                statusText: response.statusText,
-                ok: response.ok
-            });
-
             if (response.ok) {
                 const data = await response.json();
-                console.log('📊 [StaffClient] Datos de salas:', data);
-                
                 const rooms = data.data?.rooms || data.rooms || [];
                 
                 if (Array.isArray(rooms) && rooms.length > 0) {
                     this.rooms = rooms;
                     this.displayRooms();
-                    console.log(`✅ [StaffClient] ${rooms.length} salas cargadas desde servidor`);
+                    console.log(`✅ ${rooms.length} salas cargadas desde servidor`);
                     return rooms;
                 } else {
-                    console.log('⚠️ [StaffClient] No hay salas en el servidor, usando fallback');
                     return this.loadRoomsFallback();
                 }
             } else {
-                const errorText = await response.text();
-                console.error('❌ [StaffClient] Error del servidor:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    body: errorText
-                });
-                throw new Error(`Error HTTP ${response.status}: ${errorText}`);
+                throw new Error(`Error HTTP ${response.status}`);
             }
             
         } catch (error) {
-            console.error('❌ [StaffClient] Error cargando salas:', error);
+            console.error('❌ Error cargando salas:', error);
             this.showNotification('Error conectando con el servidor. Usando salas de prueba.', 'warning');
             return this.loadRoomsFallback();
         }
     }
 
     loadRoomsFallback() {
-        console.log('🚨 [StaffClient] Cargando salas de desarrollo...');
-        
         this.rooms = [
             {
                 id: 'general',
@@ -206,83 +153,10 @@ class StaffClient {
         ];
         
         this.displayRooms();
-        console.log(`✅ [StaffClient] ${this.rooms.length} salas de desarrollo cargadas`);
         return this.rooms;
     }
 
-    // ====== FUNCIÓN DE CONECTIVIDAD PARA DEBUG ======
-    async testLocalConnectivity() {
-        console.log('🧪 [StaffClient] Probando conectividad local...');
-        
-        const tests = [
-            { name: 'Auth Health', url: 'http://localhost:3010/health' },
-            { name: 'Chat Health', url: 'http://localhost:3011/health' },
-        ];
-
-        const results = [];
-
-        for (const test of tests) {
-            try {
-                console.log(`🔍 [StaffClient] Probando: ${test.name}`);
-                const response = await fetch(test.url, {
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' }
-                });
-                
-                const status = `${response.status} ${response.statusText}`;
-                console.log(`   ✅ [StaffClient] ${test.name}: ${status}`);
-                
-                results.push({ name: test.name, status, success: response.ok });
-                
-                if (response.ok) {
-                    try {
-                        const data = await response.json();
-                        console.log(`   📊 [StaffClient] Respuesta:`, data);
-                    } catch (e) {
-                        console.log(`   📊 [StaffClient] Respuesta: (no JSON)`);
-                    }
-                }
-            } catch (error) {
-                console.log(`   ❌ [StaffClient] ${test.name}: ${error.message}`);
-                results.push({ name: test.name, status: error.message, success: false });
-            }
-        }
-
-        // Test con autenticación
-        try {
-            const token = this.getAgentBearerToken();
-            if (token) {
-                console.log('🔍 [StaffClient] Probando rooms con autenticación...');
-                const response = await fetch('http://localhost:3010/rooms/available', {
-                    method: 'GET',
-                    headers: this.getAuthHeaders()
-                });
-                
-                const status = `${response.status} ${response.statusText}`;
-                console.log(`   ✅ [StaffClient] Rooms autenticado: ${status}`);
-                results.push({ name: 'Rooms (autenticado)', status, success: response.ok });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log(`   📊 [StaffClient] Salas disponibles:`, data);
-                } else {
-                    const errorText = await response.text();
-                    console.log(`   ❌ [StaffClient] Error en rooms:`, errorText);
-                }
-            } else {
-                console.log('   ⚠️ [StaffClient] No hay token para probar autenticación');
-                results.push({ name: 'Rooms (autenticado)', status: 'No token', success: false });
-            }
-        } catch (error) {
-            console.log(`   ❌ [StaffClient] Rooms autenticado: ${error.message}`);
-            results.push({ name: 'Rooms (autenticado)', status: error.message, success: false });
-        }
-
-        console.table(results);
-        return results;
-    }
-
-    // ====== RESTO DE MÉTODOS (sin cambios importantes) ======
+    // ====== MOSTRAR SALAS ======
     displayRooms() {
         const container = document.getElementById('roomsContainer');
         if (!container) return;
@@ -358,83 +232,13 @@ class StaffClient {
         `;
     }
 
-    // ====== UTILIDADES ======
-    getRoomColorClass(roomType) {
-        const colors = {
-            'general': 'bg-blue-100',
-            'medical': 'bg-green-100',
-            'support': 'bg-purple-100',
-            'emergency': 'bg-red-100'
-        };
-        return colors[roomType] || 'bg-blue-100';
-    }
-
-    getRoomIcon(roomType) {
-        const icons = {
-            'general': '<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path></svg>',
-            'medical': '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path></svg>',
-            'support': '<svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192L5.636 18.364"></path></svg>',
-            'emergency': '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>'
-        };
-        return icons[roomType] || icons['general'];
-    }
-
-    showNotification(message, type = 'info', duration = 4000) {
-        const colors = {
-            success: 'bg-green-500',
-            error: 'bg-red-500',
-            info: 'bg-blue-500',
-            warning: 'bg-yellow-500'
-        };
-        
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm text-white ${colors[type]}`;
-        notification.innerHTML = `
-            <div class="flex items-center justify-between">
-                <span>${message}</span>
-                <button onclick="this.parentElement.parentElement.remove()" class="ml-4">×</button>
-            </div>
-        `;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.remove();
-            }
-        }, duration);
-    }
-
-    async init() {
-        try {
-            console.log('🚀 [StaffClient] Inicializando...');
-            
-            // Verificar token inmediatamente
-            const token = this.getAgentBearerToken();
-            if (!token) {
-                console.error('❌ [StaffClient] No hay token disponible durante inicialización');
-                this.showNotification('Error: No hay token de autenticación disponible', 'error');
-                return;
-            }
-            
-            await this.loadRoomsFromAuthService();
-            console.log('✅ [StaffClient] Inicializado exitosamente');
-        } catch (error) {
-            console.error('❌ [StaffClient] Error inicializando:', error);
-            this.showNotification('Error de inicialización: ' + error.message, 'error');
-        }
-    }
-
     // ====== SELECCIONAR SALA ======
     async selectRoom(roomId) {
         try {
-            console.log(`🎯 [StaffClient] Seleccionando sala: ${roomId}`);
-            
             this.currentRoom = roomId;
             const room = this.rooms.find(r => r.id === roomId);
             
             if (!room) {
-                console.error(`❌ [StaffClient] Sala no encontrada: ${roomId}`);
                 this.showNotification('Sala no encontrada', 'error');
                 return;
             }
@@ -452,10 +256,8 @@ class StaffClient {
             // Cargar sesiones de la sala
             await this.loadSessionsByRoom(roomId);
             
-            console.log(`✅ [StaffClient] Sala seleccionada: ${room.name}`);
-            
         } catch (error) {
-            console.error(`❌ [StaffClient] Error seleccionando sala:`, error);
+            console.error('❌ Error seleccionando sala:', error);
             this.showNotification('Error seleccionando sala: ' + error.message, 'error');
         }
     }
@@ -463,42 +265,33 @@ class StaffClient {
     // ====== CARGAR SESIONES DE UNA SALA ======
     async loadSessionsByRoom(roomId) {
         try {
-            console.log(`📡 [StaffClient] Cargando sesiones para sala: ${roomId}`);
-            
             const url = `${this.chatServiceUrl}/sessions?room_id=${roomId}&include_expired=false`;
-            console.log('🔗 [StaffClient] URL sesiones:', url);
             
             const response = await fetch(url, {
                 method: 'GET',
                 headers: this.getAuthHeaders()
             });
 
-            console.log(`📡 [StaffClient] Respuesta sesiones ${roomId}:`, response.status);
-
             if (response.ok) {
                 const result = await response.json();
-                console.log('📊 [StaffClient] Datos de sesiones:', result);
                 
                 if (result.success && result.data && result.data.sessions) {
                     const processedSessions = result.data.sessions.map(session => this.processSessionData(session));
                     this.sessionsByRoom[roomId] = processedSessions;
                     this.displayRoomSessions(processedSessions, roomId);
-                    console.log(`✅ [StaffClient] ${processedSessions.length} sesiones cargadas para ${roomId}`);
+                    console.log(`✅ ${processedSessions.length} sesiones cargadas para ${roomId}`);
                     return processedSessions;
                 } else {
-                    console.log(`⚠️ [StaffClient] No hay sesiones para ${roomId}`);
                     this.sessionsByRoom[roomId] = [];
                     this.displayRoomSessions([], roomId);
                     return [];
                 }
             } else {
-                const errorText = await response.text();
-                console.error('❌ [StaffClient] Error cargando sesiones:', response.status, errorText);
                 throw new Error(`Error HTTP ${response.status}`);
             }
             
         } catch (error) {
-            console.error(`❌ [StaffClient] Error cargando sesiones para ${roomId}:`, error);
+            console.error(`❌ Error cargando sesiones para ${roomId}:`, error);
             this.sessionsByRoom[roomId] = [];
             this.displayRoomSessions([], roomId);
             this.showNotification('Error cargando sesiones: ' + error.message, 'error');
@@ -506,26 +299,21 @@ class StaffClient {
         }
     }
 
-    // ====== PROCESAR DATOS DE SESIÓN ======
     processSessionData(session) {
         return {
             id: session.id,
             room_id: session.room_id,
             status: session.status || 'waiting',
             created_at: session.created_at,
-            updated_at: session.updated_at,
             user_data: session.user_data,
-            metadata: session.metadata
+            user_id: session.user_id
         };
     }
 
-    // ====== MOSTRAR SESIONES DE UNA SALA ======
+    // ====== MOSTRAR SESIONES ======
     displayRoomSessions(sessions, roomId) {
         const container = document.getElementById('sessionsContainer');
-        if (!container) {
-            console.warn('⚠️ [StaffClient] Container de sesiones no encontrado');
-            return;
-        }
+        if (!container) return;
 
         if (sessions.length === 0) {
             container.innerHTML = `
@@ -546,7 +334,6 @@ class StaffClient {
         container.innerHTML = `<div class="space-y-4">${html}</div>`;
     }
 
-    // ====== CREAR CARD DE SESIÓN ======
     createSessionCard(session) {
         const patientName = this.getPatientNameFromSession(session);
         const statusColor = this.getStatusColor(session.status);
@@ -589,7 +376,352 @@ class StaffClient {
         `;
     }
 
-    // ====== UTILIDADES PARA SESIONES ======
+    // ====== TOMAR SESIÓN ======
+    async takeSession(sessionId) {
+        try {
+            console.log('👤 Tomando sesión:', sessionId);
+            
+            const response = await fetch(`${this.chatServiceUrl}/sessions/${sessionId}/assign/me`, {
+                method: 'PUT',
+                headers: this.getAuthHeaders(),
+                body: JSON.stringify({
+                    agent_id: this.getCurrentUser().id,
+                    agent_data: {
+                        name: this.getCurrentUser().name,
+                        email: this.getCurrentUser().email
+                    }
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                
+                if (result.success) {
+                    this.showNotification('Sesión asignada exitosamente', 'success');
+                    
+                    // Buscar la sesión
+                    const session = this.findSessionById(sessionId);
+                    if (session) {
+                        // Abrir el chat
+                        this.openPatientChat(session);
+                    }
+                    
+                    // Recargar sesiones de la sala actual
+                    if (this.currentRoom) {
+                        await this.loadSessionsByRoom(this.currentRoom);
+                    }
+                } else {
+                    throw new Error(result.message || 'Error asignando sesión');
+                }
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Error HTTP ${response.status}`);
+            }
+            
+        } catch (error) {
+            console.error('❌ Error tomando sesión:', error);
+            this.showNotification('Error al tomar la sesión: ' + error.message, 'error');
+        }
+    }
+
+    // ====== ABRIR CHAT CON PACIENTE ======
+    async openPatientChat(session) {
+        try {
+            console.log('💬 Abriendo chat para sesión:', session.id);
+            
+            this.currentSessionId = session.id;
+            this.currentSession = session;
+            
+            // Mostrar panel de chat
+            document.querySelectorAll('.section-content').forEach(section => {
+                section.classList.add('hidden');
+            });
+            document.getElementById('patient-chat-panel').classList.remove('hidden');
+            
+            // Actualizar UI del chat
+            const patientName = this.getPatientNameFromSession(session);
+            document.getElementById('chatPatientName').textContent = patientName;
+            document.getElementById('chatPatientInitials').textContent = patientName.charAt(0).toUpperCase();
+            document.getElementById('chatPatientId').textContent = session.id;
+            
+            // Limpiar mensajes anteriores
+            const messagesContainer = document.getElementById('patientChatMessages');
+            if (messagesContainer) {
+                messagesContainer.innerHTML = '';
+            }
+            
+            // Conectar al WebSocket como agente
+            await this.connectToChatWebSocket();
+            
+            // Cargar historial de mensajes
+            await this.loadChatHistory();
+            
+        } catch (error) {
+            console.error('❌ Error abriendo chat:', error);
+            this.showNotification('Error al abrir chat: ' + error.message, 'error');
+        }
+    }
+
+    // ====== CONECTAR WEBSOCKET PARA CHAT ======
+    async connectToChatWebSocket() {
+        try {
+            console.log('🔌 Conectando al WebSocket como agente...');
+            
+            // Desconectar socket anterior si existe
+            if (this.chatSocket) {
+                this.chatSocket.disconnect();
+            }
+            
+            this.chatSocket = io(this.wsUrl, {
+                transports: ['websocket', 'polling'],
+                auth: {
+                    user_id: this.getCurrentUser().id,
+                    user_type: 'agent'
+                }
+            });
+            
+            this.chatSocket.on('connect', () => {
+                console.log('✅ Socket de agente conectado');
+                this.isConnectedToChat = true;
+                this.updateChatStatus('Conectado');
+                
+                // Unirse al chat de la sesión
+                this.joinChatSession();
+            });
+            
+            this.chatSocket.on('disconnect', () => {
+                console.log('🔌 Socket de agente desconectado');
+                this.isConnectedToChat = false;
+                this.updateChatStatus('Desconectado');
+            });
+            
+            this.chatSocket.on('chat_joined', (data) => {
+                console.log('✅ Agente unido al chat:', data);
+                this.sessionJoined = true;
+                this.updateChatStatus('En chat');
+            });
+            
+            this.chatSocket.on('new_message', (data) => {
+                console.log('📨 Nuevo mensaje recibido por agente:', data);
+                this.handleNewChatMessage(data);
+            });
+            
+            this.chatSocket.on('user_typing', (data) => {
+                if (data.user_type === 'patient') {
+                    this.showPatientTyping();
+                }
+            });
+            
+            this.chatSocket.on('user_stop_typing', (data) => {
+                if (data.user_type === 'patient') {
+                    this.hidePatientTyping();
+                }
+            });
+            
+            this.chatSocket.on('error', (error) => {
+                console.error('❌ Error en socket de chat:', error);
+                this.showNotification('Error en chat: ' + error.message, 'error');
+            });
+            
+        } catch (error) {
+            console.error('❌ Error conectando WebSocket de chat:', error);
+            throw error;
+        }
+    }
+
+    // ====== UNIRSE A LA SESIÓN DE CHAT ======
+    joinChatSession() {
+        if (!this.chatSocket || !this.currentSessionId) return;
+        
+        console.log('🏠 Agente uniéndose al chat de sesión:', this.currentSessionId);
+        
+        this.chatSocket.emit('join_chat', {
+            session_id: this.currentSessionId,
+            user_id: this.getCurrentUser().id,
+            user_type: 'agent'
+        });
+    }
+
+    getCurrentUser() {
+        const userMeta = document.querySelector('meta[name="staff-user"]');
+        if (userMeta && userMeta.content) {
+            try {
+                const user = JSON.parse(userMeta.content);
+                console.log('🔍 [getCurrentUser] Usuario actual:', {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role
+                });
+                return user;
+            } catch (e) {
+                console.warn('Error parsing user meta:', e);
+            }
+        }
+        
+        console.warn('⚠️ [getCurrentUser] No se pudo obtener usuario, usando fallback');
+        return { 
+            id: 'unknown', 
+            name: 'Usuario', 
+            email: 'unknown@example.com' 
+        };
+    }
+    // ====== ENVIAR MENSAJE COMO AGENTE ======
+    sendMessage() {
+        const input = document.getElementById('agentMessageInput');
+        if (!input) return;
+        
+        const message = input.value.trim();
+        if (!message) return;
+        
+        if (!this.isConnectedToChat || !this.sessionJoined) {
+            this.showNotification('No conectado al chat', 'error');
+            return;
+        }
+        
+        const currentUser = this.getCurrentUser();
+        
+        console.log('📤 [sendMessage] Agente enviando mensaje:', {
+            content: message,
+            session_id: this.currentSessionId,
+            user_id: currentUser.id,
+            user_type: 'agent',
+            user_name: currentUser.name
+        });
+        
+        // ✅ Enviar con toda la información necesaria
+        this.chatSocket.emit('send_message', {
+            content: message,
+            session_id: this.currentSessionId,
+            user_id: currentUser.id,
+            user_type: 'agent',
+            sender_type: 'agent',  // ← Agregar esto explícitamente
+            sender_name: currentUser.name || 'Agente'
+        });
+        
+        // Limpiar input
+        input.value = '';
+        document.getElementById('agentSendButton').disabled = true;
+    }
+
+    // ====== MANEJAR NUEVOS MENSAJES ======
+    handleNewChatMessage(data) {
+        const messagesContainer = document.getElementById('patientChatMessages');
+        if (!messagesContainer) return;
+        
+        console.log('📨 [handleNewChatMessage] Procesando mensaje:', {
+            sender_id: data.sender_id || data.user_id,
+            user_type: data.user_type,
+            sender_type: data.sender_type,
+            current_user_id: this.getCurrentUser().id,
+            content: data.content
+        });
+        
+        // ✅ LÓGICA CORREGIDA: Verificar si el mensaje es del agente actual
+        const currentUserId = this.getCurrentUser().id;
+        const messageUserId = data.sender_id || data.user_id;
+        const messageSenderType = data.sender_type || data.user_type;
+        
+        // Un mensaje es mío si:
+        // 1. El sender_id coincide con mi ID, O
+        // 2. El user_type es 'agent' Y el user_id coincide con mi ID
+        const isMyMessage = (messageUserId === currentUserId) || 
+                        (messageSenderType === 'agent' && messageUserId === currentUserId);
+        
+        console.log('🔍 [handleNewChatMessage] ¿Es mi mensaje?', isMyMessage, {
+            messageUserId,
+            currentUserId,
+            messageSenderType,
+            condition1: messageUserId === currentUserId,
+            condition2: messageSenderType === 'agent' && messageUserId === currentUserId
+        });
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `mb-4`;
+        
+        const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        if (isMyMessage) {
+            // ✅ MENSAJE DEL AGENTE (derecha, azul)
+            messageDiv.innerHTML = `
+                <div class="flex justify-end">
+                    <div class="max-w-xs lg:max-w-md bg-blue-600 text-white rounded-lg px-4 py-2">
+                        <div class="text-xs opacity-75 mb-1">Yo (Agente):</div>
+                        <p>${this.escapeHtml(data.content)}</p>
+                        <div class="text-xs opacity-75 mt-1">${time}</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // ✅ MENSAJE DEL PACIENTE (izquierda, gris)
+            messageDiv.innerHTML = `
+                <div class="flex justify-start">
+                    <div class="max-w-xs lg:max-w-md bg-gray-200 text-gray-900 rounded-lg px-4 py-2">
+                        <div class="text-xs font-medium text-gray-600 mb-1">Paciente:</div>
+                        <p>${this.escapeHtml(data.content)}</p>
+                        <div class="text-xs text-gray-500 mt-1">${time}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // ✅ Solo notificar si NO es mi mensaje
+        if (!isMyMessage) {
+            console.log('🔔 Mensaje de paciente recibido');
+            // Aquí puedes agregar sonido de notificación si quieres
+        }
+    }
+
+    // ====== CARGAR HISTORIAL DE CHAT ======
+    async loadChatHistory() {
+        if (!this.currentSessionId) return;
+        
+        try {
+            const response = await fetch(`${this.chatServiceUrl}/messages/${this.currentSessionId}`, {
+                headers: this.getAuthHeaders()
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                
+                if (result.success && result.data && result.data.messages) {
+                    const messagesContainer = document.getElementById('patientChatMessages');
+                    if (messagesContainer) {
+                        messagesContainer.innerHTML = '';
+                        
+                        result.data.messages.forEach(msg => {
+                            if (msg.content) {
+                                this.handleNewChatMessage({
+                                    content: msg.content,
+                                    user_type: msg.sender_type === 'patient' ? 'patient' : 'agent',
+                                    user_id: msg.sender_id,
+                                    timestamp: msg.timestamp || msg.created_at
+                                });
+                            }
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error cargando historial:', error);
+        }
+    }
+
+    // ====== UTILIDADES ======
+    findSessionById(sessionId) {
+        for (const roomSessions of Object.values(this.sessionsByRoom)) {
+            const session = roomSessions.find(s => s.id === sessionId);
+            if (session) return session;
+        }
+        return null;
+    }
+
     getPatientNameFromSession(session) {
         if (session.user_data) {
             try {
@@ -597,7 +729,7 @@ class StaffClient {
                     ? JSON.parse(session.user_data) 
                     : session.user_data;
                 
-                if (userData.nombreCompleto) return userData.nombreCompleto;
+                if (userData.user_name) return userData.user_name;
                 if (userData.name) return userData.name;
             } catch (e) {
                 console.warn('Error parseando user_data:', e);
@@ -638,120 +770,106 @@ class StaffClient {
         return `${hours}h ${remainingMins}m`;
     }
 
-    // ====== TOMAR SESIÓN ======
-    async takeSession(sessionId) {
-        try {
-            console.log(`👤 [StaffClient] Tomando sesión: ${sessionId}`);
-            
-            const response = await fetch(`${this.chatServiceUrl}/sessions/${sessionId}/assign/me`, {
-                method: 'PUT',
-                headers: this.getAuthHeaders(),
-                body: JSON.stringify({
-                    agent_id: this.getCurrentUser().id,
-                    agent_data: {
-                        name: this.getCurrentUser().name,
-                        email: this.getCurrentUser().email
-                    }
-                })
-            });
-            
-            if (response.ok) {
-                const result = await response.json();
-                console.log('✅ [StaffClient] Sesión asignada:', result);
-                
-                if (result.success) {
-                    this.showNotification('Sesión asignada exitosamente', 'success');
-                    
-                    // Recargar sesiones de la sala actual
-                    if (this.currentRoom) {
-                        await this.loadSessionsByRoom(this.currentRoom);
-                    }
-                } else {
-                    throw new Error(result.message || 'Error asignando sesión');
-                }
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `Error HTTP ${response.status}`);
-            }
-            
-        } catch (error) {
-            console.error('❌ [StaffClient] Error tomando sesión:', error);
-            this.showNotification('Error al tomar la sesión: ' + error.message, 'error');
+    getRoomColorClass(roomType) {
+        const colors = {
+            'general': 'bg-blue-100',
+            'medical': 'bg-green-100',
+            'support': 'bg-purple-100',
+            'emergency': 'bg-red-100'
+        };
+        return colors[roomType] || 'bg-blue-100';
+    }
+
+    getRoomIcon(roomType) {
+        const icons = {
+            'general': '<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-4.126-.98L3 21l1.98-5.874A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z"></path></svg>',
+            'medical': '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m0 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4"></path></svg>',
+            'support': '<svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192L5.636 18.364"></path></svg>',
+            'emergency': '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>'
+        };
+        return icons[roomType] || icons['general'];
+    }
+
+    updateChatStatus(status) {
+        const statusElement = document.getElementById('chatStatus');
+        if (statusElement) {
+            statusElement.textContent = status;
         }
     }
 
-    // ====== ABRIR CHAT CON PACIENTE ======
-    async openPatientChat(sessionId) {
-        try {
-            console.log(`💬 [StaffClient] Abriendo chat para sesión: ${sessionId}`);
-            
-            this.currentSessionId = sessionId;
-            
-            // Aquí iría la lógica para conectar al WebSocket del chat
-            // y cargar el historial de mensajes
-            
-            this.showNotification('Chat iniciado', 'success');
-            
-        } catch (error) {
-            console.error('❌ [StaffClient] Error abriendo chat:', error);
-            this.showNotification('Error al abrir chat: ' + error.message, 'error');
+    showPatientTyping() {
+        const indicator = document.getElementById('typingIndicator');
+        if (indicator) {
+            indicator.classList.remove('hidden');
         }
     }
 
-    // ====== MÉTODOS DE CICLO DE VIDA ======
-    startAutoRefresh() {
-        this.refreshInterval = setInterval(() => {
-            if (this.currentRoom) {
-                this.loadSessionsByRoom(this.currentRoom);
+    hidePatientTyping() {
+        const indicator = document.getElementById('typingIndicator');
+        if (indicator) {
+            indicator.classList.add('hidden');
+        }
+    }
+
+    escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    showNotification(message, type = 'info', duration = 4000) {
+        const colors = {
+            success: 'bg-green-500',
+            error: 'bg-red-500',
+            info: 'bg-blue-500',
+            warning: 'bg-yellow-500'
+        };
+        
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm text-white ${colors[type]}`;
+        notification.innerHTML = `
+            <div class="flex items-center justify-between">
+                <span>${message}</span>
+                <button onclick="this.parentElement.parentElement.remove()" class="ml-4">×</button>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
             }
-        }, 30000);
+        }, duration);
+    }
+
+    async init() {
+        try {
+            const token = this.getAgentBearerToken();
+            if (!token) {
+                this.showNotification('Error: No hay token de autenticación disponible', 'error');
+                return;
+            }
+            
+            await this.loadRoomsFromAuthService();
+            console.log('✅ StaffClient inicializado exitosamente');
+        } catch (error) {
+            console.error('❌ Error inicializando:', error);
+            this.showNotification('Error de inicialización: ' + error.message, 'error');
+        }
     }
 
     destroy() {
         if (this.refreshInterval) clearInterval(this.refreshInterval);
-        if (this.countdownInterval) clearInterval(this.countdownInterval);
         if (this.chatSocket) this.chatSocket.disconnect();
     }
 }
 
 window.staffClient = new StaffClient();
 
-// Debug helpers para desarrollo local
-window.debugStaff = {
-    testConnectivity: () => window.staffClient.testLocalConnectivity(),
-    getUrls: () => ({
-        auth: window.staffClient.authServiceUrl,
-        chat: window.staffClient.chatServiceUrl,
-        ws: window.staffClient.wsUrl
-    }),
-    loadRooms: () => window.staffClient.loadRoomsFromAuthService(),
-    getToken: () => window.staffClient.getAgentBearerToken(),
-    testAuth: () => {
-        const token = window.staffClient.getAgentBearerToken();
-        console.log('🔑 [DEBUG] Token disponible:', !!token);
-        if (token) {
-            console.log('🔑 [DEBUG] Token preview:', token.substring(0, 20) + '...');
-            
-            // Decodificar JWT
-            try {
-                const parts = token.split('.');
-                if (parts.length === 3) {
-                    const payload = JSON.parse(atob(parts[1]));
-                    console.log('🔑 [DEBUG] JWT payload:', payload);
-                }
-            } catch (e) {
-                console.error('❌ [DEBUG] Error decodificando JWT:', e);
-            }
-        }
-        return { hasToken: !!token, tokenPreview: token?.substring(0, 20) + '...' };
-    },
-    selectRoom: (roomId) => window.staffClient.selectRoom(roomId),
-    loadSessions: (roomId) => window.staffClient.loadSessionsByRoom(roomId),
-    getCurrentRoom: () => window.staffClient.currentRoom,
-    getRooms: () => window.staffClient.rooms,
-    getSessions: (roomId) => window.staffClient.sessionsByRoom[roomId] || []
-};
-
-console.log('🔧 StaffClient v3.0 para desarrollo local con debugging cargado');
-console.log('🛠️ Debug: window.debugStaff.testConnectivity()');
-console.log('🛠️ Debug: window.debugStaff.testAuth()');
+console.log('🔧 StaffClient v4.0 con WebSocket cargado');

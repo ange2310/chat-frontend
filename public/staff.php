@@ -844,7 +844,7 @@ if (!in_array($userRole, $validStaffRoles)) {
             
             // Usar StaffClient para conectar
             if (typeof staffClient !== 'undefined') {
-                staffClient.openPatientChat(conversation.id);
+                staffClient.openPatientChat(conversation);
             } else {
                 console.error('❌ StaffClient no disponible');
                 showError('Error: Cliente de staff no disponible');

@@ -539,7 +539,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
                     throw new Error(selectResult.error || 'Error seleccionando sala');
                 }
                 
-                console.log(' Sala seleccionada en auth-service');
+                console.log('✅ Sala seleccionada en auth-service');
 
                 // Guardar datos del paciente si vienen en la respuesta
                 if (selectResult.room_data && selectResult.room_data.patient) {
@@ -553,9 +553,11 @@ if (empty($pToken) || strlen($pToken) < 10) {
                 const updatedPToken = selectResult.ptoken || CONFIG.PATIENT_TOKEN;
                 console.log('Usando pToken actualizado para chat:', updatedPToken.substring(0, 15) + '...');
                 
-                window.chatClient = new ChatClient();
+                // ✅ NO CREAR NUEVA INSTANCIA - usar la existente
+                // window.chatClient = new ChatClient(); // ← ELIMINAR ESTA LÍNEA
                 
-                await window.chatClient.connect(updatedPToken, roomId);
+                // ✅ USAR LA INSTANCIA GLOBAL EXISTENTE
+                await window.chatClient.connect(updatedPToken, roomId, 'Paciente');
                 
                 showNotification(`Conectado a ${roomName}`, 'success');
                 openChat(roomName);
@@ -862,10 +864,8 @@ if (empty($pToken) || strlen($pToken) < 10) {
 
                 const updatedPToken = selectResult.ptoken || CONFIG.PATIENT_TOKEN;
                 console.log('Usando pToken para chat directo');
-                
-                // CAMBIO: Crear nuevo cliente de chat para asegurar conexión limpia
-                window.chatClient = new ChatClient();
-                await window.chatClient.connect(updatedPToken, roomId);
+
+                await window.chatClient.connect(updatedPToken, roomId, 'Paciente');
                 
                 showNotification(`Conectado a ${roomName}`, 'success');
                 openChat(roomName);
