@@ -2,7 +2,7 @@
 session_start();
 
 // Verificación básica
-if (!isset($_SESSION['pToken']) || empty($_SESSION['pToken'])) {
+if (!isset($_SESSION['staffJWT']) || empty($_SESSION['staffJWT'])) {
     header("Location: /practicas/chat-frontend/public/index.php?error=no_session");
     exit;
 }
@@ -37,7 +37,7 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Supervisor - <?= htmlspecialchars($user['name'] ?? 'Supervisor') ?></title>
     
-    <meta name="supervisor-token" content="<?= $_SESSION['pToken'] ?>">
+    <meta name="supervisor-token" content="<?= $_SESSION['staffJWT'] ?>">
     <meta name="supervisor-user" content='<?= json_encode($user) ?>'>
     
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">

@@ -1,9 +1,8 @@
 <?php
-// public/admin.php - Panel de Administrador
 session_start();
 
 // Verificación básica
-if (!isset($_SESSION['pToken']) || empty($_SESSION['pToken'])) {
+if (!isset($_SESSION['staffJWT']) || empty($_SESSION['staffJWT'])) {
     header("Location: /practicas/chat-frontend/public/index.php?error=no_session");
     exit;
 }
@@ -25,7 +24,6 @@ if (is_numeric($userRole)) {
     $userRole = $roleMap[$userRole] ?? 'agent';
 }
 
-// Solo admins pueden acceder
 if ($userRole !== 'admin') {
     header("Location: /practicas/chat-frontend/public/index.php?error=not_admin");
     exit;
@@ -38,7 +36,7 @@ if ($userRole !== 'admin') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Administrador - <?= htmlspecialchars($user['name'] ?? 'Admin') ?></title>
     
-    <meta name="admin-token" content="<?= $_SESSION['pToken'] ?>">
+    <meta name="admin-token" content="<?= $_SESSION['staffJWT'] ?>">
     <meta name="admin-user" content='<?= json_encode($user) ?>'>
     
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">

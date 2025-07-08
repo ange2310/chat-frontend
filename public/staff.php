@@ -2,7 +2,7 @@
 session_start();
 
 // Verificación básica
-if (!isset($_SESSION['pToken']) || empty($_SESSION['pToken'])) {
+if (!isset($_SESSION['staffJWT']) || empty($_SESSION['staffJWT'])) {
     header("Location: /practicas/chat-frontend/public/index.php?error=no_session");
     exit;
 }
@@ -37,7 +37,7 @@ if (!in_array($userRole, $validStaffRoles)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Agente - <?= htmlspecialchars($user['name'] ?? 'Staff') ?></title>
     
-    <meta name="staff-token" content="<?= htmlspecialchars($_SESSION['pToken']) ?>">
+    <meta name="staff-token" content="<?= htmlspecialchars($_SESSION['staffJWT']) ?>">
     <meta name="staff-user" content='<?= htmlspecialchars(json_encode($user)) ?>'>
     
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -1026,7 +1026,7 @@ if (!in_array($userRole, $validStaffRoles)) {
 
         // ====== FUNCIONES UTILITARIAS ======
         function getToken() {
-            const token = '<?= $_SESSION['pToken'] ?>';
+            const token = '<?= $_SESSION['staffJWT'] ?>';
             console.log('🔍 [Token] getToken() llamado:', token ? token.substring(0, 30) + '...' : 'NO TOKEN');
             return token;
         }

@@ -7,9 +7,7 @@ if (!defined('AUTH_BASE_URL')) {
     define('AUTH_BASE_URL', 'http://localhost:3010/auth');
 }
 
-// Prevenir múltiples redirecciones
 $redirected = $_GET['redirected'] ?? false;
-
 $auth = auth();
 
 if (isset($_GET['logout']) || isset($_GET['force_logout'])) {
@@ -20,7 +18,7 @@ if (isset($_GET['logout']) || isset($_GET['force_logout'])) {
     exit;
 }
 
-// Manejar sincronización POST - CORREGIDO SIN VALIDACIÓN EXTRA
+// ARREGLADO: Lógica de redirección corregida
 if (
     $_SERVER['REQUEST_METHOD'] === 'POST' &&
     isset($_POST['sync_token']) &&
@@ -30,12 +28,10 @@ if (
     $userData = json_decode($_POST['sync_user'] ?? '{}', true);
 
     if ($token && $userData && is_array($userData)) {
-        // Guardar datos en la sesión (token ya validado en frontend)
-        $_SESSION['pToken']       = $token;
+        $_SESSION['staffJWT']     = $token;  // Usar staffJWT para todos los staff
         $_SESSION['user']         = json_encode($userData);
         $_SESSION['is_logged_in'] = true;
 
-        // Obtener rol
         $rawRole = $userData['role']['name'] ?? $userData['role'] ?? 'agent';
 
         if (is_numeric($rawRole)) {
@@ -45,36 +41,38 @@ if (
 
         $_SESSION['role'] = $rawRole;
 
-        // Redirigir según rol SIN VALIDACIÓN EXTRA
-        if (in_array($rawRole, ['supervisor'])) {
-            header("Location: /practicas/chat-frontend/public/supervisor.php");
-        } 
-        if (in_array($rawRole, ['admin'])) {
+        // ARREGLADO: usar elseif para evitar múltiples redirecciones
+        if ($rawRole === 'admin') {
             header("Location: /practicas/chat-frontend/public/admin.php");
-        }
-        else {
+        } elseif ($rawRole === 'supervisor') {
+            header("Location: /practicas/chat-frontend/public/supervisor.php");
+        } else {
             header("Location: /practicas/chat-frontend/public/staff.php");
         }
         exit;
     }
 }
 
-// Solo verificar autenticación si NO venimos de redirección
-if (!$redirected && $auth->isAuthenticated() && $auth->isStaff()) {
-    $user = $auth->getUser();
-    $userRole = $user['role']['name'] ?? $user['role'] ?? 'agent';
+// ARREGLADO: Verificación existente también corregida
+if (!$redirected && isset($_SESSION['staffJWT']) && isset($_SESSION['user'])) {
+    $userData = json_decode($_SESSION['user'], true);
+    if ($userData) {
+        $userRole = $userData['role']['name'] ?? $userData['role'] ?? 'agent';
 
-    if (is_numeric($userRole)) {
-        $roleMap  = [1 => 'patient', 2 => 'agent', 3 => 'supervisor', 4 => 'admin'];
-        $userRole = $roleMap[$userRole] ?? 'agent';
-    }
+        if (is_numeric($userRole)) {
+            $roleMap  = [1 => 'patient', 2 => 'agent', 3 => 'supervisor', 4 => 'admin'];
+            $userRole = $roleMap[$userRole] ?? 'agent';
+        }
 
-    if ($userRole === 'supervisor' || $userRole === 'admin') {
-        header("Location: /practicas/chat-frontend/public/supervisor.php");
-    } else {
-        header("Location: /practicas/chat-frontend/public/staff.php");
+        if ($userRole === 'admin') {
+            header("Location: /practicas/chat-frontend/public/admin.php");
+        } elseif ($userRole === 'supervisor') {
+            header("Location: /practicas/chat-frontend/public/supervisor.php");
+        } else {
+            header("Location: /practicas/chat-frontend/public/staff.php");
+        }
+        exit;
     }
-    exit;
 }
 
 ?>
