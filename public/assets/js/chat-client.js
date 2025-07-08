@@ -1,8 +1,26 @@
 class ChatClient {
-    constructor() {
-        this.chatServiceUrl = 'http://187.33.158.246:8080/chats';
+  constructor() {
+
+    // ── 1. Detectar entorno ─────────────────────────────
+    const isLocalHost = ['localhost', '127.0.0.1'].includes(location.hostname) ||
+                        new URLSearchParams(location.search).get('localWS') === '1';
+
+    // ── 2. End‑points dinámicos ─────────────────────────
+        this.websocketUrl   = isLocalHost
+        ? 'http://localhost:3004'            // ← backend Node local
+        : (location.protocol === 'https:'    // remoto detrás de proxy
+              ? 'https://187.33.158.246'     // puerto 443/https
+              : 'http://187.33.158.246:8080' // puerto 8080/http
+          );
+
+        this.chatServiceUrl = isLocalHost
+        ? 'http://localhost:3011/chats'      // REST local
+        : 'https://187.33.158.246/chats';    // REST remoto
+
+        this.fileServiceUrl = this.chatServiceUrl;
+        this.chatServiceUrl = 'http://localhost:3011/chats';
         this.websocketUrl = 'ws://187.33.158.246:8080';
-        this.fileServiceUrl = 'http://187.33.158.246:8080/chats';
+        this.fileServiceUrl = 'http://localhost:3011/chats';
         
         this.socket = null;
         this.isConnected = false;
@@ -15,6 +33,7 @@ class ChatClient {
         
     }
 
+    
     async connect(ptoken, roomId) {
         console.log('Conectando al chat...', { roomId });
         
@@ -128,7 +147,7 @@ class ChatClient {
             }
         });
     }
-
+     
     setupSocketEventHandlers() {
         this.socket.on('authenticated', (data) => this.handleAuthenticated(data));
         this.socket.on('auth_error', (data) => this.handleAuthError(data));
@@ -478,7 +497,7 @@ class ChatClient {
         try {
             console.log('📚 Cargando historial...');
             
-            const response = await fetch(`http://187.33.158.246:8080/chats/messages/${this.currentSessionId}?limit=50`, {
+            const response = await fetch(`http://localhost:3011/chats/messages/${this.currentSessionId}?limit=50`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json'

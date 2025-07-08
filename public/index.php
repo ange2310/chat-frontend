@@ -46,9 +46,13 @@ if (
         $_SESSION['role'] = $rawRole;
 
         // Redirigir según rol SIN VALIDACIÓN EXTRA
-        if (in_array($rawRole, ['supervisor', 'admin'])) {
+        if (in_array($rawRole, ['supervisor'])) {
             header("Location: /practicas/chat-frontend/public/supervisor.php");
-        } else {
+        } 
+        if (in_array($rawRole, ['admin'])) {
+            header("Location: /practicas/chat-frontend/public/admin.php");
+        }
+        else {
             header("Location: /practicas/chat-frontend/public/staff.php");
         }
         exit;

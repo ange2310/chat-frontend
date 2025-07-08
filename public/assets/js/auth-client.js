@@ -1,7 +1,7 @@
 class AuthClient {
     constructor(authServiceUrl = null) { 
         // URL del backend via nginx
-        this.baseURL = authServiceUrl || 'http://localhost:3010/auth';
+        this.baseURL = authServiceUrl || 'http://localhost:3010';
         this.authServiceUrl = this.baseURL;  
         
         this.token = null;
@@ -105,42 +105,79 @@ class AuthClient {
         }
     }
 
+    // === Dentro de tu clase AuthClient ===
     async verifyToken(token = null) {
-        const toVerify = token || this.token;
-        if (!toVerify) return false;
+    const toVerify = token || this.token;
+    if (!toVerify) {
+        return { success: false, error: 'Token requerido' };
+    }
 
-        const isJwt = toVerify.includes('.');
-        /* armamos la query:    ?token=...   |   ?ptoken=...   */
-        const qs    = isJwt
-            ? `token=${encodeURIComponent(toVerify)}`
-            : `ptoken=${encodeURIComponent(toVerify)}`;
+    const isJwt = toVerify.includes('.');
+    const qs    = isJwt
+        ? `token=${encodeURIComponent(toVerify)}`
+        : `ptoken=${encodeURIComponent(toVerify)}`;
 
+    try {
+        const res = await fetch(`${this.baseURL}/auth/validate-token?${qs}`, {
+        method : 'GET',
+        headers: {
+            'Accept': 'application/json',
+            ...(isJwt && { 'Authorization': `Bearer ${toVerify}` })
+        }
+        });
+
+        const json = await res.json();
+
+        if (res.ok && json.success) {
+        // Actualizar el estado del AuthClient
+        this.userType = json.data.token_type === 'jwt' ? 'staff' : 'patient';
+        if (!this.token) this.token = toVerify;        // guardar si aún no había token
+        if (json.data.payload) this.user = json.data.payload;
+
+        return { success: true, data: json.data };
+        }
+
+        console.warn('verifyToken: inválido ->', json.message);
+        return { success: false, error: json.message || 'Token inválido' };
+
+    } catch (err) {
+        console.error('verifyToken: error ->', err);
+        return { success: false, error: err.message || 'Error de conexión' };
+    }
+    }
+
+    // Mantén validatePToken apuntando a verifyToken
+    async validatePToken(pToken) {
+    return this.verifyToken(pToken);
+    }
+
+    async getAvailableRooms(token = null) {
         try {
-            const res = await fetch(`${this.baseURL}/validate-token?${qs}`, {
-            headers: {
-                'Accept': 'application/json',
-                ...(isJwt && { 'Authorization': `Bearer ${toVerify}` })
-            }           // ← NO body, NO JSON, NO POST ➜ GET puro
+            const tokenToUse = token || this.token;
+            if (!tokenToUse) throw new Error('Token requerido para obtener salas');
+
+            const response = await fetch(`${this.baseURL}/rooms/available`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${tokenToUse}`,
+                    'Accept': 'application/json'
+                }
             });
 
-            const json = await res.json();
-            if (res.ok && json.success) {
-            this.userType = json.data.token_type === 'jwt' ? 'staff' : 'patient';
-            if (!token && json.data.payload) this.user = json.data.payload;
-            return true;                      // ✔ válido
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                console.log('📦 Salas disponibles:', result.data);
+                return result.data?.rooms || result.rooms || [];
+            } else {
+                console.warn('⚠️ Error al obtener salas:', result.message);
+                return { success: false, error: result.message };
             }
-            console.warn('verifyToken: inválido', json.message);
-            return false;
-        } catch (err) {
-            console.error('verifyToken: error', err);
-            return false;
-        }
-        }
 
-
-    // ====== VALIDACIÓN PTOKEN PARA PACIENTES ======
-    async validatePToken(pToken) {
-        return this.verifyToken(pToken);
+        } catch (error) {
+            console.error('❌ Error getAvailableRooms:', error);
+            return { success: false, error: error.message || 'Error de conexión' };
+        }
     }
 
     async selectRoom(roomId, userData = {}, pToken = null) {

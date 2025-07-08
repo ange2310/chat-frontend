@@ -1,6 +1,6 @@
 class AdminClient {
     constructor() {
-        this.adminServiceUrl = 'http://187.33.158.246:8080/admin';
+        this.adminServiceUrl = 'http://localhost:3013/admin';
         this.refreshInterval = null;
         this.refreshIntervalTime = 30000; // 30 segundos
         

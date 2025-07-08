@@ -1,5 +1,4 @@
 <?php
-// public/supervisor.php - Panel de Supervisor
 session_start();
 
 // Verificación básica

@@ -397,67 +397,61 @@ if (empty($pToken) || strlen($pToken) < 10) {
 
         async function validatePatientAccess() {
             try {
-                
                 const authClient = new AuthClient();
-                
-                // Usar validatePToken para obtener datos completos
-                const validationResult = await authClient.validatePToken(CONFIG.PATIENT_TOKEN);
-                
-                if (validationResult.success) {
 
-                // Extraer datos de la membresía
-                if (validationResult.data && validationResult.data.data && validationResult.data.data.membresias && validationResult.data.data.membresias.length > 0) {
-                    const membresia = validationResult.data.data.membresias[0];
-                    
-                    // Extraer nombre del tomador
-                    const nomTomador = membresia.nomTomador || 'Sistema de Atención';
-                    
-                    // Buscar beneficiario principal
-                    const beneficiarioPrincipal = membresia.beneficiarios.find(ben => ben.tipo_ben === 'PPAL');
-                    
-                    if (beneficiarioPrincipal) {
-                        // Construir nombre completo del paciente
-                        const nombreCompleto = [
-                            beneficiarioPrincipal.primer_nombre,
-                            beneficiarioPrincipal.segundo_nombre,
-                            beneficiarioPrincipal.primer_apellido,
-                            beneficiarioPrincipal.segundo_apellido
-                        ].filter(nombre => nombre && nombre.trim()).join(' ');
-                        
-                        patientData = {
-                            nombreCompleto: nombreCompleto,
-                            nomTomador: nomTomador,
-                            beneficiario: beneficiarioPrincipal
-                        };
-                        
-                        console.log('Datos extraídos:', patientData);
-                    } else {
-                        console.warn('No se encontró beneficiario principal');
-                    }
-                } else {
-                    console.warn('No se encontraron datos de membresía');
-                }
-                    
-                    authClient.token = CONFIG.PATIENT_TOKEN;
-                    authClient.userType = 'patient';
-                    window.authClient = authClient;
-                    
-                    if (CONFIG.ROOM_ID && CONFIG.ROOM_ID.trim() !== '') {
-                        console.log('Sala especificada en URL:', CONFIG.ROOM_ID);
-                        await selectRoomDirectly(CONFIG.ROOM_ID);
-                    } else {
-                        await showRoomSelection(); 
-                    }
-                } else {
-                    console.error('pToken inválido');
-                    showValidationError('Token de acceso inválido');
+                // 1️⃣  Validar pToken -------------------------------
+                const { success, data, error } = await authClient.validatePToken(CONFIG.PATIENT_TOKEN);
+
+                if (!success) {
+                console.error('pToken inválido / error API →', error);
+                showValidationError('Token de acceso inválido');
+                return;
                 }
 
-            } catch (error) {
-                console.error('Error validando acceso:', error);
+                // 2️⃣  Guardar token / tipo / payload en el cliente
+                //     (verifyToken ya los llenó; refuerzo por si acaso)
+                authClient.token     = CONFIG.PATIENT_TOKEN;
+                authClient.userType  = 'patient';
+                authClient.user      = data?.payload || null;
+                window.authClient    = authClient;
+
+                // 3️⃣  Extraer datos de membresía -------------------
+                const membresia = data?.data?.membresias?.[0];
+                if (membresia) {
+                const nomTomador = membresia.nomTomador || 'Sistema de Atención';
+
+                const benPpal = membresia.beneficiarios?.find(b => b.tipo_ben === 'PPAL');
+                if (benPpal) {
+                    const nombreCompleto = [
+                    benPpal.primer_nombre,
+                    benPpal.segundo_nombre,
+                    benPpal.primer_apellido,
+                    benPpal.segundo_apellido
+                    ].filter(Boolean).join(' ');
+
+                    patientData = { nombreCompleto, nomTomador, beneficiario: benPpal };
+                    console.log('[validatePatientAccess] Datos extraídos →', patientData);
+                } else {
+                    console.warn('Beneficiario principal no encontrado');
+                }
+                } else {
+                console.warn('No se encontraron datos de membresía');
+                }
+
+                // 4️⃣  Continuar flujo: seleccionar sala -------------
+                if (CONFIG.ROOM_ID?.trim()) {
+                console.log('Sala especificada en URL:', CONFIG.ROOM_ID);
+                await selectRoomDirectly(CONFIG.ROOM_ID);
+                } else {
+                await showRoomSelection();
+                }
+
+            } catch (err) {
+                console.error('Error validando acceso:', err);
                 showValidationError('Error de conexión. Verifica tu conexión a internet.');
             }
-        }
+            }
+
 
         function showValidationError(message) {
             document.getElementById('validationSection').classList.add('hidden');

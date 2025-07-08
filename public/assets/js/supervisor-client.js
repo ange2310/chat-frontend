@@ -119,34 +119,45 @@ class SupervisorClient {
         this.showNotification('Métricas actualizadas', 'success');
     }
 
-    // ====== TRANSFERENCIAS (RF4) ======
-    async loadTransfers() {
-        try {
-            console.log('🔄 Cargando transferencias pendientes...');
-            
-            // Nota: Las transferencias llegan via POST /transfers/pending
-            // pero necesitamos un endpoint para listar las pendientes
-            const response = await fetch(`${this.supervisorServiceUrl}/transfers/pending`, {
-                method: 'GET',
-                headers: this.getAuthHeaders()
-            });
+    async loadTransfers () {
+    try {
+        console.log('🔄 Cargando transferencias pendientes…');
 
-            let transfers = [];
-            
-            if (response.ok) {
-                const result = await response.json();
-                transfers = result.data?.transfers || result.transfers || [];
-            } else {
-                console.warn('No se pudieron cargar transferencias:', response.status);
-            }
-            
-            this.displayTransfers(transfers);
-            return transfers;
-            
-        } catch (error) {
-            console.error('❌ Error cargando transferencias:', error);
-            this.displayTransfers([]);
+        /* 1️⃣  Tomamos el ID desde la meta‑tag o desde otro fallback */
+        const supervisorId =
+        this.getCurrentUser()?.id ||            // meta <-- lo normal
+        sessionStorage.getItem('supervisor_id') // cualquier otro storage
+        || 'supervisor';                        // último recurso (dev)
+
+        /* 2️⃣  Construimos la URL con ?supervisor_id= */
+        const url = `${this.supervisorServiceUrl}/transfers/pending`
+                + `?supervisor_id=${encodeURIComponent(supervisorId)}`;
+
+        /* 3️⃣  Forzamos el header X‑Supervisor‑ID para que el middleware
+                también lo tenga, por si quitas la query más adelante        */
+        const headers = {
+        ...this.getAuthHeaders(),               // Authorization, etc.
+        'X-Supervisor-ID': supervisorId
+        };
+
+        const response = await fetch(url, { method: 'GET', headers });
+
+        let transfers = [];
+
+        if (response.ok) {
+        const result = await response.json();
+        transfers = result.data?.transfers || result.transfers || [];
+        } else {
+        console.warn('No se pudieron cargar transferencias:', response.status);
         }
+
+        this.displayTransfers(transfers);
+        return transfers;
+
+    } catch (error) {
+        console.error('❌ Error cargando transferencias:', error);
+        this.displayTransfers([]);
+    }
     }
 
     displayTransfers(transfers) {
@@ -367,34 +378,22 @@ class SupervisorClient {
     }
 
     // ====== ESCALACIONES (RF5) ======
-    async loadEscalations() {
+    async loadEscalations () {
         try {
-            console.log('⚠️ Cargando escalaciones...');
-            
-            // Las escalaciones llegan via POST /escalations/auto
-            // pero necesitamos un endpoint para listar las activas
-            const response = await fetch(`${this.supervisorServiceUrl}/escalations`, {
-                method: 'GET',
-                headers: this.getAuthHeaders()
-            });
-
-            let escalations = [];
-            
-            if (response.ok) {
-                const result = await response.json();
-                escalations = result.data?.escalations || result.escalations || [];
-            } else {
-                console.warn('No se pudieron cargar escalaciones:', response.status);
-            }
-            
+            const response = await fetch(
+            `${this.supervisorServiceUrl}/escalations?supervisor_id=${this.getToken()}`,
+            { headers: this.getAuthHeaders() }
+            );
+            const result = response.ok ? await response.json() : null;
+            const escalations = result?.data?.escalations || [];
             this.displayEscalations(escalations);
             return escalations;
-            
-        } catch (error) {
-            console.error('❌ Error cargando escalaciones:', error);
+        } catch (err) {
+            console.error('❌ Error cargando escalaciones:', err);
             this.displayEscalations([]);
         }
     }
+
 
     displayEscalations(escalations) {
         const container = document.getElementById('escalationsContainer');
