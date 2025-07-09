@@ -2,7 +2,7 @@ class StaffClient {
     constructor() {
         // URLs LOCALES DIRECTAS
         this.authServiceUrl = 'http://localhost:3010';
-        this.chatServiceUrl = 'http://localhost:3011/chats';
+        this.chatServiceUrl = 'http://localhost:3011';
         this.wsUrl = 'http://localhost:3011';
         
         this.currentRoom = null;
@@ -65,12 +65,25 @@ class StaffClient {
         const userMeta = document.querySelector('meta[name="staff-user"]');
         if (userMeta && userMeta.content) {
             try {
-                return JSON.parse(userMeta.content);
+                const user = JSON.parse(userMeta.content);
+                console.log('🔍 [getCurrentUser] Usuario actual:', {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role
+                });
+                return user;
             } catch (e) {
                 console.warn('Error parsing user meta:', e);
             }
         }
-        return { id: 'unknown', name: 'Usuario', email: 'unknown@example.com' };
+        
+        console.warn('⚠️ [getCurrentUser] No se pudo obtener usuario, usando fallback');
+        return { 
+            id: 'unknown', 
+            name: 'Usuario', 
+            email: 'unknown@example.com' 
+        };
     }
 
     // ====== CARGAR SALAS ======
@@ -265,12 +278,19 @@ class StaffClient {
     // ====== CARGAR SESIONES DE UNA SALA ======
     async loadSessionsByRoom(roomId) {
         try {
-            const url = `${this.chatServiceUrl}/sessions?room_id=${roomId}&include_expired=false`;
+            // ✅ CORRECCIÓN: Usar URL absoluta para garantizar que sea correcta
+            const baseUrl = 'http://localhost:3011/chats';
+            const url = `${baseUrl}/sessions?room_id=${roomId}&include_expired=false`;
+            
+            console.log('🔍 [loadSessionsByRoom] URL construida:', url);
+            console.log('🔍 [loadSessionsByRoom] chatServiceUrl actual:', this.chatServiceUrl);
             
             const response = await fetch(url, {
                 method: 'GET',
                 headers: this.getAuthHeaders()
             });
+
+            console.log('📡 [loadSessionsByRoom] Respuesta HTTP:', response.status, response.statusText);
 
             if (response.ok) {
                 const result = await response.json();
@@ -306,7 +326,8 @@ class StaffClient {
             status: session.status || 'waiting',
             created_at: session.created_at,
             user_data: session.user_data,
-            user_id: session.user_id
+            user_id: session.user_id,
+            agent_id: session.agent_id || null
         };
     }
 
@@ -338,6 +359,12 @@ class StaffClient {
         const patientName = this.getPatientNameFromSession(session);
         const statusColor = this.getStatusColor(session.status);
         const timeAgo = this.getTimeAgo(session.created_at);
+        const currentUser = this.getCurrentUser();
+        
+        // Verificar si esta sesión pertenece al agente actual
+        const isMySession = session.agent_id === currentUser.id;
+        const canTakeSession = session.status === 'waiting';
+        const canContinueSession = session.status === 'active' && isMySession;
         
         return `
             <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -352,6 +379,7 @@ class StaffClient {
                             <h4 class="font-semibold text-gray-900">${patientName}</h4>
                             <p class="text-sm text-gray-600">ID: ${session.id}</p>
                             <p class="text-xs text-gray-500">Creado hace ${timeAgo}</p>
+                            ${isMySession ? '<p class="text-xs text-blue-600 font-medium">📋 Tu sesión</p>' : ''}
                         </div>
                     </div>
                     
@@ -360,13 +388,18 @@ class StaffClient {
                             ${this.getStatusText(session.status)}
                         </span>
                         <div class="mt-2">
-                            ${session.status === 'waiting' ? 
+                            ${canTakeSession ? 
                                 `<button onclick="staffClient.takeSession('${session.id}')" 
                                         class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
                                     Tomar
                                 </button>` :
+                                canContinueSession ?
+                                `<button onclick="staffClient.continueSession('${session.id}')" 
+                                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                                    Continuar
+                                </button>` :
                                 `<button class="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg text-sm cursor-not-allowed" disabled>
-                                    ${session.status === 'active' ? 'En curso' : 'No disponible'}
+                                    ${session.status === 'active' ? 'Ocupado' : 'No disponible'}
                                 </button>`
                             }
                         </div>
@@ -381,7 +414,7 @@ class StaffClient {
         try {
             console.log('👤 Tomando sesión:', sessionId);
             
-            const response = await fetch(`${this.chatServiceUrl}/sessions/${sessionId}/assign/me`, {
+            const response = await fetch(`${this.chatServiceUrl}/chats/sessions/${sessionId}/assign/me`, {
                 method: 'PUT',
                 headers: this.getAuthHeaders(),
                 body: JSON.stringify({
@@ -399,9 +432,11 @@ class StaffClient {
                 if (result.success) {
                     this.showNotification('Sesión asignada exitosamente', 'success');
                     
-                    // Buscar la sesión
+                    // Buscar la sesión y actualizar su estado
                     const session = this.findSessionById(sessionId);
                     if (session) {
+                        session.status = 'active';
+                        session.agent_id = this.getCurrentUser().id;
                         // Abrir el chat
                         this.openPatientChat(session);
                     }
@@ -421,6 +456,24 @@ class StaffClient {
         } catch (error) {
             console.error('❌ Error tomando sesión:', error);
             this.showNotification('Error al tomar la sesión: ' + error.message, 'error');
+        }
+    }
+
+    // ====== CONTINUAR SESIÓN EXISTENTE ======
+    async continueSession(sessionId) {
+        try {
+            const session = this.findSessionById(sessionId);
+            if (!session) {
+                this.showNotification('Sesión no encontrada', 'error');
+                return;
+            }
+            
+            console.log('🔄 Continuando sesión:', sessionId);
+            this.openPatientChat(session);
+            
+        } catch (error) {
+            console.error('❌ Error continuando sesión:', error);
+            this.showNotification('Error al continuar la sesión: ' + error.message, 'error');
         }
     }
 
@@ -470,13 +523,22 @@ class StaffClient {
             // Desconectar socket anterior si existe
             if (this.chatSocket) {
                 this.chatSocket.disconnect();
+                this.isConnectedToChat = false;
+                this.sessionJoined = false;
             }
+            
+            // Usar el token de autorización en la conexión WebSocket
+            const token = this.getAgentBearerToken();
+            const currentUser = this.getCurrentUser();
             
             this.chatSocket = io(this.wsUrl, {
                 transports: ['websocket', 'polling'],
                 auth: {
-                    user_id: this.getCurrentUser().id,
-                    user_type: 'agent'
+                    token: token,
+                    user_id: currentUser.id,
+                    user_type: 'agent',
+                    user_name: currentUser.name,
+                    session_id: this.currentSessionId
                 }
             });
             
@@ -486,12 +548,15 @@ class StaffClient {
                 this.updateChatStatus('Conectado');
                 
                 // Unirse al chat de la sesión
-                this.joinChatSession();
+                setTimeout(() => {
+                    this.joinChatSession();
+                }, 500);
             });
             
             this.chatSocket.on('disconnect', () => {
                 console.log('🔌 Socket de agente desconectado');
                 this.isConnectedToChat = false;
+                this.sessionJoined = false;
                 this.updateChatStatus('Desconectado');
             });
             
@@ -502,25 +567,30 @@ class StaffClient {
             });
             
             this.chatSocket.on('new_message', (data) => {
-                console.log('📨 Nuevo mensaje recibido por agente:', data);
+                console.log('📨 Nuevo mensaje recibido:', data);
                 this.handleNewChatMessage(data);
             });
             
+            this.chatSocket.on('message_sent', (data) => {
+                console.log('✅ Mensaje enviado confirmado:', data);
+                // Opcional: mostrar confirmación visual
+            });
+            
             this.chatSocket.on('user_typing', (data) => {
-                if (data.user_type === 'patient') {
+                if (data.user_type === 'patient' && data.user_id !== this.getCurrentUser().id) {
                     this.showPatientTyping();
                 }
             });
             
             this.chatSocket.on('user_stop_typing', (data) => {
-                if (data.user_type === 'patient') {
+                if (data.user_type === 'patient' && data.user_id !== this.getCurrentUser().id) {
                     this.hidePatientTyping();
                 }
             });
             
             this.chatSocket.on('error', (error) => {
                 console.error('❌ Error en socket de chat:', error);
-                this.showNotification('Error en chat: ' + error.message, 'error');
+                this.showNotification('Error en chat: ' + (error.message || error), 'error');
             });
             
         } catch (error) {
@@ -531,150 +601,127 @@ class StaffClient {
 
     // ====== UNIRSE A LA SESIÓN DE CHAT ======
     joinChatSession() {
-        if (!this.chatSocket || !this.currentSessionId) return;
-        
-        console.log('🏠 Agente uniéndose al chat de sesión:', this.currentSessionId);
-        
-        this.chatSocket.emit('join_chat', {
-            session_id: this.currentSessionId,
-            user_id: this.getCurrentUser().id,
-            user_type: 'agent'
-        });
-    }
-
-    getCurrentUser() {
-        const userMeta = document.querySelector('meta[name="staff-user"]');
-        if (userMeta && userMeta.content) {
-            try {
-                const user = JSON.parse(userMeta.content);
-                console.log('🔍 [getCurrentUser] Usuario actual:', {
-                    id: user.id,
-                    name: user.name,
-                    email: user.email,
-                    role: user.role
-                });
-                return user;
-            } catch (e) {
-                console.warn('Error parsing user meta:', e);
-            }
-        }
-        
-        console.warn('⚠️ [getCurrentUser] No se pudo obtener usuario, usando fallback');
-        return { 
-            id: 'unknown', 
-            name: 'Usuario', 
-            email: 'unknown@example.com' 
-        };
-    }
-    // ====== ENVIAR MENSAJE COMO AGENTE ======
-    sendMessage() {
-        const input = document.getElementById('agentMessageInput');
-        if (!input) return;
-        
-        const message = input.value.trim();
-        if (!message) return;
-        
-        if (!this.isConnectedToChat || !this.sessionJoined) {
-            this.showNotification('No conectado al chat', 'error');
+        if (!this.chatSocket || !this.currentSessionId || !this.isConnectedToChat) {
+            console.warn('⚠️ No se puede unir al chat: socket no conectado o sesión no válida');
             return;
         }
         
         const currentUser = this.getCurrentUser();
+        console.log('🏠 Agente uniéndose al chat de sesión:', this.currentSessionId);
         
-        console.log('📤 [sendMessage] Agente enviando mensaje:', {
-            content: message,
+        this.chatSocket.emit('join_chat', {
             session_id: this.currentSessionId,
             user_id: currentUser.id,
             user_type: 'agent',
             user_name: currentUser.name
         });
-        
-        // ✅ Enviar con toda la información necesaria
-        this.chatSocket.emit('send_message', {
-            content: message,
+    }
+
+    // ====== ENVIAR MENSAJE COMO AGENTE ======
+    sendMessage() {
+        const input = document.getElementById('agentMessageInput');
+        if (!input) return;
+
+        const message = input.value.trim();
+        if (!message) return;
+
+        if (!this.isConnectedToChat || !this.sessionJoined) {
+            this.showNotification('No conectado al chat. Intentando reconectar...', 'warning');
+            this.connectToChatWebSocket();
+            return;
+        }
+
+        const currentUser = this.getCurrentUser();
+
+        // ✅ CORREGIDO: Usar los nombres de campo que espera el backend
+        const payload = {
             session_id: this.currentSessionId,
-            user_id: currentUser.id,
-            user_type: 'agent',
-            sender_type: 'agent',  // ← Agregar esto explícitamente
-            sender_name: currentUser.name || 'Agente'
+            user_id: currentUser.id,          // ← Cambio: usar user_id en lugar de sender_id
+            user_type: 'agent',               // ← Cambio: usar user_type en lugar de sender_type
+            user_name: currentUser.name,
+            message_type: 'text',
+            content: message
+        };
+
+        console.log('📤 [sendMessage] Enviando payload:', payload);
+
+        // Enviar con callback para manejar confirmación
+        this.chatSocket.emit('send_message', payload, (response) => {
+            console.log('📨 [sendMessage] Respuesta del servidor:', response);
+            
+            if (response && response.success) {
+                console.log('✅ Mensaje enviado exitosamente');
+                // El mensaje aparecerá en la UI cuando llegue por 'new_message'
+            } else {
+                console.error('❌ Error enviando mensaje:', response?.message || 'Error desconocido');
+                this.showNotification('Error enviando mensaje: ' + (response?.message || 'Error desconocido'), 'error');
+            }
         });
-        
-        // Limpiar input
+
+        // Limpiar input inmediatamente
         input.value = '';
-        document.getElementById('agentSendButton').disabled = true;
+        const sendButton = document.getElementById('agentSendButton');
+        if (sendButton) sendButton.disabled = true;
     }
 
     // ====== MANEJAR NUEVOS MENSAJES ======
     handleNewChatMessage(data) {
         const messagesContainer = document.getElementById('patientChatMessages');
         if (!messagesContainer) return;
-        
-        console.log('📨 [handleNewChatMessage] Procesando mensaje:', {
-            sender_id: data.sender_id || data.user_id,
-            user_type: data.user_type,
-            sender_type: data.sender_type,
-            current_user_id: this.getCurrentUser().id,
-            content: data.content
-        });
-        
-        // ✅ LÓGICA CORREGIDA: Verificar si el mensaje es del agente actual
-        const currentUserId = this.getCurrentUser().id;
-        const messageUserId = data.sender_id || data.user_id;
-        const messageSenderType = data.sender_type || data.user_type;
-        
-        // Un mensaje es mío si:
-        // 1. El sender_id coincide con mi ID, O
-        // 2. El user_type es 'agent' Y el user_id coincide con mi ID
-        const isMyMessage = (messageUserId === currentUserId) || 
-                        (messageSenderType === 'agent' && messageUserId === currentUserId);
-        
-        console.log('🔍 [handleNewChatMessage] ¿Es mi mensaje?', isMyMessage, {
-            messageUserId,
-            currentUserId,
-            messageSenderType,
-            condition1: messageUserId === currentUserId,
-            condition2: messageSenderType === 'agent' && messageUserId === currentUserId
-        });
-        
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `mb-4`;
-        
-        const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('es-ES', {
+
+        console.log('📨 [handleNewChatMessage] Procesando mensaje:', data);
+
+        // Normalizar campos del mensaje
+        const normalizedMessage = {
+            user_id: data.user_id || data.sender_id,
+            user_type: data.user_type || data.sender_type,
+            user_name: data.user_name || data.sender_name || 'Usuario',
+            content: data.content || '',
+            timestamp: data.timestamp || data.created_at || Date.now(),
+            message_type: data.message_type || 'text'
+        };
+
+        const currentUser = this.getCurrentUser();
+        const isMyMessage = normalizedMessage.user_type === 'agent' && normalizedMessage.user_id === currentUser.id;
+
+        // Formatear tiempo
+        const time = new Date(normalizedMessage.timestamp).toLocaleTimeString('es-ES', {
             hour: '2-digit',
             minute: '2-digit'
         });
-        
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'mb-4';
+
         if (isMyMessage) {
-            // ✅ MENSAJE DEL AGENTE (derecha, azul)
-            messageDiv.innerHTML = `
+            // Mensaje del agente (derecha)
+            wrapper.innerHTML = `
                 <div class="flex justify-end">
                     <div class="max-w-xs lg:max-w-md bg-blue-600 text-white rounded-lg px-4 py-2">
-                        <div class="text-xs opacity-75 mb-1">Yo (Agente):</div>
-                        <p>${this.escapeHtml(data.content)}</p>
+                        <div class="text-xs opacity-75 mb-1">Yo (${normalizedMessage.user_name})</div>
+                        <p>${this.escapeHtml(normalizedMessage.content)}</p>
                         <div class="text-xs opacity-75 mt-1">${time}</div>
                     </div>
-                </div>
-            `;
+                </div>`;
         } else {
-            // ✅ MENSAJE DEL PACIENTE (izquierda, gris)
-            messageDiv.innerHTML = `
+            // Mensaje del paciente (izquierda)
+            wrapper.innerHTML = `
                 <div class="flex justify-start">
                     <div class="max-w-xs lg:max-w-md bg-gray-200 text-gray-900 rounded-lg px-4 py-2">
-                        <div class="text-xs font-medium text-gray-600 mb-1">Paciente:</div>
-                        <p>${this.escapeHtml(data.content)}</p>
+                        <div class="text-xs font-medium text-gray-600 mb-1">${normalizedMessage.user_name}</div>
+                        <p>${this.escapeHtml(normalizedMessage.content)}</p>
                         <div class="text-xs text-gray-500 mt-1">${time}</div>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
-        
-        messagesContainer.appendChild(messageDiv);
+
+        messagesContainer.appendChild(wrapper);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        
-        // ✅ Solo notificar si NO es mi mensaje
+
+        // Notificación solo para mensajes de otros usuarios
         if (!isMyMessage) {
-            console.log('🔔 Mensaje de paciente recibido');
-            // Aquí puedes agregar sonido de notificación si quieres
+            console.log('🔔 Nuevo mensaje de paciente recibido');
+            // Opcional: sonido, notificación browser, etc.
         }
     }
 
@@ -683,7 +730,9 @@ class StaffClient {
         if (!this.currentSessionId) return;
         
         try {
-            const response = await fetch(`${this.chatServiceUrl}/messages/${this.currentSessionId}`, {
+            console.log('📋 Cargando historial de chat para sesión:', this.currentSessionId);
+            
+            const response = await fetch(`${this.chatServiceUrl}/messages/${this.currentSessionId}?limit=50`, {
                 headers: this.getAuthHeaders()
             });
             
@@ -695,21 +744,28 @@ class StaffClient {
                     if (messagesContainer) {
                         messagesContainer.innerHTML = '';
                         
+                        console.log(`📋 Cargando ${result.data.messages.length} mensajes del historial`);
+                        
                         result.data.messages.forEach(msg => {
-                            if (msg.content) {
-                                this.handleNewChatMessage({
-                                    content: msg.content,
-                                    user_type: msg.sender_type === 'patient' ? 'patient' : 'agent',
-                                    user_id: msg.sender_id,
-                                    timestamp: msg.timestamp || msg.created_at
-                                });
-                            }
+                            this.handleNewChatMessage({
+                                content: msg.content,
+                                user_type: msg.sender_type || msg.user_type,
+                                user_id: msg.sender_id || msg.user_id,
+                                user_name: msg.sender_name || msg.user_name || 'Usuario',
+                                timestamp: msg.timestamp || msg.created_at,
+                                message_type: msg.message_type || 'text'
+                            });
                         });
                     }
+                } else {
+                    console.log('📋 No hay mensajes en el historial');
                 }
+            } else {
+                throw new Error(`Error HTTP ${response.status}`);
             }
         } catch (error) {
             console.error('❌ Error cargando historial:', error);
+            this.showNotification('Error cargando historial de chat', 'warning');
         }
     }
 
@@ -731,6 +787,7 @@ class StaffClient {
                 
                 if (userData.user_name) return userData.user_name;
                 if (userData.name) return userData.name;
+                if (userData.patient_data?.name) return userData.patient_data.name;
             } catch (e) {
                 console.warn('Error parseando user_data:', e);
             }
@@ -794,6 +851,16 @@ class StaffClient {
         const statusElement = document.getElementById('chatStatus');
         if (statusElement) {
             statusElement.textContent = status;
+            
+            // Cambiar color según el estado
+            statusElement.className = 'text-sm font-medium ';
+            if (status === 'En chat') {
+                statusElement.className += 'text-green-600';
+            } else if (status === 'Conectado') {
+                statusElement.className += 'text-blue-600';
+            } else {
+                statusElement.className += 'text-gray-500';
+            }
         }
     }
 
@@ -801,6 +868,16 @@ class StaffClient {
         const indicator = document.getElementById('typingIndicator');
         if (indicator) {
             indicator.classList.remove('hidden');
+            indicator.innerHTML = `
+                <div class="flex items-center space-x-2 text-gray-500 text-sm">
+                    <div class="flex space-x-1">
+                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s;"></div>
+                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
+                    </div>
+                    <span>El paciente está escribiendo...</span>
+                </div>
+            `;
         }
     }
 
@@ -835,7 +912,7 @@ class StaffClient {
         notification.innerHTML = `
             <div class="flex items-center justify-between">
                 <span>${message}</span>
-                <button onclick="this.parentElement.parentElement.remove()" class="ml-4">×</button>
+                <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-xl">×</button>
             </div>
         `;
         
@@ -866,10 +943,57 @@ class StaffClient {
 
     destroy() {
         if (this.refreshInterval) clearInterval(this.refreshInterval);
-        if (this.chatSocket) this.chatSocket.disconnect();
+        if (this.chatSocket) {
+            this.chatSocket.disconnect();
+            this.isConnectedToChat = false;
+            this.sessionJoined = false;
+        }
     }
 }
 
+// Inicializar cliente global
 window.staffClient = new StaffClient();
 
-console.log('🔧 StaffClient v4.0 con WebSocket cargado');
+// Listeners para el input de mensajes
+document.addEventListener('DOMContentLoaded', function() {
+    const messageInput = document.getElementById('agentMessageInput');
+    const sendButton = document.getElementById('agentSendButton');
+    
+    if (messageInput && sendButton) {
+        // Habilitar/deshabilitar botón según contenido
+        messageInput.addEventListener('input', function() {
+            sendButton.disabled = this.value.trim() === '';
+        });
+        
+        // Enviar con Enter
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (this.value.trim() && staffClient.isConnectedToChat) {
+                    staffClient.sendMessage();
+                }
+            }
+        });
+        
+        // Manejar indicador de typing
+        let typingTimer;
+        messageInput.addEventListener('input', function() {
+            if (staffClient.chatSocket && staffClient.sessionJoined) {
+                staffClient.chatSocket.emit('typing', {
+                    session_id: staffClient.currentSessionId,
+                    user_type: 'agent'
+                });
+                
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => {
+                    staffClient.chatSocket.emit('stop_typing', {
+                        session_id: staffClient.currentSessionId,
+                        user_type: 'agent'
+                    });
+                }, 1000);
+            }
+        });
+    }
+});
+
+console.log('🔧 StaffClient v5.0 CORREGIDO - WebSocket y Mensajería');

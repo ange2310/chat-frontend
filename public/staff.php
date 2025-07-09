@@ -593,7 +593,6 @@ if (!in_array($userRole, $validStaffRoles)) {
             try {
                 console.log('📡 [Pending] Cargando conversaciones pendientes...');
                 
-                // ✅ CORREGIDO: Usar ?waiting=true en lugar de ?waiting
                 const response = await fetch('http://localhost:3011/chats/sessions?waiting=true', {
                     method: 'GET',
                     headers: {

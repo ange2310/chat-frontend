@@ -1,7 +1,6 @@
 class ChatClient {
   constructor() {
-    // URLs LOCALES DIRECTAS
-    this.chatServiceUrl = 'http://localhost:3011/chats';
+    this.chatServiceUrl = 'http://localhost:3011';
     this.websocketUrl = 'http://localhost:3011';
     this.fileServiceUrl = 'http://localhost:3011/files';
     
@@ -12,29 +11,25 @@ class ChatClient {
     this.currentSessionId = null;
     this.currentUserId = null;
     this.userType = 'patient';
+    this.sessionJoined = false;
+    this.lastSentMessage = null; // ✅ Para trackear mensajes enviados
     
     console.log('💬 ChatClient inicializado');
-    console.log('🔗 Chat Service:', this.chatServiceUrl);
-    console.log('🔌 WebSocket:', this.websocketUrl);
   }
 
-  // ====== MÉTODO PRINCIPAL PARA CONECTAR ======
   async connect(pToken, roomId = 'general', userName = 'Paciente') {
     try {
       console.log('🚀 Iniciando conexión del chat...', { pToken: pToken.substring(0, 15) + '...', roomId, userName });
       
-      // 1. Crear sesión de chat
       const sessionData = await this.createSimpleSession(pToken, roomId, userName);
       this.currentSessionId = sessionData.session_id;
-      this.currentUserId = pToken;  // Guardamos el pToken como identificador
+      this.currentUserId = pToken; // ✅ GUARDAR EL PTOKEN COMPLETO
       this.currentRoom = roomId;
       
       console.log('✅ Sesión creada:', sessionData);
+      console.log('🔍 GUARDADO currentUserId:', this.currentUserId?.substring(0, 20) + '...');
       
-      // 2. Conectar WebSocket
       await this.connectWebSocket();
-      
-      // 3. Unirse al chat
       this.joinChat();
       
       return sessionData;
@@ -46,36 +41,27 @@ class ChatClient {
     }
   }
 
-  // ====== CREAR SESIÓN SIMPLE ======
   async createSimpleSession(pToken, roomId, userName) {
     try {
-      console.log('📡 Creando sesión simple...');
-      console.log('📝 Parámetros:', { pToken: pToken.substring(0, 15) + '...', roomId, userName });
-      
-      const response = await fetch(`${this.chatServiceUrl}/create-simple`, {
+      const response = await fetch(`${this.chatServiceUrl}/chats/create-simple`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          user_id: pToken,      // ✅ pToken va como user_id
-          user_name: userName,  // ✅ Correcto
-          room_id: roomId       // ✅ Correcto
+          user_id: pToken,
+          user_name: userName,
+          room_id: roomId
         })
       });
 
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response headers:', response.headers.get('content-type'));
-
       const result = await response.json();
-      console.log('📨 Respuesta sesión:', result);
 
       if (response.ok && result.success) {
         this.updateConnectionStatus('Sesión creada');
         return result.data;
       } else {
-        console.error('❌ Error en respuesta:', result);
         throw new Error(result.message || 'Error creando sesión');
       }
 
@@ -85,81 +71,51 @@ class ChatClient {
     }
   }
 
-  // ====== CONECTAR WEBSOCKET ======
   async connectWebSocket() {
     return new Promise((resolve, reject) => {
       try {
-        // ✅ VALIDACIONES PREVIAS
-        if (!this.currentUserId) {
-          const error = new Error('currentUserId no está definido');
-          console.error('❌ Error pre-conexión:', error.message);
-          reject(error);
+        if (!this.currentUserId || !this.websocketUrl) {
+          reject(new Error('Datos de conexión faltantes'));
           return;
         }
 
-        if (!this.websocketUrl) {
-          const error = new Error('websocketUrl no está definido');
-          console.error('❌ Error pre-conexión:', error.message);
-          reject(error);
-          return;
-        }
-
-        // ✅ LOGGING MEJORADO
-        console.log('🔌 Conectando Socket.IO...');
-        console.log('🔍 URL WebSocket:', this.websocketUrl);
-        console.log('🔍 Usuario ID (pToken):', this.currentUserId.substring(0, 15) + '...');
-        console.log('🔍 Tipo usuario:', 'patient');
-        
-        // ✅ DESCONECTAR SOCKET ANTERIOR SI EXISTE
         if (this.socket) {
-          console.log('🔄 Desconectando socket anterior...');
           this.socket.disconnect();
           this.socket = null;
         }
 
-        // ✅ RESETEAR ESTADO
         this.isConnected = false;
+        this.sessionJoined = false;
         this.updateConnectionStatus('Conectando...');
         
-        // ✅ CREAR NUEVA CONEXIÓN CON CONFIGURACIÓN MEJORADA
         this.socket = io(this.websocketUrl, {
-            transports: ['websocket', 'polling'],
-            autoConnect: true,
-            timeout: 10000,
-            reconnection: true,
-            reconnectionAttempts: 3,
-            reconnectionDelay: 2000,
-            auth: {
-                // ✅ DATOS CORRECTOS PARA TU MIDDLEWARE
-                user_type: 'patient',              // ← Tu middleware busca esto
-                ptoken: this.currentUserId,        // ← Token del paciente
-                session_id: this.currentSessionId, // ← ID de la sesión de chat
-                user_id: this.currentUserId        // ← Compatibilidad con lógica existente
-            }
-            });
+          transports: ['websocket', 'polling'],
+          autoConnect: true,
+          timeout: 10000,
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 2000,
+          auth: {
+            user_type: 'patient',
+            ptoken: this.currentUserId,
+            session_id: this.currentSessionId,
+            user_id: this.currentUserId
+          }
+        });
 
-        // ✅ LOGGING DEL SOCKET CREADO
-        console.log('🔧 Socket creado con ID:', this.socket.id || 'pending');
-        
-        // ✅ EVENT HANDLERS CON LOGGING MEJORADO
         this.socket.on('connect', () => {
           console.log('✅ Socket.IO conectado exitosamente');
-          console.log('🔍 Socket ID:', this.socket.id);
-          console.log('🔍 Transporte usado:', this.socket.io.engine.transport.name);
-          
           this.isConnected = true;
           this.updateConnectionStatus('Conectado');
           resolve();
         });
         
         this.socket.on('disconnect', (reason) => {
-          console.log('🔌 Socket.IO desconectado');
-          console.log('🔍 Razón:', reason);
-          
+          console.log('🔌 Socket.IO desconectado:', reason);
           this.isConnected = false;
+          this.sessionJoined = false;
           this.updateConnectionStatus('Desconectado');
           
-          // ✅ SOLO MOSTRAR ERROR SI NO FUE DESCONEXIÓN MANUAL
           if (reason !== 'io client disconnect') {
             this.showError('Conexión perdida: ' + reason);
           }
@@ -167,192 +123,112 @@ class ChatClient {
         
         this.socket.on('connect_error', (error) => {
           console.error('❌ Error de conexión Socket.IO:', error);
-          console.error('🔍 Detalles del error:', {
-            message: error.message,
-            description: error.description,
-            context: error.context,
-            type: error.type
-          });
-          
           this.isConnected = false;
           this.updateConnectionStatus('Error de conexión');
           reject(error);
         });
 
-        // ✅ EVENTOS DE RECONEXIÓN
         this.socket.on('reconnect', (attemptNumber) => {
           console.log('🔄 Reconectado después de', attemptNumber, 'intentos');
           this.updateConnectionStatus('Reconectado');
+          
+          if (this.currentSessionId) {
+            setTimeout(() => this.joinChat(), 500);
+          }
         });
 
-        this.socket.on('reconnect_attempt', (attemptNumber) => {
-          console.log('🔄 Intento de reconexión', attemptNumber);
-          this.updateConnectionStatus(`Reconectando... (${attemptNumber})`);
-        });
-
-        this.socket.on('reconnect_error', (error) => {
-          console.error('❌ Error en reconexión:', error);
-        });
-
-        this.socket.on('reconnect_failed', () => {
-          console.error('❌ Falló la reconexión después de todos los intentos');
-          this.updateConnectionStatus('Reconexión fallida');
-          this.showError('No se pudo reconectar al servidor. Recarga la página.');
-        });
-
-        // ✅ CONFIGURAR EVENT HANDLERS ADICIONALES
         this.setupSocketEventHandlers();
         
-        // ✅ TIMEOUT MEJORADO CON MEJOR MENSAJE
         const timeoutId = setTimeout(() => {
           if (!this.isConnected) {
-            console.error('❌ Timeout conectando WebSocket después de 15 segundos');
-            
-            // ✅ LIMPIAR SOCKET EN CASO DE TIMEOUT
+            console.error('❌ Timeout conectando WebSocket');
             if (this.socket) {
               this.socket.disconnect();
               this.socket = null;
             }
-            
             this.updateConnectionStatus('Timeout');
-            reject(new Error('Timeout conectando al servidor. Verifica que el servidor esté disponible en ' + this.websocketUrl));
+            reject(new Error('Timeout conectando al servidor'));
           }
-        }, 15000); // ✅ 15 segundos es más que suficiente
+        }, 15000);
 
-        // ✅ CANCELAR TIMEOUT SI SE CONECTA
-        this.socket.on('connect', () => {
-          clearTimeout(timeoutId);
-        });
-
-        // ✅ CANCELAR TIMEOUT SI HAY ERROR
-        this.socket.on('connect_error', () => {
-          clearTimeout(timeoutId);
-        });
+        this.socket.on('connect', () => clearTimeout(timeoutId));
+        this.socket.on('connect_error', () => clearTimeout(timeoutId));
         
       } catch (error) {
         console.error('❌ Error creando Socket.IO:', error);
-        console.error('🔍 Stack trace:', error.stack);
-        
         this.updateConnectionStatus('Error');
         reject(error);
       }
     });
   }
 
-  // ✅ MÉTODO ADICIONAL PARA VERIFICAR ESTADO DE CONEXIÓN
-  isWebSocketHealthy() {
-    return this.socket && 
-           this.socket.connected && 
-           this.isConnected &&
-           this.socket.io.engine.readyState === 'open';
-  }
-
-  // ✅ MÉTODO PARA RECONECTAR MANUALMENTE
-  async reconnectWebSocket() {
-    console.log('🔄 Iniciando reconexión manual...');
-    
-    try {
-      if (this.socket) {
-        this.socket.disconnect();
-        this.socket = null;
-      }
-      
-      await this.connectWebSocket();
-      console.log('✅ Reconexión manual exitosa');
-      return true;
-    } catch (error) {
-      console.error('❌ Error en reconexión manual:', error);
-      return false;
-    }
-  }
-
-  // ✅ MÉTODO PARA DIAGNÓSTICO
-  getSocketDiagnostics() {
-    if (!this.socket) {
-      return {
-        status: 'NO_SOCKET',
-        message: 'Socket no inicializado'
-      };
-    }
-
-    return {
-      status: this.socket.connected ? 'CONNECTED' : 'DISCONNECTED',
-      socket_id: this.socket.id,
-      transport: this.socket.io.engine.transport.name,
-      readyState: this.socket.io.engine.readyState,
-      url: this.socket.io.uri,
-      isConnected: this.isConnected,
-      reconnection: this.socket.io._reconnection,
-      reconnectionAttempts: this.socket.io._reconnectionAttempts,
-      timeout: this.socket.io._timeout
-    };
-  }
-
-  // ====== CONFIGURAR EVENT HANDLERS ======
   setupSocketEventHandlers() {
-    // Eventos de conexión
     this.socket.on('chat_joined', (data) => this.handleChatJoined(data));
     this.socket.on('error', (data) => this.handleError(data));
-
-    // Eventos de mensajes
     this.socket.on('new_message', (data) => this.handleNewMessage(data));
     this.socket.on('message_sent', (data) => this.handleMessageSent(data));
-
-    // Eventos de estado
     this.socket.on('session_status_changed', (data) => this.handleSessionStatusChanged(data));
     this.socket.on('user_joined', (data) => this.handleUserJoined(data));
     this.socket.on('user_left', (data) => this.handleUserLeft(data));
-
-    // Eventos de typing
     this.socket.on('user_typing', (data) => this.handleUserTyping(data));
     this.socket.on('user_stop_typing', (data) => this.handleUserStopTyping(data));
   }
 
-  // ====== UNIRSE AL CHAT ======
   joinChat() {
     if (!this.socket || !this.socket.connected) {
       console.warn('⚠️ Socket no está conectado');
       return;
     }
 
-    console.log('🏠 Uniéndose al chat...', {
-      session_id: this.currentSessionId,
-      user_id: this.currentUserId.substring(0, 15) + '...',
-      user_type: 'patient'
-    });
+    console.log('🏠 Paciente uniéndose al chat...');
 
     this.socket.emit('join_chat', {
       session_id: this.currentSessionId,
       user_id: this.currentUserId,
-      user_type: 'patient'
+      user_type: 'patient',
+      user_name: 'Paciente'
     });
   }
 
-  // ====== ENVIAR MENSAJE ======
   sendMessage(content, messageType = 'text') {
-    if (!content || content.trim() === '') return;
+    if (!content?.trim()) return;
 
-    if (!this.isConnected) {
+    if (!this.isConnected || !this.sessionJoined) {
       this.showError('No conectado al chat');
       return;
     }
 
-    const messageData = {
-      content: content.trim(),
-      message_type: messageType,
+    const payload = {
       session_id: this.currentSessionId,
       user_id: this.currentUserId,
-      user_type: 'patient'
+      user_type: 'patient',
+      user_name: 'Paciente',
+      message_type: messageType,
+      content: content.trim()
     };
-    
-    console.log('📤 Enviando mensaje:', {
-      ...messageData,
-      user_id: messageData.user_id.substring(0, 15) + '...'
+
+    // ✅ TRACKEAR MENSAJE ENVIADO PARA DETECTARLO CUANDO REGRESE
+    this.lastSentMessage = {
+      content: content.trim(),
+      timestamp: Date.now()
+    };
+
+    console.log('📤 [Paciente] Enviando mensaje:', { ...payload, user_id: payload.user_id.slice(0, 15) + '…' });
+
+    this.socket.emit('send_message', payload, (response) => {
+      console.log('📨 [Paciente] Respuesta del servidor:', response);
+      
+      if (response && response.success) {
+        console.log('✅ Mensaje del paciente enviado exitosamente');
+      } else {
+        console.error('❌ Error enviando mensaje del paciente:', response?.message || 'Error desconocido');
+        this.showError('Error enviando mensaje: ' + (response?.message || 'Error desconocido'));
+        // Limpiar tracking si hay error
+        this.lastSentMessage = null;
+      }
     });
-    this.socket.emit('send_message', messageData);
   }
 
-  // ====== SUBIR ARCHIVO ======
   async uploadFile(file, description = '') {
     if (!file || !this.currentSessionId) return;
     
@@ -371,7 +247,6 @@ class ChatClient {
       });
       
       const result = await response.json();
-      console.log('📁 Upload result:', result);
       
       if (response.ok && result.success) {
         console.log('✅ Archivo subido exitosamente');
@@ -386,20 +261,21 @@ class ChatClient {
     }
   }
 
-  // ====== INDICADORES DE TYPING ======
   startTyping() {
-    if (this.socket && this.socket.connected) {
-      this.socket.emit('typing_start', {
+    if (this.socket?.connected && this.sessionJoined) {
+      this.socket.emit('typing', {
         session_id: this.currentSessionId,
+        user_id: this.currentUserId,
         user_type: 'patient'
       });
     }
   }
 
   stopTyping() {
-    if (this.socket && this.socket.connected) {
-      this.socket.emit('typing_stop', {
+    if (this.socket?.connected && this.sessionJoined) {
+      this.socket.emit('stop_typing', {
         session_id: this.currentSessionId,
+        user_id: this.currentUserId,
         user_type: 'patient'
       });
     }
@@ -407,35 +283,58 @@ class ChatClient {
 
   // ====== HANDLERS ======
   handleChatJoined(data) {
-    console.log('✅ Chat unido:', data);
+    console.log('✅ [Paciente] Chat unido:', data);
+    this.sessionJoined = true;
     this.updateConnectionStatus('En chat');
     
-    // Limpiar y cargar historial
     this.clearChatMessages();
     this.addInitialSystemMessages();
     
-    // Cargar historial después de los mensajes automáticos
     setTimeout(() => {
       this.loadMessageHistory();
     }, 3000);
   }
 
+  // ✅ SOLUCIÓN PARA BACKEND ROTO QUE ENVÍA sender_id: null
   handleNewMessage(data) {
     console.log('📨 Nuevo mensaje recibido:', data);
     
-    const isMyMessage = data.sender_id === this.currentUserId || data.user_type === 'patient';
-    
-    this.addMessageToChat(
-      data.content,
-      isMyMessage ? 'patient' : 'agent',
-      data.sender_id,
-      data.timestamp || new Date().toISOString()
-    );
+    // Normalizar datos del mensaje
+    const messageData = {
+      user_id: data.user_id || data.sender_id || data.author_id || data.from || data.userId,
+      user_type: data.user_type || data.sender_type || data.type,
+      user_name: data.user_name || data.sender_name || data.author_name || data.name || 'Usuario',
+      content: data.content || data.message || '',
+      timestamp: data.timestamp || data.created_at || data.time || new Date().toISOString(),
+      session_id: data.session_id
+    };
 
-    // Sonido solo si no es mi mensaje
-    if (!isMyMessage) {
-      this.playNotificationSound();
+    // ✅ LÓGICA PARA DETECTAR MENSAJES PROPIOS AUNQUE EL BACKEND ESTÉ ROTO
+    let isMine = false;
+    
+    // Método 1: Comparación directa si tenemos el ID
+    if (messageData.user_id && messageData.user_id === this.currentUserId) {
+      isMine = true;
+      console.log('✅ Es mío por ID exacto');
     }
+    // Método 2: Si es paciente en MI sesión y yo soy el único paciente
+    else if (messageData.user_type === 'patient' && 
+             messageData.session_id === this.currentSessionId &&
+             this.userType === 'patient') {
+      isMine = true;
+      console.log('✅ Es mío porque soy el único paciente en esta sesión');
+    }
+    // Método 3: Detectar por timing (mensaje reciente que acabo de enviar)
+    else if (this.lastSentMessage && 
+             this.lastSentMessage.content === messageData.content &&
+             Date.now() - this.lastSentMessage.timestamp < 3000) {
+      isMine = true;
+      console.log('✅ Es mío por timing y contenido');
+      this.lastSentMessage = null; // Limpiar para evitar false positives
+    }
+
+    console.log('📨 ¿Es mío?:', isMine);
+    this.addMessageToUI(messageData, isMine);
   }
 
   handleMessageSent(data) {
@@ -464,13 +363,13 @@ class ChatClient {
   }
 
   handleUserTyping(data) {
-    if (data.user_type === 'agent') {
+    if (data.user_type === 'agent' && data.user_id !== this.currentUserId) {
       this.showTypingIndicator();
     }
   }
 
   handleUserStopTyping(data) {
-    if (data.user_type === 'agent') {
+    if (data.user_type === 'agent' && data.user_id !== this.currentUserId) {
       this.hideTypingIndicator();
     }
   }
@@ -480,45 +379,116 @@ class ChatClient {
     this.showError(data.message || 'Error en el chat');
   }
 
-  // ====== CARGAR HISTORIAL ======
+  // ✅ CARGAR HISTORIAL CON LÓGICA CORREGIDA
   async loadMessageHistory() {
     if (!this.currentSessionId) return;
-    
+
     try {
       console.log('📚 Cargando historial...');
       
-      const response = await fetch(`${this.chatServiceUrl}/messages/${this.currentSessionId}?limit=50`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-      });
+      const response = await fetch(
+        `${this.chatServiceUrl}/messages/${this.currentSessionId}?limit=50`,
+        { headers: { Accept: 'application/json' } }
+      );
+
+      const result = await response.json();
+      if (!result.success) return;
+
+      const messages = result.data.messages || [];
       
-      if (response.ok) {
-        const result = await response.json();
-        console.log('📖 Historial:', result);
+      messages.reverse().forEach((msg) => {
+        const messageData = {
+          user_id: msg.user_id || msg.sender_id || msg.author_id || msg.from,
+          user_type: msg.user_type || msg.sender_type || msg.type,
+          user_name: msg.user_name || msg.sender_name || msg.author_name || 'Usuario',
+          content: msg.content || msg.message,
+          timestamp: msg.timestamp || msg.created_at,
+          session_id: msg.session_id
+        };
+
+        // ✅ MISMA LÓGICA DE DETECCIÓN QUE handleNewMessage
+        let isMine = false;
         
-        if (result.success && result.data && result.data.messages && result.data.messages.length > 0) {
-          result.data.messages.forEach(msg => {
-            if (msg && msg.content) {
-              const isMyMessage = msg.sender_type === 'patient' || msg.sender_id === this.currentUserId;
-              this.addMessageToChat(
-                msg.content, 
-                isMyMessage ? 'patient' : 'agent', 
-                msg.sender_id, 
-                msg.timestamp,
-                false
-              );
-            }
-          });
-          this.scrollToBottom();
+        if (messageData.user_id && messageData.user_id === this.currentUserId) {
+          isMine = true;
+        } else if (messageData.user_type === 'patient' && 
+                   messageData.session_id === this.currentSessionId &&
+                   this.userType === 'patient') {
+          isMine = true;
         }
-      }
-      
+        
+        this.addMessageToUI(messageData, isMine, false);
+      });
+
+      this.scrollToBottom();
     } catch (error) {
       console.error('❌ Error cargando historial:', error);
     }
   }
 
-  // ====== UI METHODS ======
+  // ✅ MOSTRAR MENSAJES EN UI
+  addMessageToUI(messageData, isMine, scroll = true) {
+    const container = document.getElementById('chatMessages');
+    if (!container) return;
+
+    const time = this.formatTime(messageData.timestamp);
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'mb-4';
+
+    if (isMine) {
+      messageDiv.innerHTML = `
+        <div class="flex justify-end">
+          <div class="max-w-xs lg:max-w-md bg-blue-600 text-white rounded-lg px-4 py-2">
+            <div class="text-xs opacity-75 mb-1">Yo</div>
+            <p>${this.formatMessage(messageData.content)}</p>
+            <div class="text-xs opacity-75 mt-1">${time}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      const senderName = messageData.user_type === 'agent' ? 'Agente' : 
+                        messageData.user_type === 'system' ? 'Sistema' : 
+                        messageData.user_name || 'Usuario';
+      messageDiv.innerHTML = `
+        <div class="flex justify-start">
+          <div class="max-w-xs lg:max-w-md bg-gray-200 text-gray-900 rounded-lg px-4 py-2">
+            <div class="text-xs font-medium text-gray-600 mb-1">${senderName}</div>
+            <p>${this.formatMessage(messageData.content)}</p>
+            <div class="text-xs text-gray-500 mt-1">${time}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    container.appendChild(messageDiv);
+
+    if (scroll) {
+      this.scrollToBottom();
+    }
+  }
+
+  // ✅ MENSAJES DEL SISTEMA COMO AGENTE
+  addSystemMessage(content) {
+    const container = document.getElementById('chatMessages');
+    if (!container) return;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'mb-4';
+    messageDiv.innerHTML = `
+      <div class="flex justify-start">
+        <div class="max-w-xs lg:max-w-md bg-gray-200 text-gray-900 rounded-lg px-4 py-2">
+          <div class="text-xs font-medium text-gray-600 mb-1">Agente</div>
+          <p>${this.formatMessage(content)}</p>
+          <div class="text-xs text-gray-500 mt-1">${this.formatTime(new Date().toISOString())}</div>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(messageDiv);
+    this.scrollToBottom();
+  }
+
   addInitialSystemMessages() {
     const messages = [
       'Bienvenido a Teleorientación CEM. Para urgencias o emergencias comunícate al #586.',
@@ -533,65 +503,7 @@ class ChatClient {
     });
   }
 
-  addSystemMessage(content) {
-    this.addMessageToChat(content, 'system', 'system', new Date().toISOString(), true);
-  }
-
-  addMessageToChat(content, senderType, senderId, timestamp, scroll = true) {
-    const messagesContainer = document.getElementById('chatMessages');
-    if (!messagesContainer) return;
-    
-    try {
-      const messageElement = this.createMessageElement({
-        content,
-        sender_type: senderType,
-        sender_id: senderId,
-        timestamp
-      });
-      
-      messagesContainer.appendChild(messageElement);
-      
-      if (scroll) {
-        this.scrollToBottom();
-      }
-    } catch (error) {
-      console.error('❌ Error agregando mensaje:', error);
-    }
-  }
-
-  createMessageElement(messageData) {
-    const messageDiv = document.createElement('div');
-    const isUser = messageData.sender_type === 'patient';
-    const timeLabel = this.formatTime(messageData.timestamp);
-
-    messageDiv.className = `message ${isUser ? 'message-user' : 'message-system'}`;
-    
-    if (isUser) {
-      messageDiv.innerHTML = `
-        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style="background: #0372B9;">
-          U
-        </div>
-        <div class="message-content">
-          <p>${this.formatMessage(messageData.content)}</p>
-          <div class="message-time">${timeLabel}</div>
-        </div>
-      `;
-    } else {
-      messageDiv.innerHTML = `
-        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style="background: #8CF79D; color: #065f46;">
-          C
-        </div>
-        <div class="message-content">
-          <div class="text-sm font-medium text-gray-700 mb-1">CEM:</div>
-          <p>${this.formatMessage(messageData.content)}</p>
-          <div class="message-time">${timeLabel}</div>
-        </div>
-      `;
-    }
-    
-    return messageDiv;
-  }
-
+  // ✅ UTILITY METHODS
   formatMessage(message) {
     if (!message || typeof message !== 'string') return '';
     
@@ -604,6 +516,7 @@ class ChatClient {
 
   formatTime(timestamp) {
     try {
+      if (!timestamp) return '';
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return '';
       return date.toLocaleTimeString('es-ES', { 
@@ -633,6 +546,16 @@ class ChatClient {
     const indicator = document.getElementById('typingIndicator');
     if (indicator) {
       indicator.classList.remove('hidden');
+      indicator.innerHTML = `
+        <div class="flex items-center space-x-2 text-gray-500 text-sm p-3">
+          <div class="flex space-x-1">
+            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s;"></div>
+            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
+          </div>
+          <span>El agente está escribiendo...</span>
+        </div>
+      `;
       this.scrollToBottom();
     }
   }
@@ -641,6 +564,7 @@ class ChatClient {
     const indicator = document.getElementById('typingIndicator');
     if (indicator) {
       indicator.classList.add('hidden');
+      indicator.innerHTML = '';
     }
   }
 
@@ -675,6 +599,7 @@ class ChatClient {
     console.log('🔌 Desconectando chat...');
     
     this.isConnected = false;
+    this.sessionJoined = false;
     
     if (this.socket) {
       this.socket.disconnect();
@@ -696,20 +621,53 @@ class ChatClient {
   }
 }
 
-// Crear instancia global
+// ✅ CREAR INSTANCIA GLOBAL
 window.chatClient = new ChatClient();
 
-// Funciones globales para HTML
+// ✅ EVENT LISTENERS
+document.addEventListener('DOMContentLoaded', function() {
+  const messageInput = document.getElementById('messageInput');
+  
+  if (messageInput) {
+    let typingTimer;
+    messageInput.addEventListener('input', function() {
+      if (window.chatClient && window.chatClient.socket && window.chatClient.sessionJoined) {
+        window.chatClient.startTyping();
+        
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => {
+          window.chatClient.stopTyping();
+        }, 1000);
+      }
+    });
+    
+    messageInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        clearTimeout(typingTimer);
+        if (window.chatClient) {
+          window.chatClient.stopTyping();
+        }
+      }
+    });
+  }
+});
+
+// ✅ FUNCIONES GLOBALES
 function sendMessage() {
+  if (!window.chatClient) {
+    alert('Error: ChatClient no está cargado');
+    return;
+  }
+  
   const messageInput = document.getElementById('messageInput');
   if (!messageInput) return;
   
   const message = messageInput.value.trim();
   if (!message) return;
   
+  window.chatClient.stopTyping();
   window.chatClient.sendMessage(message);
   
-  // Limpiar input
   messageInput.value = '';
   messageInput.style.height = 'auto';
   
@@ -732,11 +690,20 @@ function handleFileUpload(files) {
   const file = files[0];
   
   if (file.size > 10 * 1024 * 1024) {
-    window.authClient?.showError('Archivo muy grande (máximo 10MB)');
+    if (window.authClient) {
+      window.authClient.showError('Archivo muy grande (máximo 10MB)');
+    } else {
+      alert('Archivo muy grande (máximo 10MB)');
+    }
     return;
   }
   
-  window.chatClient.uploadFile(file);
+  if (window.chatClient) {
+    window.chatClient.uploadFile(file);
+  }
 }
 
-console.log('💬 ChatClient v4.1 corregido para pToken cargado');
+window.sendMessage = sendMessage;
+window.handleFileUpload = handleFileUpload;
+
+console.log('💬 ChatClient ARREGLADO - Backend roto solucionado ✅');
