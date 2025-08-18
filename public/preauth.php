@@ -24,7 +24,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
     <title>Consulta Médica - Portal de Atención</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
+<style>
         body { font-family: 'Inter', sans-serif; }
         .chat-fullscreen { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: white; }
         .chat-header { background: white; border-bottom: 1px solid #e5e7eb; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; min-height: 70px; }
@@ -56,6 +56,7 @@ if (empty($pToken) || strlen($pToken) < 10) {
         .typing-dot:nth-child(1) { animation-delay: -0.32s; }
         .typing-dot:nth-child(2) { animation-delay: -0.16s; }
         @keyframes typing { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
+        
         :root {
         --primary: #2563eb;
         --primary-light: #3b82f6;
@@ -80,7 +81,6 @@ if (empty($pToken) || strlen($pToken) < 10) {
         --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
         --transition: all 0.15s ease-in-out;
         }
-
 
         /* Botones bonitos */
         .btn {
@@ -110,7 +110,402 @@ if (empty($pToken) || strlen($pToken) < 10) {
 
         /* Mejoras a los mensajes */
         .message-content { box-shadow: var(--shadow-sm); }
-    </style>
+
+        /* ============== RESPONSIVE MOBILE-FIRST ============== */
+        
+        /* Mobile Portrait (Default) */
+        @media (max-width: 768px) {
+            /* Header más compacto en móvil */
+            .chat-header {
+                padding: 0.875rem;
+                min-height: 65px;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            
+            .chat-header .grid {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+                width: 100%;
+            }
+            
+            .chat-header .text-sm {
+                font-size: 0.75rem;
+                font-weight: 500;
+                color: #6b7280;
+            }
+            
+            .chat-header .font-semibold {
+                font-size: 0.875rem;
+                font-weight: 600;
+                line-height: 1.25;
+            }
+
+            /* Mensajes más legibles en móvil */
+            .chat-messages {
+                padding: 1rem 0.875rem;
+                gap: 1.25rem;
+            }
+            
+            .message {
+                max-width: 85%;
+                gap: 0.5rem;
+            }
+            
+            .message-content {
+                padding: 0.875rem 1rem;
+                border-radius: 1.25rem;
+                font-size: 15px;
+                line-height: 1.5;
+                min-height: 48px;
+                display: flex;
+                align-items: center;
+            }
+            
+            .message-time {
+                font-size: 0.75rem;
+                margin-top: 0.375rem;
+                font-weight: 500;
+            }
+            
+            /* Sistema de mensajes - colores originales mantenidos */
+            .message-system .text-sm {
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: #6b7280;
+                margin-bottom: 0.375rem;
+            }
+
+            /* Input area mobile-friendly */
+            .chat-input-area {
+                padding: 1rem 0.875rem;
+                border-top: 2px solid #e5e7eb;
+            }
+            
+            .chat-input {
+                min-height: 52px;
+                font-size: 16px; /* Evita zoom en iOS */
+                padding: 0.875rem 70px 0.875rem 1rem;
+                border-radius: 26px;
+                border-width: 2px;
+                line-height: 1.4;
+            }
+            
+            .chat-input:focus {
+                border-width: 2px;
+                box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+            }
+            
+            .chat-input::placeholder {
+                color: #9ca3af;
+                font-size: 15px;
+            }
+
+            /* Botones de input más grandes para touch */
+            .chat-input-actions {
+                right: 0.625rem;
+                gap: 0.375rem;
+            }
+            
+            .chat-input-btn {
+                width: 44px;
+                height: 44px;
+                border-radius: 22px;
+            }
+            
+            .chat-input-btn svg {
+                width: 20px;
+                height: 20px;
+            }
+
+            /* Typing indicator más visible */
+            .typing-indicator {
+                padding: 0.875rem;
+                font-size: 14px;
+                font-weight: 500;
+                color: #6b7280;
+            }
+            
+            .typing-dot {
+                width: 8px;
+                height: 8px;
+            }
+
+            /* File upload area */
+            .chat-input-area .flex.justify-between {
+                margin-top: 0.75rem;
+                font-size: 13px;
+            }
+            
+            .chat-input-area button {
+                padding: 0.5rem;
+                font-size: 13px;
+                font-weight: 500;
+                border-radius: 0.5rem;
+                min-height: 44px;
+                min-width: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.375rem;
+            }
+
+            /* Emoji picker mobile */
+            .emoji-picker {
+                width: calc(100vw - 2rem);
+                max-width: 320px;
+                right: 0;
+                left: 0;
+                margin: 0 auto;
+                bottom: 110px;
+            }
+            
+            .emoji-grid {
+                grid-template-columns: repeat(6, 1fr);
+                gap: 0.375rem;
+            }
+            
+            .emoji-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 20px;
+                border-radius: 0.5rem;
+            }
+
+            /* Contador de caracteres más visible */
+            #charCount {
+                font-weight: 600;
+                color: #374151;
+            }
+        }
+
+        /* Small Mobile - Optimizaciones adicionales */
+        @media (max-width: 480px) {
+            .chat-header {
+                padding: 0.75rem;
+                min-height: 60px;
+            }
+            
+            .chat-header .font-semibold {
+                font-size: 0.8rem;
+                line-height: 1.2;
+            }
+            
+            .chat-header .text-sm {
+                font-size: 0.7rem;
+            }
+
+            .chat-messages {
+                padding: 0.875rem 0.75rem;
+            }
+            
+            .message {
+                max-width: 90%;
+            }
+            
+            .message-content {
+                padding: 0.75rem 0.875rem;
+                font-size: 14px;
+                min-height: 44px;
+            }
+
+            .chat-input-area {
+                padding: 0.875rem 0.75rem;
+            }
+            
+            .chat-input {
+                min-height: 48px;
+                font-size: 16px;
+                padding: 0.75rem 65px 0.75rem 0.875rem;
+            }
+            
+            .chat-input-btn {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .chat-input-actions {
+                right: 0.5rem;
+            }
+
+            .emoji-picker {
+                width: calc(100vw - 1.5rem);
+                padding: 0.875rem;
+            }
+            
+            .emoji-grid {
+                grid-template-columns: repeat(6, 1fr);
+                gap: 0.25rem;
+            }
+            
+            .emoji-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 18px;
+            }
+        }
+
+        /* Tablet Portrait */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .chat-header {
+                padding: 1rem 1.25rem;
+                min-height: 75px;
+            }
+            
+            .chat-messages {
+                padding: 1.25rem;
+                gap: 1rem;
+            }
+            
+            .message {
+                max-width: 75%;
+            }
+            
+            .message-content {
+                font-size: 15px;
+                padding: 0.875rem 1.125rem;
+            }
+            
+            .chat-input {
+                font-size: 15px;
+                min-height: 48px;
+            }
+        }
+
+        /* Touch device improvements */
+        @media (hover: none) and (pointer: coarse) {
+            /* Mejorar experiencia táctil */
+            .chat-input-btn {
+                min-width: 44px;
+                min-height: 44px;
+            }
+            
+            button, .cursor-pointer {
+                min-height: 44px;
+                min-width: 44px;
+                touch-action: manipulation;
+            }
+            
+            .emoji-btn {
+                min-width: 44px;
+                min-height: 44px;
+                touch-action: manipulation;
+            }
+            
+            /* Eliminar hover effects en dispositivos táctiles */
+            .chat-input-btn:hover {
+                background: transparent;
+                transform: none;
+            }
+            
+            .chat-input-btn.btn-send:hover {
+                background: var(--primary);
+                transform: none;
+            }
+            
+            .emoji-btn:hover {
+                background: transparent;
+                transform: none;
+            }
+            
+            /* Active states para feedback táctil */
+            .chat-input-btn:active {
+                background: #f3f4f6;
+                transform: scale(0.95);
+            }
+            
+            .chat-input-btn.btn-send:active {
+                background: #1d4ed8;
+                transform: scale(0.95);
+            }
+            
+            .emoji-btn:active {
+                background: #f3f4f6;
+                transform: scale(0.9);
+            }
+        }
+
+        /* Landscape orientation optimizations */
+        @media (max-width: 896px) and (orientation: landscape) {
+            .chat-header {
+                min-height: 55px;
+                padding: 0.625rem 0.875rem;
+            }
+            
+            .chat-header .grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 0.5rem;
+            }
+            
+            .chat-messages {
+                padding: 0.875rem;
+            }
+            
+            .chat-input-area {
+                padding: 0.75rem 0.875rem;
+            }
+            
+            .chat-input {
+                min-height: 44px;
+                font-size: 15px;
+            }
+            
+            .emoji-picker {
+                bottom: 85px;
+                max-height: 160px;
+            }
+        }
+
+        /* Performance optimizations */
+        .chat-messages {
+            will-change: scroll-position;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .message-content {
+            will-change: transform;
+        }
+        
+        .chat-input {
+            will-change: height;
+        }
+
+        /* Accessibility improvements */
+        .chat-input:focus,
+        .chat-input-btn:focus,
+        .emoji-btn:focus {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            .message-content {
+                border-width: 2px;
+            }
+            
+            .chat-input {
+                border-width: 2px;
+            }
+            
+            .message-time {
+                font-weight: 600;
+            }
+        }
+
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            .typing-dot {
+                animation: none;
+            }
+            
+            .chat-input-btn,
+            .emoji-btn,
+            .message-content {
+                transition: none;
+            }
+        }
+</style>
 </head>
 <body class="h-full bg-gray-50">
     

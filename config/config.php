@@ -1,35 +1,24 @@
 <?php
-// config/config.php - Configuración completa con URLs de nginx
+
 define('APP_NAME', 'Sistema de Chat Médico');
 define('APP_VERSION', '2.1.0');
 define('APP_ENV', 'development');
 
-// ===============================
-// URLs DE SERVICIOS BACKEND - A TRAVÉS DE NGINX
-// ===============================
-// ✅ TODAS LAS URLs VAN A TRAVÉS DE NGINX EN EL PUERTO 8080
-define('AUTH_SERVICE_URL', 'http://localhost:3010/auth');
-define('CHAT_SERVICE_URL', 'http://localhost:3011/chats');
-define('CHAT_WS_URL', 'ws://187.33.158.246:8080/socket.io');  // ← WebSocket a través de nginx
-define('ADMIN_SERVICE_URL', 'http://187.33.158.246:8080/admin');
-define('SUPERVISOR_SERVICE_URL', 'http://187.33.158.246:8080/supervisor');
+define('AUTH_SERVICE_URL', 'http://187.33.158.246/auth');
+define('CHAT_SERVICE_URL', 'http://187.33.158.246/chat');
+define('CHAT_WS_URL', 'ws://187.33.158.246/chat/socket.io');
+define('ADMIN_SERVICE_URL', 'http://187.33.158.246/admin');
+define('SUPERVISOR_SERVICE_URL', 'http://187.33.158.246/supervisor');
 
-// URLs auxiliares
-define('AUTH_HEALTH_URL', 'http://localhost:3010/health');
-define('CHAT_HEALTH_URL', 'http://187.33.158.246:8080/chat/health');
+define('AUTH_HEALTH_URL', 'http://187.33.158.246/auth/health');
+define('CHAT_HEALTH_URL', 'http://187.33.158.246/chat/health');
 
-// ===============================
-// CONFIGURACIÓN DE SESIÓN
-// ===============================
-ini_set('session.cookie_lifetime', 86400); // 24 horas
+ini_set('session.cookie_lifetime', 86400);
 ini_set('session.gc_maxlifetime', 86400);
-ini_set('session.cookie_secure', 0); // Cambiar a 1 en producción con HTTPS
+ini_set('session.cookie_secure', 0);
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_samesite', 'Lax');
 
-// ===============================
-// CONFIGURACIÓN DE ERRORES
-// ===============================
 if (APP_ENV === 'development') {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
@@ -40,25 +29,12 @@ if (APP_ENV === 'development') {
     ini_set('log_errors', 1);
 }
 
-// ===============================
-// CONFIGURACIÓN DE TIMEZONE
-// ===============================
 date_default_timezone_set('America/Bogota');
 
-// ===============================
-// CONFIGURACIÓN DE TIMEOUTS
-// ===============================
-define('HTTP_TIMEOUT', 30); // segundos
+define('HTTP_TIMEOUT', 30);
 define('AUTH_TIMEOUT', 10);
 define('CHAT_TIMEOUT', 15);
 
-// ===============================
-// FUNCIONES HELPER PRINCIPALES
-// ===============================
-
-/**
- * Obtener URL de servicio específico
- */
 function getServiceURL($service) {
     $urls = [
         'auth' => AUTH_SERVICE_URL,
@@ -72,9 +48,6 @@ function getServiceURL($service) {
     return $urls[$service] ?? false;
 }
 
-/**
- * Incluir componente de manera segura
- */
 function includeComponent($component) {
     $file = __DIR__ . "/../public/components/{$component}.php";
     if (file_exists($file)) {
@@ -86,19 +59,12 @@ function includeComponent($component) {
     }
 }
 
-/**
- * Redirección segura
- */
 function redirectTo($url) {
-    // Sanitizar URL
     $url = filter_var($url, FILTER_SANITIZE_URL);
     header("Location: $url");
     exit;
 }
 
-/**
- * Respuesta JSON estandarizada
- */
 function jsonResponse($data, $status = 200) {
     http_response_code($status);
     header('Content-Type: application/json');
@@ -107,9 +73,6 @@ function jsonResponse($data, $status = 200) {
     exit;
 }
 
-/**
- * Log de debug mejorado
- */
 function debugLog($message, $data = null, $level = 'INFO') {
     if (APP_ENV !== 'development') return;
     
@@ -122,19 +85,11 @@ function debugLog($message, $data = null, $level = 'INFO') {
     
     error_log($logMessage);
     
-    // También mostrar en consola del navegador en desarrollo
     if (isset($_GET['debug']) || APP_ENV === 'development') {
         echo "<script>console.log(" . json_encode($logMessage) . ");</script>";
     }
 }
 
-// ===============================
-// FUNCIONES DE CONECTIVIDAD (ACTUALIZADAS)
-// ===============================
-
-/**
- * Verificar conectividad con auth-service a través de nginx
- */
 function checkAuthServiceConnection() {
     try {
         $context = stream_context_create([
@@ -151,13 +106,13 @@ function checkAuthServiceConnection() {
         $result = @file_get_contents(AUTH_HEALTH_URL, false, $context);
         
         if ($result === false) {
-            debugLog("No se puede conectar con auth-service via nginx", ['url' => AUTH_HEALTH_URL], 'ERROR');
+            debugLog("No se puede conectar con auth-service", ['url' => AUTH_HEALTH_URL], 'ERROR');
             return false;
         }
         
         $health = json_decode($result, true);
         if ($health && isset($health['status']) && $health['status'] === 'OK') {
-            debugLog("Conexión con auth-service via nginx exitosa", [
+            debugLog("Conexión con auth-service exitosa", [
                 'version' => $health['version'] ?? 'unknown',
                 'uptime' => $health['uptime'] ?? 0
             ]);
@@ -173,9 +128,6 @@ function checkAuthServiceConnection() {
     }
 }
 
-/**
- * Verificar conectividad con chat-service a través de nginx
- */
 function checkChatServiceConnection() {
     try {
         $context = stream_context_create([
@@ -192,13 +144,13 @@ function checkChatServiceConnection() {
         $result = @file_get_contents(CHAT_HEALTH_URL, false, $context);
         
         if ($result === false) {
-            debugLog("No se puede conectar con chat-service via nginx", ['url' => CHAT_HEALTH_URL], 'ERROR');
+            debugLog("No se puede conectar con chat-service", ['url' => CHAT_HEALTH_URL], 'ERROR');
             return false;
         }
         
         $health = json_decode($result, true);
         if ($health && isset($health['status']) && $health['status'] === 'OK') {
-            debugLog("Conexión con chat-service via nginx exitosa", [
+            debugLog("Conexión con chat-service exitosa", [
                 'version' => $health['version'] ?? 'unknown'
             ]);
             return true;
@@ -212,13 +164,6 @@ function checkChatServiceConnection() {
     }
 }
 
-// ===============================
-// FUNCIONES DE AUTENTICACIÓN (ACTUALIZADAS)
-// ===============================
-
-/**
- * Validar token con auth-service a través de nginx
- */
 function validateTokenWithService($token) {
     if (!$token || trim($token) === '') {
         debugLog("Token vacío para validación", null, 'WARN');
@@ -244,7 +189,7 @@ function validateTokenWithService($token) {
         $result = @file_get_contents($validateUrl, false, $context);
         
         if ($result === false) {
-            debugLog("Error validando token con auth-service via nginx", [
+            debugLog("Error validando token con auth-service", [
                 'url' => $validateUrl,
                 'token_preview' => substr($token, 0, 10) . '...'
             ], 'ERROR');
@@ -253,7 +198,7 @@ function validateTokenWithService($token) {
         
         $response = json_decode($result, true);
         if ($response && isset($response['success']) && $response['success']) {
-            debugLog("Token validado exitosamente via nginx", [
+            debugLog("Token validado exitosamente", [
                 'user_id' => $response['data']['user']['id'] ?? 'unknown'
             ]);
             return $response['data']['user'] ?? true;
@@ -270,9 +215,6 @@ function validateTokenWithService($token) {
     }
 }
 
-/**
- * Hacer login con auth-service a través de nginx
- */
 function loginWithService($email, $password, $remember = false) {
     try {
         $context = stream_context_create([
@@ -296,7 +238,7 @@ function loginWithService($email, $password, $remember = false) {
         $result = @file_get_contents($loginUrl, false, $context);
         
         if ($result === false) {
-            debugLog("Error en login con auth-service via nginx", [
+            debugLog("Error en login con auth-service", [
                 'email' => $email,
                 'url' => $loginUrl
             ], 'ERROR');
@@ -308,7 +250,7 @@ function loginWithService($email, $password, $remember = false) {
         
         $response = json_decode($result, true);
         if ($response && isset($response['success'])) {
-            debugLog("Respuesta de login recibida via nginx", [
+            debugLog("Respuesta de login recibida", [
                 'success' => $response['success'],
                 'user_email' => $response['data']['user']['email'] ?? 'unknown',
                 'has_token' => isset($response['data']['access_token'])
@@ -331,9 +273,6 @@ function loginWithService($email, $password, $remember = false) {
     }
 }
 
-/**
- * Registrar usuario con auth-service a través de nginx
- */
 function registerWithService($userData) {
     try {
         $context = stream_context_create([
@@ -353,7 +292,7 @@ function registerWithService($userData) {
         $result = @file_get_contents($registerUrl, false, $context);
         
         if ($result === false) {
-            debugLog("Error en registro con auth-service via nginx", [
+            debugLog("Error en registro con auth-service", [
                 'email' => $userData['email'] ?? 'unknown',
                 'url' => $registerUrl
             ], 'ERROR');
@@ -365,7 +304,7 @@ function registerWithService($userData) {
         
         $response = json_decode($result, true);
         if ($response && isset($response['success'])) {
-            debugLog("Respuesta de registro recibida via nginx", [
+            debugLog("Respuesta de registro recibida", [
                 'success' => $response['success'],
                 'user_email' => $response['data']['user']['email'] ?? 'unknown'
             ]);
@@ -387,13 +326,6 @@ function registerWithService($userData) {
     }
 }
 
-// ===============================
-// FUNCIONES DE SALAS (ACTUALIZADAS)
-// ===============================
-
-/**
- * Obtener salas disponibles desde auth-service a través de nginx
- */
 function getAvailableRoomsFromService($token = null) {
     if (!$token || trim($token) === '') {
         debugLog("Token requerido para obtener salas", null, 'WARN');
@@ -418,7 +350,7 @@ function getAvailableRoomsFromService($token = null) {
         $result = @file_get_contents($roomsUrl, false, $context);
         
         if ($result === false) {
-            debugLog("Error obteniendo salas desde auth-service via nginx", [
+            debugLog("Error obteniendo salas desde auth-service", [
                 'url' => $roomsUrl,
                 'token_preview' => substr($token, 0, 10) . '...'
             ], 'ERROR');
@@ -428,7 +360,7 @@ function getAvailableRoomsFromService($token = null) {
         $response = json_decode($result, true);
         if ($response && isset($response['success']) && $response['success']) {
             $rooms = $response['data']['rooms'] ?? [];
-            debugLog("Salas obtenidas desde auth-service via nginx", [
+            debugLog("Salas obtenidas desde auth-service", [
                 'count' => count($rooms),
                 'summary' => $response['data']['summary'] ?? []
             ]);
@@ -446,9 +378,6 @@ function getAvailableRoomsFromService($token = null) {
     }
 }
 
-/**
- * Seleccionar sala y obtener pToken a través de nginx
- */
 function selectRoomWithService($token, $roomId, $userData = []) {
     if (!$token || !$roomId) {
         debugLog("Token y roomId requeridos para seleccionar sala", [
@@ -482,7 +411,7 @@ function selectRoomWithService($token, $roomId, $userData = []) {
         $result = @file_get_contents($selectUrl, false, $context);
         
         if ($result === false) {
-            debugLog("Error seleccionando sala via nginx", [
+            debugLog("Error seleccionando sala", [
                 'url' => $selectUrl,
                 'room_id' => $roomId
             ], 'ERROR');
@@ -494,7 +423,7 @@ function selectRoomWithService($token, $roomId, $userData = []) {
         
         $response = json_decode($result, true);
         if ($response && isset($response['success'])) {
-            debugLog("Respuesta de selección de sala via nginx", [
+            debugLog("Respuesta de selección de sala", [
                 'success' => $response['success'],
                 'room_id' => $roomId,
                 'has_ptoken' => isset($response['data']['ptoken'])
@@ -522,13 +451,6 @@ function selectRoomWithService($token, $roomId, $userData = []) {
     }
 }
 
-// ===============================
-// FUNCIONES DE UTILIDAD
-// ===============================
-
-/**
- * Sanitizar entrada de texto
- */
 function sanitizeInput($input) {
     if (is_string($input)) {
         return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
@@ -536,23 +458,14 @@ function sanitizeInput($input) {
     return $input;
 }
 
-/**
- * Validar email
- */
 function isValidEmail($email) {
     return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
 
-/**
- * Validar UUID v4
- */
 function isValidUUID($uuid) {
     return preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $uuid);
 }
 
-/**
- * Obtener IP del cliente
- */
 function getClientIP() {
     $ipKeys = ['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'HTTP_CLIENT_IP', 'REMOTE_ADDR'];
     foreach ($ipKeys as $key) {
@@ -569,9 +482,6 @@ function getClientIP() {
     return $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 }
 
-/**
- * Obtener información del navegador
- */
 function getBrowserInfo() {
     return [
         'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
@@ -581,12 +491,7 @@ function getBrowserInfo() {
     ];
 }
 
-// ===============================
-// INICIALIZACIÓN Y VERIFICACIONES
-// ===============================
-
-// Log de inicio del sistema
-debugLog("Sistema de chat frontend iniciado con nginx proxy", [
+debugLog("Sistema de chat frontend iniciado", [
     'version' => APP_VERSION,
     'environment' => APP_ENV,
     'php_version' => PHP_VERSION,
@@ -597,52 +502,43 @@ debugLog("Sistema de chat frontend iniciado con nginx proxy", [
     'timestamp' => date('c')
 ]);
 
-// Verificar conectividad con servicios en desarrollo
 if (APP_ENV === 'development') {
     $authConnected = checkAuthServiceConnection();
     $chatConnected = checkChatServiceConnection();
     
-    debugLog("Estado de conectividad inicial via nginx", [
+    debugLog("Estado de conectividad inicial", [
         'auth_service' => $authConnected ? 'CONNECTED' : 'DISCONNECTED',
         'chat_service' => $chatConnected ? 'CONNECTED' : 'DISCONNECTED'
     ], $authConnected && $chatConnected ? 'INFO' : 'WARN');
     
-    // Mostrar información de debug en el navegador
     if (isset($_GET['debug'])) {
         echo "<script>
-            console.log('%c🚀 CHAT FRONTEND CONFIG DEBUG (NGINX)', 'background: #007acc; color: white; padding: 2px 5px; border-radius: 3px;');
-            console.log('Auth Service (nginx):', '" . AUTH_SERVICE_URL . "', " . ($authConnected ? "'✅ Connected'" : "'❌ Disconnected'") . ");
-            console.log('Chat Service (nginx):', '" . CHAT_SERVICE_URL . "', " . ($chatConnected ? "'✅ Connected'" : "'❌ Disconnected'") . ");
-            console.log('WebSocket (nginx):', '" . CHAT_WS_URL . "');
+            console.log('%c🚀 CHAT FRONTEND CONFIG DEBUG', 'background: #007acc; color: white; padding: 2px 5px; border-radius: 3px;');
+            console.log('Auth Service:', '" . AUTH_SERVICE_URL . "', " . ($authConnected ? "'✅ Connected'" : "'❌ Disconnected'") . ");
+            console.log('Chat Service:', '" . CHAT_SERVICE_URL . "', " . ($chatConnected ? "'✅ Connected'" : "'❌ Disconnected'") . ");
+            console.log('WebSocket:', '" . CHAT_WS_URL . "');
             console.log('Environment:', '" . APP_ENV . "');
             console.log('Version:', '" . APP_VERSION . "');
         </script>";
     }
 }
 
-// ===============================
-// CONSTANTES ADICIONALES
-// ===============================
-
-// Roles de usuario
 define('ROLE_PATIENT', 1);
 define('ROLE_AGENT', 2);
 define('ROLE_SUPERVISOR', 3);
 define('ROLE_ADMIN', 4);
 
-// Estados de chat
 define('CHAT_STATUS_WAITING', 'waiting');
 define('CHAT_STATUS_ACTIVE', 'active');
 define('CHAT_STATUS_ENDED', 'ended');
 define('CHAT_STATUS_TRANSFERRED', 'transferred');
 
-// Tipos de sala
 define('ROOM_TYPE_GENERAL', 'general');
 define('ROOM_TYPE_MEDICAL', 'medical');
 define('ROOM_TYPE_SUPPORT', 'support');
 define('ROOM_TYPE_EMERGENCY', 'emergency');
 
-debugLog("Configuración completa cargada exitosamente con nginx proxy", [
+debugLog("Configuración completa cargada exitosamente", [
     'constants_defined' => [
         'roles' => ['PATIENT', 'AGENT', 'SUPERVISOR', 'ADMIN'],
         'chat_statuses' => ['WAITING', 'ACTIVE', 'ENDED', 'TRANSFERRED'],

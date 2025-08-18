@@ -14,7 +14,7 @@ if (isset($_GET['logout']) || isset($_GET['force_logout'])) {
     $auth->logout();
     session_destroy();
     session_unset();
-    header("Location: /practicas/chat-frontend/public/index.php");
+    header("Location: index.php");
     exit;
 }
 
@@ -41,19 +41,17 @@ if (
 
         $_SESSION['role'] = $rawRole;
 
-        // ARREGLADO: usar elseif para evitar múltiples redirecciones
         if ($rawRole === 'admin') {
-            header("Location: /practicas/chat-frontend/public/admin.php");
+            header("Location: admin.php");
         } elseif ($rawRole === 'supervisor') {
-            header("Location: /practicas/chat-frontend/public/supervisor.php");
+            header("Location: supervisor.php"); 
         } else {
-            header("Location: /practicas/chat-frontend/public/staff.php");
+            header("Location: staff.php");
         }
         exit;
     }
 }
 
-// ARREGLADO: Verificación existente también corregida
 if (!$redirected && isset($_SESSION['staffJWT']) && isset($_SESSION['user'])) {
     $userData = json_decode($_SESSION['user'], true);
     if ($userData) {
@@ -65,11 +63,11 @@ if (!$redirected && isset($_SESSION['staffJWT']) && isset($_SESSION['user'])) {
         }
 
         if ($userRole === 'admin') {
-            header("Location: /practicas/chat-frontend/public/admin.php");
+            header("Location: admin.php"); 
         } elseif ($userRole === 'supervisor') {
-            header("Location: /practicas/chat-frontend/public/supervisor.php");
+            header("Location: supervisor.php");
         } else {
-            header("Location: /practicas/chat-frontend/public/staff.php");
+            header("Location: staff.php");
         }
         exit;
     }
@@ -83,7 +81,7 @@ if (!$redirected && isset($_SESSION['staffJWT']) && isset($_SESSION['user'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal Médico - Login</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <script src="/practicas/chat-frontend/public/assets/js/auth-client.js"></script>
+    <script src="assets/js/auth-client.js"></script>
     <script>
     const AUTH_BASE_URL = 'http://localhost:3010/auth';
     window.authClient   = new AuthClient(AUTH_BASE_URL);

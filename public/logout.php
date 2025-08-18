@@ -64,7 +64,7 @@ if (isset($_SERVER['HTTP_COOKIE'])) {
             
             // 5. Redirigir después de limpiar
             setTimeout(() => {
-                window.location.href = '/practicas/chat-frontend/public/index.php';
+                window.location.href = 'index.php';
             }, 2000);
         }
 

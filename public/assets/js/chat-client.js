@@ -1,7 +1,7 @@
 class ChatClient {
   constructor() {
     this.chatServiceUrl = 'http://localhost:3011';
-    this.websocketUrl = 'http://localhost:3011';
+    this.wsUrl = 'http://localhost';
     this.fileServiceUrl = 'http://localhost:3011/files';
     
     this.socket = null;
@@ -12,22 +12,19 @@ class ChatClient {
     this.currentUserId = null;
     this.userType = 'patient';
     this.sessionJoined = false;
-    this.lastSentMessage = null; // ✅ Para trackear mensajes enviados
-    
-    console.log('💬 ChatClient inicializado');
+    this.lastSentMessage = null;
+    this.myUploadedFiles = new Set();
+    this.uploadingFiles = new Set();
+    this.lastFileUploadTime = 0;
   }
 
+  
   async connect(pToken, roomId = 'general', userName = 'Paciente') {
     try {
-      console.log('🚀 Iniciando conexión del chat...', { pToken: pToken.substring(0, 15) + '...', roomId, userName });
-      
       const sessionData = await this.createSimpleSession(pToken, roomId, userName);
       this.currentSessionId = sessionData.session_id;
-      this.currentUserId = pToken; // ✅ GUARDAR EL PTOKEN COMPLETO
+      this.currentUserId = pToken;
       this.currentRoom = roomId;
-      
-      console.log('✅ Sesión creada:', sessionData);
-      console.log('🔍 GUARDADO currentUserId:', this.currentUserId?.substring(0, 20) + '...');
       
       await this.connectWebSocket();
       this.joinChat();
@@ -35,7 +32,6 @@ class ChatClient {
       return sessionData;
       
     } catch (error) {
-      console.error('❌ Error conectando chat:', error);
       this.showError('Error conectando al chat: ' + error.message);
       throw error;
     }
@@ -50,9 +46,10 @@ class ChatClient {
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          user_id: pToken,
+          ptoken: pToken,
           user_name: userName,
-          room_id: roomId
+          room_id: roomId,
+          force_new: true
         })
       });
 
@@ -60,15 +57,20 @@ class ChatClient {
 
       if (response.ok && result.success) {
         this.updateConnectionStatus('Sesión creada');
+        
+        // Configurar websocketUrl desde la respuesta del backend
+        if (result.data.websocket_url) {
+          this.websocketUrl = 'ws://187.33.158.246';
+        }
+        
         return result.data;
       } else {
         throw new Error(result.message || 'Error creando sesión');
       }
 
-    } catch (error) {
-      console.error('❌ Error creando sesión:', error);
-      throw error;
-    }
+      } catch (error) {
+        throw error;
+      }
   }
 
   async connectWebSocket() {
@@ -89,6 +91,7 @@ class ChatClient {
         this.updateConnectionStatus('Conectando...');
         
         this.socket = io(this.websocketUrl, {
+          path: '/chat/socket.io/',  
           transports: ['websocket', 'polling'],
           autoConnect: true,
           timeout: 10000,
@@ -104,14 +107,12 @@ class ChatClient {
         });
 
         this.socket.on('connect', () => {
-          console.log('✅ Socket.IO conectado exitosamente');
           this.isConnected = true;
           this.updateConnectionStatus('Conectado');
           resolve();
         });
         
         this.socket.on('disconnect', (reason) => {
-          console.log('🔌 Socket.IO desconectado:', reason);
           this.isConnected = false;
           this.sessionJoined = false;
           this.updateConnectionStatus('Desconectado');
@@ -122,14 +123,12 @@ class ChatClient {
         });
         
         this.socket.on('connect_error', (error) => {
-          console.error('❌ Error de conexión Socket.IO:', error);
           this.isConnected = false;
           this.updateConnectionStatus('Error de conexión');
           reject(error);
         });
 
         this.socket.on('reconnect', (attemptNumber) => {
-          console.log('🔄 Reconectado después de', attemptNumber, 'intentos');
           this.updateConnectionStatus('Reconectado');
           
           if (this.currentSessionId) {
@@ -141,7 +140,6 @@ class ChatClient {
         
         const timeoutId = setTimeout(() => {
           if (!this.isConnected) {
-            console.error('❌ Timeout conectando WebSocket');
             if (this.socket) {
               this.socket.disconnect();
               this.socket = null;
@@ -155,7 +153,6 @@ class ChatClient {
         this.socket.on('connect_error', () => clearTimeout(timeoutId));
         
       } catch (error) {
-        console.error('❌ Error creando Socket.IO:', error);
         this.updateConnectionStatus('Error');
         reject(error);
       }
@@ -167,20 +164,92 @@ class ChatClient {
     this.socket.on('error', (data) => this.handleError(data));
     this.socket.on('new_message', (data) => this.handleNewMessage(data));
     this.socket.on('message_sent', (data) => this.handleMessageSent(data));
-    this.socket.on('session_status_changed', (data) => this.handleSessionStatusChanged(data));
-    this.socket.on('user_joined', (data) => this.handleUserJoined(data));
-    this.socket.on('user_left', (data) => this.handleUserLeft(data));
     this.socket.on('user_typing', (data) => this.handleUserTyping(data));
     this.socket.on('user_stop_typing', (data) => this.handleUserStopTyping(data));
+    this.socket.on('file_uploaded', (data) => this.handleFileUploaded(data));
+  }
+
+  async handleFileUploaded(data) {
+    try {
+      if (data.session_id !== this.currentSessionId) {
+        return;
+      }
+
+      console.log('📁 Paciente - Archivo recibido por WebSocket:', {
+        fileName: data.file_name,
+        fileId: data.file_id,
+        uploaderId: data.uploader_id || data.uploaded_by || data.user_id,
+        uploaderType: data.uploader_type || data.user_type,
+        currentUserId: this.currentUserId,
+        isMyUpload: this.isMyUploadedFile(data)
+      });
+
+      const isMyFile = this.isMyUploadedFile(data);
+      
+      if (isMyFile) {
+        console.log('✅ Ignorando mi propio archivo');
+        return;
+      }
+      
+      console.log('📥 Procesando archivo del agente');
+      
+      const fileData = {
+        id: data.file_id,
+        original_name: data.file_name,
+        file_size: data.file_size,
+        file_type: data.file_type,
+        mime_type: data.mime_type,
+        download_url: data.download_url || `${this.fileServiceUrl}/download/${data.file_id}`,
+        preview_url: `${this.fileServiceUrl}/preview/${data.file_id}`
+      };
+      
+      await this.addFileMessageToChat(data.file_name, fileData, false);
+      
+      if (window.authClient && window.authClient.showNotification) {
+        window.authClient.showNotification(`${data.uploader_name || 'Agente'} envió un archivo: ${data.file_name}`, 'info');
+      }
+      
+      this.playNotificationSound();
+      
+    } catch (error) {
+      console.error('Error procesando archivo recibido:', error);
+    }
+  }
+
+  isMyUploadedFile(data) {
+    if (data.file_id && this.myUploadedFiles.has(data.file_id)) {
+      return true;
+    }
+    
+    if (data.file_name && this.myUploadedFiles.has(data.file_name)) {
+      return true;
+    }
+    
+    if (data.uploader_id && data.uploader_id === this.currentUserId) {
+      return true;
+    }
+    
+    if (data.user_id && data.user_id === this.currentUserId) {
+      return true;
+    }
+    
+    const timeSinceLastUpload = Date.now() - this.lastFileUploadTime;
+    if (timeSinceLastUpload < 10000) {
+      return true;
+    }
+    
+    const fileKey = data.file_name + '_' + data.file_size;
+    if (this.uploadingFiles.has(fileKey)) {
+      return true;
+    }
+    
+    return false;
   }
 
   joinChat() {
     if (!this.socket || !this.socket.connected) {
-      console.warn('⚠️ Socket no está conectado');
       return;
     }
-
-    console.log('🏠 Paciente uniéndose al chat...');
 
     this.socket.emit('join_chat', {
       session_id: this.currentSessionId,
@@ -207,38 +276,44 @@ class ChatClient {
       content: content.trim()
     };
 
-    // ✅ TRACKEAR MENSAJE ENVIADO PARA DETECTARLO CUANDO REGRESE
     this.lastSentMessage = {
       content: content.trim(),
       timestamp: Date.now()
     };
 
-    console.log('📤 [Paciente] Enviando mensaje:', { ...payload, user_id: payload.user_id.slice(0, 15) + '…' });
-
     this.socket.emit('send_message', payload, (response) => {
-      console.log('📨 [Paciente] Respuesta del servidor:', response);
-      
       if (response && response.success) {
-        console.log('✅ Mensaje del paciente enviado exitosamente');
+        // Mensaje enviado exitosamente
       } else {
-        console.error('❌ Error enviando mensaje del paciente:', response?.message || 'Error desconocido');
         this.showError('Error enviando mensaje: ' + (response?.message || 'Error desconocido'));
-        // Limpiar tracking si hay error
         this.lastSentMessage = null;
       }
     });
   }
 
   async uploadFile(file, description = '') {
-    if (!file || !this.currentSessionId) return;
+    if (!file || !this.currentSessionId) {
+      throw new Error('Faltan datos básicos para upload');
+    }
     
     try {
-      console.log('📎 Subiendo archivo:', file.name);
+      let userIdToSend = this.currentUserId;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       
+      if (!uuidRegex.test(this.currentUserId)) {
+        userIdToSend = this.generateSimpleUUID(this.currentUserId);
+      }
+
+      const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      this.uploadingFiles.add(file.name + '_' + file.size);
+      this.lastFileUploadTime = Date.now();
+
       const formData = new FormData();
       formData.append('file', file);
       formData.append('session_id', this.currentSessionId);
-      formData.append('user_id', this.currentUserId);
+      formData.append('user_id', userIdToSend);
+      formData.append('upload_id', uploadId);
       if (description) formData.append('description', description);
       
       const response = await fetch(`${this.fileServiceUrl}/upload`, {
@@ -249,16 +324,73 @@ class ChatClient {
       const result = await response.json();
       
       if (response.ok && result.success) {
-        console.log('✅ Archivo subido exitosamente');
-        return result.data;
+        const fileData = result.data.file || result.data;
+        
+        if (fileData && (fileData.id || fileData.file_id)) {
+          const fileId = fileData.id || fileData.file_id;
+          this.myUploadedFiles.add(fileId);
+          this.myUploadedFiles.add(fileData.original_name || fileData.file_name || file.name);
+        }
+
+        const completeFileData = {
+          id: fileData?.id || fileData?.file_id,
+          original_name: fileData?.original_name || fileData?.file_name || file.name,
+          file_size: fileData?.file_size || fileData?.size || file.size,
+          file_type: fileData?.file_type || fileData?.type || file.type,
+          download_url: fileData?.download_url,
+          ...fileData
+        };
+
+        await this.addFileMessageToChat(
+          completeFileData.original_name, 
+          completeFileData, 
+          true,
+          uploadId
+        );
+        
+        return fileData;
+        
       } else {
-        throw new Error(result.message || 'Error subiendo archivo');
+        let errorMsg = 'Error subiendo archivo';
+        if (result.errors && Array.isArray(result.errors)) {
+          errorMsg = result.errors.join(', ');
+        } else if (result.message) {
+          errorMsg = result.message;
+        }
+        
+        throw new Error(errorMsg);
       }
       
     } catch (error) {
-      console.error('❌ Error upload:', error);
-      this.showError('Error subiendo archivo: ' + error.message);
+      throw error;
+    } finally {
+      this.uploadingFiles.delete(file.name + '_' + file.size);
     }
+  }
+
+  generateSimpleUUID(input) {
+    let hash = 0;
+    if (input.length === 0) return '00000000-0000-4000-8000-000000000000';
+    
+    for (let i = 0; i < input.length; i++) {
+      const char = input.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    
+    hash = Math.abs(hash);
+    const hex = hash.toString(16).padStart(8, '0');
+    const uuid = `${hex.slice(0,8)}-${hex.slice(0,4)}-4${hex.slice(1,4)}-8${hex.slice(1,4)}-${hex}${hex}`.slice(0,36);
+    
+    return uuid.toLowerCase();
+  }
+
+  isValidForUpload(file) {
+    if (!file) return false;
+    if (file.size > 10 * 1024 * 1024) return false;
+    if (!this.currentSessionId) return false;
+    if (!this.currentUserId) return false;
+    return true;
   }
 
   startTyping() {
@@ -281,86 +413,83 @@ class ChatClient {
     }
   }
 
-  // ====== HANDLERS ======
   handleChatJoined(data) {
-    console.log('✅ [Paciente] Chat unido:', data);
     this.sessionJoined = true;
     this.updateConnectionStatus('En chat');
     
     this.clearChatMessages();
     this.addInitialSystemMessages();
     
+    this.myUploadedFiles.clear();
+    this.uploadingFiles.clear();
+    this.lastFileUploadTime = 0;
+    
     setTimeout(() => {
       this.loadMessageHistory();
     }, 3000);
   }
 
-  // ✅ SOLUCIÓN PARA BACKEND ROTO QUE ENVÍA sender_id: null
-  handleNewMessage(data) {
-    console.log('📨 Nuevo mensaje recibido:', data);
-    
-    // Normalizar datos del mensaje
+  async handleNewMessage(data) {
     const messageData = {
       user_id: data.user_id || data.sender_id || data.author_id || data.from || data.userId,
       user_type: data.user_type || data.sender_type || data.type,
       user_name: data.user_name || data.sender_name || data.author_name || data.name || 'Usuario',
       content: data.content || data.message || '',
+      message_type: data.message_type || data.type || 'text',
       timestamp: data.timestamp || data.created_at || data.time || new Date().toISOString(),
       session_id: data.session_id
     };
 
-    // ✅ LÓGICA PARA DETECTAR MENSAJES PROPIOS AUNQUE EL BACKEND ESTÉ ROTO
+    if (messageData.message_type === 'file_upload' || 
+        messageData.content.includes('📎') ||
+        (data.file_data && data.file_data.id)) {
+      
+      const isMyFile = this.isMyUploadedFile(data) || 
+                       this.isMyUploadedFile(messageData) ||
+                       (data.file_data && this.myUploadedFiles.has(data.file_data.id));
+      
+      if (isMyFile) {
+        return;
+      }
+      
+      if (data.file_data) {
+        const fileData = {
+          id: data.file_data.id,
+          original_name: data.file_data.original_name || data.file_data.name,
+          file_size: data.file_data.file_size || data.file_data.size,
+          mime_type: data.file_data.mime_type || data.file_data.file_type,
+          download_url: data.file_data.download_url || `${this.fileServiceUrl}/download/${data.file_data.id}`
+        };
+        
+        await this.addFileMessageToChat(fileData.original_name, fileData, false);
+        return;
+      }
+    }
+
     let isMine = false;
     
-    // Método 1: Comparación directa si tenemos el ID
     if (messageData.user_id && messageData.user_id === this.currentUserId) {
       isMine = true;
-      console.log('✅ Es mío por ID exacto');
     }
-    // Método 2: Si es paciente en MI sesión y yo soy el único paciente
     else if (messageData.user_type === 'patient' && 
              messageData.session_id === this.currentSessionId &&
              this.userType === 'patient') {
       isMine = true;
-      console.log('✅ Es mío porque soy el único paciente en esta sesión');
     }
-    // Método 3: Detectar por timing (mensaje reciente que acabo de enviar)
     else if (this.lastSentMessage && 
              this.lastSentMessage.content === messageData.content &&
              Date.now() - this.lastSentMessage.timestamp < 3000) {
       isMine = true;
-      console.log('✅ Es mío por timing y contenido');
-      this.lastSentMessage = null; // Limpiar para evitar false positives
+      this.lastSentMessage = null;
     }
 
-    console.log('📨 ¿Es mío?:', isMine);
     this.addMessageToUI(messageData, isMine);
   }
 
   handleMessageSent(data) {
-    console.log('✅ Mensaje enviado confirmado:', data);
+    // Mensaje enviado confirmado
   }
 
-  handleSessionStatusChanged(data) {
-    console.log('🔄 Estado de sesión cambiado:', data);
-    if (data.status === 'active' && data.agent_id) {
-      this.addSystemMessage('Un agente médico se ha unido a la conversación');
-    }
-  }
-
-  handleUserJoined(data) {
-    console.log('👤 Usuario se unió:', data);
-    if (data.user_type === 'agent') {
-      this.addSystemMessage('Un agente médico está ahora disponible');
-    }
-  }
-
-  handleUserLeft(data) {
-    console.log('👤 Usuario se fue:', data);
-    if (data.user_type === 'agent') {
-      this.addSystemMessage('El agente médico ha salido de la conversación');
-    }
-  }
 
   handleUserTyping(data) {
     if (data.user_type === 'agent' && data.user_id !== this.currentUserId) {
@@ -375,17 +504,17 @@ class ChatClient {
   }
 
   handleError(data) {
-    console.error('❌ Error del chat:', data);
+    if (data.message && data.message.includes('Error enviando mensaje')) {
+      return;
+    }
+    
     this.showError(data.message || 'Error en el chat');
   }
 
-  // ✅ CARGAR HISTORIAL CON LÓGICA CORREGIDA
   async loadMessageHistory() {
     if (!this.currentSessionId) return;
 
     try {
-      console.log('📚 Cargando historial...');
-      
       const response = await fetch(
         `${this.chatServiceUrl}/messages/${this.currentSessionId}?limit=50`,
         { headers: { Accept: 'application/json' } }
@@ -406,7 +535,6 @@ class ChatClient {
           session_id: msg.session_id
         };
 
-        // ✅ MISMA LÓGICA DE DETECCIÓN QUE handleNewMessage
         let isMine = false;
         
         if (messageData.user_id && messageData.user_id === this.currentUserId) {
@@ -422,11 +550,10 @@ class ChatClient {
 
       this.scrollToBottom();
     } catch (error) {
-      console.error('❌ Error cargando historial:', error);
+      console.error('Error cargando historial:', error);
     }
   }
 
-  // ✅ MOSTRAR MENSAJES EN UI
   addMessageToUI(messageData, isMine, scroll = true) {
     const container = document.getElementById('chatMessages');
     if (!container) return;
@@ -468,7 +595,6 @@ class ChatClient {
     }
   }
 
-  // ✅ MENSAJES DEL SISTEMA COMO AGENTE
   addSystemMessage(content) {
     const container = document.getElementById('chatMessages');
     if (!container) return;
@@ -478,7 +604,7 @@ class ChatClient {
     messageDiv.innerHTML = `
       <div class="flex justify-start">
         <div class="max-w-xs lg:max-w-md bg-gray-200 text-gray-900 rounded-lg px-4 py-2">
-          <div class="text-xs font-medium text-gray-600 mb-1">Agente</div>
+          <div class="text-xs font-medium text-gray-600 mb-1">Sistema</div>
           <p>${this.formatMessage(content)}</p>
           <div class="text-xs text-gray-500 mt-1">${this.formatTime(new Date().toISOString())}</div>
         </div>
@@ -503,7 +629,240 @@ class ChatClient {
     });
   }
 
-  // ✅ UTILITY METHODS
+  // ✅ FUNCIÓN MODIFICADA PARA USAR SOLO PREVIEW
+  addFileMessageToChat(fileName, fileData, isMine = true, uploadId = null) {
+    const container = document.getElementById('chatMessages');
+    if (!container) return;
+
+    // Evitar duplicados
+    const existingMessages = container.querySelectorAll('.mb-4');
+    for (let msg of existingMessages) {
+      const existingFileName = msg.querySelector('.font-medium')?.textContent?.trim();
+      const isExistingMine = msg.querySelector('.bg-blue-600') !== null;
+      
+      if (existingFileName === fileName && isExistingMine === isMine) {
+        return;
+      }
+    }
+
+    const time = new Date().toLocaleTimeString('es-ES', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'mb-4';
+    
+    if (uploadId) {
+      messageDiv.setAttribute('data-upload-id', uploadId);
+    }
+    
+    if (fileData && (fileData.id || fileData.file_id)) {
+      messageDiv.setAttribute('data-file-id', fileData.id || fileData.file_id);
+    }
+
+    // ✅ CONSTRUIR URL DE PREVIEW ÚNICAMENTE
+    let previewUrl = '#';
+    let fileSize = null;
+    let fileId = null;
+
+    if (fileData) {
+      fileId = fileData.id || fileData.file_id || fileData.fileId;
+      fileSize = fileData.file_size || fileData.size || fileData.fileSize;
+      
+      if (fileId) {
+        previewUrl = `${this.fileServiceUrl}/preview/${fileId}`;
+        console.log('📎 URL de preview construida:', previewUrl);
+      } else if (fileData.preview_url) {
+        previewUrl = fileData.preview_url;
+        console.log('📎 URL de preview desde preview_url:', previewUrl);
+      } else if (fileData.download_url) {
+        // Convertir download URL a preview URL si existe
+        previewUrl = fileData.download_url.replace('/download/', '/preview/');
+        console.log('📎 URL convertida a preview:', previewUrl);
+      }
+    }
+
+    // ✅ VERIFICAR SI SE PUEDE PREVISUALIZAR
+    const canPreview = canPreviewFile(fileName, fileData?.file_type || fileData?.mime_type);
+    const hasValidPreviewUrl = previewUrl !== '#' && !previewUrl.includes('undefined') && !previewUrl.includes('null');
+    const showPreviewButton = canPreview && hasValidPreviewUrl;
+
+    console.log('🔍 Verificación de preview:', {
+      fileName: fileName,
+      canPreview: canPreview,
+      hasValidPreviewUrl: hasValidPreviewUrl,
+      showPreviewButton: showPreviewButton,
+      previewUrl: previewUrl
+    });
+
+    if (isMine) {
+      // ✅ ARCHIVO DEL PACIENTE - LADO DERECHO (AZUL) CON BOTÓN "VER"
+      const previewButton = showPreviewButton ? 
+        `<button onclick="openFileInNewTab('${previewUrl}', '${fileName.replace(/'/g, "\\'")}')" 
+                class="inline-flex items-center text-xs bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded mt-2 transition-colors"
+                title="Ver ${fileName}">
+          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+          </svg>
+          Ver
+        </button>` : 
+        `<span class="inline-flex items-center text-xs bg-gray-600 text-white px-3 py-1.5 rounded mt-2"
+              title="Vista previa no disponible para este tipo de archivo">
+          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          No disponible
+        </span>`;
+      
+      messageDiv.innerHTML = `
+        <div class="flex justify-end">
+          <div class="max-w-xs lg:max-w-md bg-blue-600 text-white rounded-lg px-4 py-2">
+            <div class="text-xs opacity-75 mb-1">Yo</div>
+            <div class="flex items-center space-x-2">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+              </svg>
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-sm truncate">${fileName}</p>
+                ${fileSize ? 
+                  `<p class="text-xs opacity-75">${this.formatFileSize(fileSize)}</p>` : 
+                  ''
+                }
+              </div>
+            </div>
+            <div class="mt-2">
+              ${previewButton}
+            </div>
+            <div class="text-xs opacity-75 mt-1 text-right">${time}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      // ✅ ARCHIVO DEL AGENTE - LADO IZQUIERDO (GRIS) CON BOTÓN "VER"
+      const previewButton = showPreviewButton ? 
+        `<button onclick="openFileInNewTab('${previewUrl}', '${fileName.replace(/'/g, "\\'")}')" 
+                class="inline-flex items-center text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded mt-2 transition-colors"
+                title="Ver ${fileName}">
+          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+          </svg>
+          Ver
+        </button>` : 
+        `<span class="inline-flex items-center text-xs bg-gray-600 text-white px-3 py-1.5 rounded mt-2"
+              title="Vista previa no disponible para este tipo de archivo">
+          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          No disponible
+        </span>`;
+
+      messageDiv.innerHTML = `
+        <div class="flex justify-start">
+          <div class="max-w-xs lg:max-w-md bg-gray-200 text-gray-900 rounded-lg px-4 py-2">
+            <div class="text-xs font-medium text-gray-600 mb-1">Agente</div>
+            <div class="flex items-center space-x-2">
+              <svg class="w-4 h-4 flex-shrink-0 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+              </svg>
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-sm truncate">${fileName}</p>
+                ${fileSize ? 
+                  `<p class="text-xs text-gray-500">${this.formatFileSize(fileSize)}</p>` : 
+                  ''
+                }
+              </div>
+            </div>
+            <div class="mt-2">
+              ${previewButton}
+            </div>
+            <div class="text-xs text-gray-500 mt-1">${time}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    container.appendChild(messageDiv);
+    
+    setTimeout(() => {
+      container.scrollTop = container.scrollHeight;
+    }, 100);
+  }
+
+  getFileIcon(fileType, mimeType) {
+    const type = fileType?.toLowerCase() || '';
+    const mime = mimeType?.toLowerCase() || '';
+    
+    if (mime.startsWith('image/')) {
+      return '🖼️';
+    } else if (mime === 'application/pdf') {
+      return '📄';
+    } else if (mime.includes('word') || mime.includes('document')) {
+      return '📝';
+    } else if (mime.includes('excel') || mime.includes('spreadsheet')) {
+      return '📊';
+    } else if (mime.includes('powerpoint') || mime.includes('presentation')) {
+      return '📽️';
+    } else if (mime.startsWith('audio/')) {
+      return '🎵';
+    } else if (mime.startsWith('video/')) {
+      return '🎬';
+    } else if (mime === 'text/plain') {
+      return '📃';
+    } else {
+      return '📎';
+    }
+  }
+
+  async getImagePreview(fileId) {
+    try {
+      const response = await fetch(`${this.fileServiceUrl}/to-base64/${fileId}`);
+      const result = await response.json();
+      
+      if (response.ok && result.success && result.data.base64_content) {
+        return `data:${result.data.mime_type};base64,${result.data.base64_content}`;
+      }
+    } catch (error) {
+      console.error('Error obteniendo preview:', error);
+    }
+    return null;
+  }
+
+  formatFileSize(bytes) {
+    if (!bytes) return '';
+    
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+  }
+
+  formatRelativeTime(timestamp) {
+    try {
+      const now = new Date();
+      const date = new Date(timestamp);
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      
+      if (diffMins < 1) return 'ahora';
+      if (diffMins < 60) return `hace ${diffMins} min`;
+      
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `hace ${diffHours}h`;
+      
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays < 7) return `hace ${diffDays}d`;
+      
+      return date.toLocaleDateString('es-ES', { 
+        day: '2-digit', 
+        month: '2-digit' 
+      });
+    } catch (error) {
+      return '';
+    }
+  }
+
   formatMessage(message) {
     if (!message || typeof message !== 'string') return '';
     
@@ -573,11 +932,9 @@ class ChatClient {
     if (chatStatus) {
       chatStatus.textContent = status;
     }
-    console.log('📡 Estado:', status);
   }
 
   showError(message) {
-    console.error('Chat Error:', message);
     if (window.authClient) {
       window.authClient.showError(message);
     } else {
@@ -596,8 +953,6 @@ class ChatClient {
   }
 
   disconnect() {
-    console.log('🔌 Desconectando chat...');
-    
     this.isConnected = false;
     this.sessionJoined = false;
     
@@ -616,15 +971,43 @@ class ChatClient {
       currentUserId: this.currentUserId ? this.currentUserId.substring(0, 15) + '...' : null,
       socketConnected: this.socket ? this.socket.connected : false,
       chatServiceUrl: this.chatServiceUrl,
-      websocketUrl: this.websocketUrl
+      websocketUrl: this.websocketUrl,
+      fileServiceUrl: this.fileServiceUrl,
+      lastFileUploadTime: this.lastFileUploadTime
     };
+  }
+
+  cleanDuplicateFiles() {
+    const container = document.getElementById('chatMessages');
+    if (!container) return;
+    
+    const allMessages = container.querySelectorAll('.mb-4');
+    const seen = new Map();
+    let removedCount = 0;
+    
+    allMessages.forEach(msg => {
+      const fileName = msg.querySelector('.file-name')?.textContent?.trim();
+      const isOwn = msg.querySelector('.bg-blue-600') !== null;
+      
+      if (fileName) {
+        const key = `${fileName}_${isOwn}`;
+        if (seen.has(key)) {
+          msg.remove();
+          removedCount++;
+        } else {
+          seen.set(key, true);
+        }
+      }
+    });
+    
+    if (removedCount > 0) {
+      console.log(`Limpieza completada. ${removedCount} duplicados removidos`);
+    }
   }
 }
 
-// ✅ CREAR INSTANCIA GLOBAL
 window.chatClient = new ChatClient();
 
-// ✅ EVENT LISTENERS
 document.addEventListener('DOMContentLoaded', function() {
   const messageInput = document.getElementById('messageInput');
   
@@ -652,7 +1035,107 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-// ✅ FUNCIONES GLOBALES
+function showNotification(message, type = 'info', duration = 4000) {
+    if (window.authClient && window.authClient.showNotification) {
+        window.authClient.showNotification(message, type, duration);
+    } else {
+        console.log(`[${type.toUpperCase()}] ${message}`);
+        // Crear notificación visual simple si no hay authClient
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm text-white ${
+            type === 'success' ? 'bg-green-500' : 
+            type === 'error' ? 'bg-red-500' : 
+            type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+        }`;
+        notification.innerHTML = `
+            <div class="flex items-center justify-between">
+                <span>${message}</span>
+                <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-xl">×</button>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, duration);
+    }
+}
+
+// ✅ FUNCIÓN GLOBAL PARA ABRIR ARCHIVOS EN PREVIEW
+function openFileInNewTab(url, fileName) {
+    console.log('🔍 Paciente abriendo vista previa:', { url, fileName });
+    
+    if (!url || url === '#' || url.includes('undefined')) {
+        showNotification('No se puede mostrar la vista previa de este archivo', 'error');
+        return;
+    }
+    
+    // Verificar que la URL sea válida
+    try {
+        new URL(url, window.location.origin);
+    } catch (error) {
+        console.error('URL inválida:', url, error);
+        showNotification('URL de archivo inválida: ' + url, 'error');
+        return;
+    }
+    
+    try {
+        console.log('🚀 Abriendo ventana para:', url);
+        
+        // Abrir en nueva pestaña para previsualización
+        const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+        
+        if (newWindow) {
+            newWindow.focus();
+            showNotification(`Abriendo vista previa de ${fileName}`, 'info', 2000);
+        } else {
+            // Fallback si el popup fue bloqueado
+            console.log('📎 Popup bloqueado, usando fallback');
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showNotification(`Vista previa de ${fileName} abierta`, 'info', 2000);
+        }
+        
+    } catch (error) {
+        console.error('Error abriendo archivo:', error);
+        showNotification('Error abriendo archivo: ' + error.message, 'error');
+    }
+}
+
+// ✅ FUNCIÓN GLOBAL PARA VERIFICAR SI SE PUEDE PREVISUALIZAR
+function canPreviewFile(fileName, fileType) {
+    if (!fileName) return false;
+    
+    const fileName_lower = fileName.toLowerCase();
+    
+    // Verificar por extensión de archivo
+    if (fileName_lower.match(/\.(pdf|jpg|jpeg|png|gif|bmp|webp|txt|csv|json|xml|log|html|md)$/)) {
+        return true;
+    }
+    
+    // Verificar por tipo MIME
+    if (fileType) {
+        const previewableTypes = [
+            'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp',
+            'application/pdf',
+            'text/plain', 'text/csv', 'text/html', 'text/markdown',
+            'application/json', 'application/xml'
+        ];
+        
+        return previewableTypes.includes(fileType.toLowerCase());
+    }
+    
+    return false;
+}
+
 function sendMessage() {
   if (!window.chatClient) {
     alert('Error: ChatClient no está cargado');
@@ -687,23 +1170,92 @@ function sendMessage() {
 function handleFileUpload(files) {
   if (!files || files.length === 0) return;
   
-  const file = files[0];
-  
-  if (file.size > 10 * 1024 * 1024) {
-    if (window.authClient) {
-      window.authClient.showError('Archivo muy grande (máximo 10MB)');
-    } else {
-      alert('Archivo muy grande (máximo 10MB)');
-    }
+  if (!window.chatClient) {
+    alert('Error: Chat no está listo');
     return;
   }
   
-  if (window.chatClient) {
-    window.chatClient.uploadFile(file);
+  const file = files[0];
+  
+  if (file.size > 10 * 1024 * 1024) {
+    const sizeMB = Math.round(file.size / 1024 / 1024 * 100) / 100;
+    alert(`Archivo muy grande: ${sizeMB}MB (máximo 10MB)`);
+    return;
   }
+  
+  if (!window.chatClient.currentSessionId) {
+    alert('Error: No hay sesión activa');
+    return;
+  }
+  
+  if (!window.chatClient.isConnected || !window.chatClient.sessionJoined) {
+    alert('Error: Chat no está conectado. Inténtalo de nuevo.');
+    return;
+  }
+  
+  const fileInput = document.getElementById('fileInput');
+  const uploadButton = document.querySelector('button[onclick*="fileInput"]') || 
+                       document.getElementById('uploadButton');
+  
+  if (uploadButton) {
+    uploadButton.disabled = true;
+    uploadButton.innerHTML = `
+      <svg class="w-4 h-4 animate-spin mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+      </svg>
+      <span>Subiendo...</span>
+    `;
+  }
+  
+  if (fileInput) {
+    fileInput.disabled = true;
+  }
+  
+  window.chatClient.uploadFile(file)
+    .then((result) => {
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      
+      const fileName = result?.original_name || result?.file_name || file.name;
+      
+      if (window.authClient && window.authClient.showNotification) {
+        window.authClient.showNotification(`Archivo subido: ${fileName}`, 'success');
+      }
+      
+    })
+    .catch((error) => {
+      if (window.authClient && window.authClient.showNotification) {
+        window.authClient.showNotification('Error subiendo archivo: ' + error.message, 'error');
+      } else {
+        alert('Error subiendo archivo: ' + error.message);
+      }
+    })
+    .finally(() => {
+      if (uploadButton) {
+        uploadButton.disabled = false;
+        uploadButton.innerHTML = `
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+          </svg>
+          <span>Adjuntar archivo</span>
+        `;
+      }
+      
+      if (fileInput) {
+        fileInput.disabled = false;
+      }
+    });
 }
 
+// ✅ EXPORTAR FUNCIONES GLOBALMENTE
+window.openFileInNewTab = openFileInNewTab;
+window.canPreviewFile = canPreviewFile;
+window.showNotification = showNotification;
 window.sendMessage = sendMessage;
 window.handleFileUpload = handleFileUpload;
-
-console.log('💬 ChatClient ARREGLADO - Backend roto solucionado ✅');
+window.cleanDuplicateFiles = () => {
+  if (window.chatClient) {
+    window.chatClient.cleanDuplicateFiles();
+  }
+};

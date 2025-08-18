@@ -1,8 +1,7 @@
 <?php
-// config/auth.php - CORREGIDO SIN REDIRECCIONES PROBLEMÁTICAS
 
 class AuthHelper {
-    private $authServiceURL = 'http://localhost:3010/auth';
+    private $authServiceURL = 'http://187.33.158.246/auth/';
     
     public function __construct() {
         if (session_status() == PHP_SESSION_NONE) {
