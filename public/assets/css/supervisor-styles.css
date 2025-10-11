@@ -1,0 +1,784 @@
+
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* ============== NAVEGACIÓN BASE ============== */
+        .nav-link.active { 
+            background: #7c3aed; 
+            color: white; 
+        }
+        .nav-link { 
+            display: flex; 
+            align-items: center; 
+            gap: 0.75rem; 
+            padding: 0.75rem 1rem; 
+            font-size: 0.875rem; 
+            font-weight: 500; 
+            color: #6b7280; 
+            text-decoration: none; 
+            border-radius: 0.5rem; 
+            transition: all 0.15s ease-in-out; 
+        }
+        .nav-link:hover { 
+            background: #f3f4f6; 
+            color: #1f2937; 
+        }
+        
+        /* ============== ELEMENTOS DE SUPERVISOR ============== */
+        .content-card {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+            border: 1px solid #e5e7eb;
+        }
+        
+        .transfer-card, .escalation-card {
+            background: white;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+            border: 1px solid #e5e7eb;
+            transition: transform 0.15s ease;
+        }
+        .transfer-card:hover, .escalation-card:hover {
+            transform: translateY(-1px);
+        }
+        
+        .priority-high { border-left: 4px solid #dc2626; }
+        .priority-medium { border-left: 4px solid #f59e0b; }
+        .priority-low { border-left: 4px solid #10b981; }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-size: 0.875rem;
+        }
+        
+        .btn-primary { background: #7c3aed; color: white; }
+        .btn-primary:hover { background: #6d28d9; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-warning:hover { background: #d97706; }
+        
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #7c3aed;
+            border-radius: 50%;
+            width: 2rem;
+            height: 2rem;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #6b7280;
+        }
+
+        /* ============== CHAT ELEMENTS ============== */
+        .chat-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: row;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chat-container .flex-1 {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Prevenir overflow */
+        }
+        
+        .chat-header {
+            flex-shrink: 0;
+            min-height: 80px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 1rem 1.5rem;
+        }
+        
+        .chat-messages-container {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            background-color: #f9fafb;
+            min-height: 0; /* Importante para flex */
+        }
+        
+        .chat-input-area {
+            flex-shrink: 0;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            padding: 1rem;
+        }
+        
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-messages::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 6px;
+        }
+        
+        .chat-message {
+            margin-bottom: 1rem;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .typing-dots { display: flex; gap: 4px; }
+        .typing-dot {
+            width: 6px; height: 6px; background: #9ca3af; border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        .timer-display {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-taken { background: #dbeafe; color: #1e40af; }
+        .status-urgent { background: #fecaca; color: #991b1b; }
+        .status-high { background: #fecaca; color: #991b1b; }
+        .status-medium { background: #fef3c7; color: #92400e; }
+        .status-low { background: #d1fae5; color: #065f46; }
+        
+        .mobile-nav-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-nav-backdrop.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .mobile-nav {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .mobile-nav.active {
+            transform: translateX(0);
+        }
+        body {
+            overflow-x: hidden; /* Eliminar scroll horizontal global */
+        }
+
+        .main-container,
+        .content-main {
+            overflow-x: hidden;
+        }
+        /* Patient Info Sidebar Móvil */
+        .patient-info-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .patient-info-backdrop.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .patient-info-mobile {
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .patient-info-mobile.active {
+            transform: translateX(0);
+        }
+
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+        }
+
+        /* ============== SIDEBAR DE INFORMACIÓN DEL PACIENTE OPTIMIZADA ============== */
+        .patient-info-sidebar {
+            width: 280px;
+            min-width: 280px;
+            max-width: 280px;
+            background: #f9fafb;
+            border-left: 1px solid #e5e7eb;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .chat-container > .flex {
+            width: 100%;
+            max-width: none;
+        }
+
+        .chat-container .flex-1 {
+            flex: 1;
+            min-width: 0;
+            width: 100%;
+            /* Usar todo el espacio hasta el borde de la sidebar de info */
+            margin-right: 0;
+        }
+
+        /* Ajustar el contenedor principal del chat */
+        #supervisor-chat-section .chat-container {
+            width: 100%;
+            max-width: calc(100vw - 256px); /* viewport - sidebar de navegación */
+        }
+
+        @media (min-width: 1024px) {
+            #supervisor-chat-section .chat-container {
+                max-width: calc(100vw - 256px); /* Solo descontar sidebar de navegación en desktop */
+            }
+            
+            .chat-container .flex-1 {
+                /* En desktop, usar todo el espacio disponible menos la sidebar de info */
+                max-width: calc(100% - 220px);
+            }
+        }
+
+        @media (max-width: 1023px) {
+            /* Sidebar como overlay en móvil */
+            .patient-info-sidebar {
+                position: fixed;
+                right: 0;
+                top: 0;
+                height: 100vh;
+                z-index: 50;
+                width: 320px;
+                min-width: 320px;
+                max-width: 320px;
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+                background: white;
+                box-shadow: -4px 0 8px rgba(0, 0, 0, 0.1);
+            }
+            
+            .patient-info-sidebar.active {
+                transform: translateX(0);
+            }
+            
+            /* Chat usa todo el ancho en móvil */
+            .chat-container {
+                max-width: 100vw;
+                width: 100vw;
+                height: 100vh;
+                margin: 0;
+                padding: 0;
+            }
+            
+            .chat-container .flex-1 {
+                max-width: 100%;
+                width: 100%;
+                height: 100%;
+            }
+            
+            /* Ajustes del header móvil */
+            .chat-header {
+                min-height: 70px;
+                padding: 1rem;
+                width: 100%;
+            }
+            
+            .chat-messages {
+                padding: 1rem;
+                max-height: calc(100vh - 70px - 100px);
+                width: 100%;
+            }
+            
+            .chat-input-area {
+                min-height: 100px;
+                padding: 1rem;
+                width: 100%;
+            }
+            
+            /* MANTENER botón de header visible en móvil */
+            #patientInfoButton {
+                display: flex !important;
+            }
+        }
+        /* Responsive Layout Mejorado */
+        @media (max-width: 1024px) {
+            .patient-info-sidebar {
+                position: fixed;
+                right: 0;
+                top: 0;
+                height: 100vh;
+                z-index: 50;
+                width: 300px;  /* En móvil mantener un poco más de ancho */
+                min-width: 300px;
+                max-width: 300px;
+            }
+            .chat-container .flex-1 {
+                max-width: 100vw; /* En tablet/móvil usar todo el ancho */
+            }
+        }
+
+        @media (max-width: 480px) {
+            .transfer-card .flex.flex-col.gap-2,
+            .escalation-card .flex.flex-col.gap-2 {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .chat-header h2 {
+                font-size: 0.875rem;
+            }
+            
+            .chat-messages {
+                max-height: calc(100vh - 56px - 80px);
+                padding: 0.75rem 0.5rem;
+            }
+            
+            .chat-input-area {
+                min-height: 80px;
+                padding: 0.5rem 0.75rem;
+            }
+            
+            /* Botones aún más pequeños en pantallas muy pequeñas */
+            .transfer-card .btn,
+            .escalation-card .btn {
+                width: 100%;
+                flex: none;
+                padding: 0.5rem;
+                font-size: 0.75rem;
+            }
+        }
+            
+            /* Cards responsive */
+            .transfer-card,
+            .escalation-card {
+                padding: 0.75rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            .transfer-card .flex.items-start.justify-between,
+            .escalation-card .flex.items-start.justify-between {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: stretch;
+            }
+            
+            .transfer-card .flex.flex-col.gap-2,
+            .escalation-card .flex.flex-col.gap-2 {
+                margin-left: 0;
+                width: 100%;
+                flex-direction: row;
+                justify-content: space-between;
+                gap: 0.5rem;
+                flex-wrap: wrap;
+            }
+        
+
+        @media (max-width: 768px) {
+            .transfer-card,
+            .escalation-card {
+                overflow: hidden; /* Importante para contener botones */
+            }
+            
+            .sidebar-main {
+                position: fixed;
+                left: 0;
+                top: 0;
+                height: 100vh;
+                z-index: 50;
+            }
+            
+            .main-container {
+                flex-direction: column;
+                height: 100vh;
+                overflow: hidden;
+                width: 100vw;
+            }
+            
+            .content-main {
+                width: 100vw;
+                height: 100vh;
+                margin-left: 0;
+                overflow: hidden;
+                padding: 0;
+            }
+            
+            /* Chat ocupa TODA la pantalla en móvil */
+            #supervisor-chat-section {
+                width: 100vw;
+                height: 100vh;
+                margin: 0;
+                padding: 0;
+            }
+            
+            #supervisor-chat-section .chat-container {
+                height: 100vh;
+                max-width: 100vw;
+                width: 100vw;
+                margin: 0;
+                padding: 0;
+            }
+            
+            .chat-header {
+                min-height: 64px;
+                padding: 0.75rem 1rem;
+            }
+            
+            .chat-messages {
+                max-height: calc(100vh - 64px - 90px);
+                padding: 1rem 0.75rem;
+            }
+            
+            .chat-input-area {
+                min-height: 90px;
+                padding: 0.75rem 1rem;
+            }
+            
+            /* Sidebar ocupa toda la pantalla en móvil */
+            .patient-info-sidebar {
+                width: 100vw;
+                min-width: 100vw;
+                max-width: 100vw;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .transfer-card > div,
+            .escalation-card > div {
+                overflow: hidden;
+            }
+            
+            .transfer-card .ml-4,
+            .escalation-card .ml-4 {
+                margin-left: 0;
+                width: 100%;
+                margin-top: 1rem;
+            }
+
+            /* Quitar todos los márgenes/padding que afecten el chat en móvil */
+            @media (max-width: 1023px) {
+                #supervisor-chat-section .p-6 {
+                    padding: 0 !important;
+                }
+                
+                #supervisor-chat-section main {
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+                
+                /* Asegurar que el contenedor flex del chat use todo el espacio */
+                .chat-container > .flex {
+                    width: 100vw;
+                    height: 100vh;
+                    max-width: none;
+                }
+                
+                /* Header del chat responsive */
+                .chat-header .flex.items-center.justify-between {
+                    flex-wrap: wrap;
+                    gap: 0.5rem;
+                }
+                
+                .chat-header h2 {
+                    font-size: 1rem;
+                    flex: 1;
+                    min-width: 0;
+                }
+            }
+            /* Botones responsive */
+            .btn {
+                font-size: 0.75rem;
+                padding: 0.5rem 0.75rem;
+            }
+            
+            .btn-responsive {
+                font-size: 0.75rem !important;
+                padding: 0.375rem 0.75rem !important;
+            }
+            
+            .btn-icon-only {
+                padding: 0.375rem !important;
+            }
+            
+            /* Cards de transferencias y escalaciones - botones en columna */
+            .transfer-card .flex.flex-col.gap-2,
+            .escalation-card .flex.flex-col.gap-2 {
+                flex-direction: column;
+                width: 100%;
+                gap: 0.5rem;
+            }
+            
+            .transfer-card .btn,
+            .escalation-card .btn {
+                width: 100%;
+                white-space: normal;
+                word-wrap: break-word;
+                hyphens: auto;
+                text-align: center;
+                min-height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+        }
+
+        .patient-info-floating-btn {
+            display: none ;
+        }
+
+        /* ============== OPTIMIZACIÓN DEL CONTENIDO DE LA SIDEBAR ============== */
+        .patient-info-content {
+            padding: 1.25rem;
+            height: fit-content;
+        }
+
+        .patient-info-content .space-y-3 > div {
+            margin-bottom: 0.75rem; /* Espaciado más compacto */
+        }
+
+        .patient-info-content h3 {
+            margin-bottom: 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .patient-info-content label {
+            font-size: 0.75rem;
+            margin-bottom: 0.25rem;
+            display: block;
+        }
+
+        .patient-info-content p {
+            font-size: 0.875rem;
+            line-height: 1.25;
+            word-wrap: break-word;
+        }
+
+        /* Dropdown para agentes */
+        .dropdown {
+            position: relative;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .dropdown-content.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6;
+            transition: background-color 0.15s ease;
+        }
+
+        .dropdown-item:hover {
+            background-color: #f9fafb;
+        }
+
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        /* Sidebar principal estática */
+        @media (min-width: 1024px) {
+            .main-container {
+                position: relative;
+                min-height: 100vh;
+                overflow: hidden;
+            }
+            .patient-info-sidebar {
+                position: static;
+                transform: none !important;
+                display: block !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+            }
+            .chat-container {
+                max-width: calc(100vw - 256px); /* viewport - sidebar de navegación */
+            }
+            
+            .chat-container .flex-1 {
+                max-width: calc(100% - 280px); /* Espacio para sidebar de paciente */
+            }
+            
+            /* Ocultar botón de info en header en desktop */
+            #patientInfoButton {
+                display: none !important;
+            }
+            /* Sidebar de navegación fija */
+            .main-container > .hidden.lg\\:flex {
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                height: 100vh !important;
+                z-index: 30 !important;
+                flex-shrink: 0 !important;
+            }
+            .main-container > .hidden.lg\\:flex {
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                height: 100vh !important;
+                z-index: 30 !important;
+                flex-shrink: 0 !important;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+            
+            /* Contenido principal con margen para la sidebar fija */
+            .content-main {
+                margin-left: 256px !important;
+                width: calc(100vw - 256px) !important;
+                min-height: 100vh !important;
+                overflow: hidden;
+            }
+            
+            /* Asegurar que la sidebar no se expanda */
+            .main-container > .hidden.lg\\:flex {
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+        }
+        @media (max-width: 375px) {
+            /* Para pantallas muy pequeñas como iPhone SE */
+            .transfer-card,
+            .escalation-card {
+                padding: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            .transfer-card .grid.grid-cols-2,
+            .escalation-card .grid.grid-cols-2 {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+            
+            .transfer-card .btn,
+            .escalation-card .btn {
+                font-size: 0.625rem;
+                padding: 0.25rem 0.5rem;
+                min-height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            /* Status badges más pequeños */
+            .status-badge {
+                font-size: 0.625rem;
+                padding: 0.125rem 0.5rem;
+            }
+            
+            /* Grid responsive para información del paciente */
+            .bg-blue-50.rounded-lg.p-3 .grid.grid-cols-2,
+            .bg-purple-50.rounded-lg.p-3 .grid.grid-cols-2 {
+                grid-template-columns: 1fr;
+                gap: 0.25rem;
+            }
+        }
+
+        .main-container,
+        .content-main,
+        .section-content {
+            overflow-x: hidden;
+            width: 100%;
+        }
+
+        .content-card {
+            overflow-x: hidden;
+            max-width: 100%;
+        }
+        .rotate-180 {
+            transform: rotate(180deg);
+        }
+
+        .rejection-reason-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-left: 3px solid #64748b;
+        }
+
+        .rejection-reason-card:hover {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            transform: translateX(2px);
+            transition: all 0.2s ease;
+        }

@@ -1,12 +1,13 @@
 class ChatClient {
   constructor() {
-    this.chatServiceUrl = 'http://localhost:3011';
-    this.wsUrl = 'http://localhost';
-    this.fileServiceUrl = 'http://localhost:3011/files';
+    this.chatServiceUrl = 'http://187.33.158.246/chat';
+    this.wsUrl = 'http://187.33.158.246';
+    this.fileServiceUrl = 'http://187.33.158.246/chat/files';
     
     this.socket = null;
     this.isConnected = false;
     this.isAuthenticated = false;
+    this.debug = true;
     this.currentRoom = null;
     this.currentSessionId = null;
     this.currentUserId = null;
@@ -167,6 +168,12 @@ class ChatClient {
     this.socket.on('user_typing', (data) => this.handleUserTyping(data));
     this.socket.on('user_stop_typing', (data) => this.handleUserStopTyping(data));
     this.socket.on('file_uploaded', (data) => this.handleFileUploaded(data));
+    this.socket.on('session_terminated', (data) => this.handleSessionTerminated(data));
+    this.socket.on('terminate_session', (data) => this.handleSessionTerminated(data));
+
+    setTimeout(() => {
+        this.setupDebugging();
+    }, 1000);
   }
 
   async handleFileUploaded(data) {
@@ -952,17 +959,269 @@ class ChatClient {
     }
   }
 
-  disconnect() {
+  handleSessionTerminated(data) {
+    console.log('🔚 Sesión terminada recibida:', data);
+    
+    if (data.session_id === this.currentSessionId) {
+        const terminatedBy = data.terminated_by || 'unknown';
+        
+        if (terminatedBy === 'agent') {
+            // Mostrar modal específico cuando el agente termina la sesión
+            this.showAgentTerminatedModal(data);
+        } else if (terminatedBy === 'system') {
+            this.showSystemTerminatedModal(data);
+        } else {
+            // Terminación general
+            this.showSessionEndedScreen(terminatedBy);
+        }
+        
+        // Deshabilitar controles del chat
+        this.disableChat();
+        this.updateConnectionStatus('Sesión finalizada');
+        
+        console.log('🔒 Sesión finalizada completamente');
+    }
+}
+
+showAgentTerminatedModal(data) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
+            <div class="mb-4">
+                <svg class="w-16 h-16 text-blue-600 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold text-gray-900 mb-4">Conversación Finalizada</h2>
+            <p class="text-gray-600 mb-6">
+                El agente ha finalizado esta conversación. 
+                ${data.reason ? `Motivo: ${data.reason}` : ''}
+            </p>
+            <div class="space-y-3">
+                <button onclick="window.location.reload()" 
+                        class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Iniciar Nueva Conversación
+                </button>
+                <button onclick="this.closest('.fixed').remove()" 
+                        class="w-full px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Auto-cerrar después de 10 segundos
+    setTimeout(() => {
+        if (modal.parentNode) {
+            modal.remove();
+        }
+    }, 10000);
+}
+
+
+disableChat() {
+    console.log('🔒 Deshabilitando controles del chat...');
+    
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const uploadButton = document.querySelector('button[onclick*="fileInput"]');
+    const fileInput = document.getElementById('fileInput');
+    
+    // Deshabilitar input de mensaje
+    if (messageInput) {
+        messageInput.disabled = true;
+        messageInput.placeholder = 'La conversación ha finalizado';
+        messageInput.style.backgroundColor = '#f3f4f6';
+        messageInput.style.color = '#6b7280';
+    }
+    
+    // Deshabilitar botón de envío
+    if (sendButton) {
+        sendButton.disabled = true;
+        sendButton.innerHTML = '❌ Finalizada';
+        sendButton.className = sendButton.className.replace(/bg-blue-\d+/, 'bg-gray-400');
+        sendButton.style.cursor = 'not-allowed';
+    }
+    
+    // Deshabilitar subida de archivos
+    if (uploadButton) {
+        uploadButton.disabled = true;
+        uploadButton.style.opacity = '0.5';
+        uploadButton.style.cursor = 'not-allowed';
+        uploadButton.innerHTML = `
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636"></path>
+            </svg>
+            <span>Chat finalizado</span>
+        `;
+    }
+    
+    if (fileInput) {
+        fileInput.disabled = true;
+    }
+    
+    // Ocultar indicador de escritura si está visible
+    this.hideTypingIndicator();
+    
+    console.log('✅ Controles del chat deshabilitados');
+}
+showSessionEndedScreen(terminatedBy) {
+    const container = document.getElementById('chatMessages');
+    if (!container) return;
+    
+    // Crear elemento de finalización
+    const endedDiv = document.createElement('div');
+    endedDiv.className = 'mb-4 mt-8';
+    endedDiv.innerHTML = `
+        <div class="flex justify-center">
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-6 py-4 max-w-md text-center">
+                <div class="flex items-center justify-center mb-3">
+                    <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-yellow-800 mb-2">
+                    Conversación Finalizada
+                </h3>
+                <p class="text-sm text-yellow-700 mb-4">
+                    ${terminatedBy === 'agent' ? 
+                        'El agente ha finalizado esta conversación. Gracias por contactarnos.' : 
+                        'Esta conversación ha sido finalizada.'}
+                </p>
+                <div class="text-xs text-yellow-600">
+                    ${new Date().toLocaleString('es-ES')}
+                </div>
+                <div class="mt-4 pt-3 border-t border-yellow-200">
+                    <p class="text-xs text-yellow-600">
+                        Para una nueva consulta, inicia una nueva conversación
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(endedDiv);
+    this.scrollToBottom();
+}
+
+disconnect() {
+    if (this.debug) console.log('🚪 PACIENTE: Iniciando desconexión...', {
+        connected: this.isConnected,
+        sessionId: this.currentSessionId,
+        socketConnected: this.socket?.connected
+    });
+    
+    if (this.socket && this.socket.connected && this.currentSessionId) {
+        if (this.debug) console.log('📤 PACIENTE: Enviando eventos de terminación...');
+        
+        // Evento 1: terminate_session (tu evento existente)
+        this.socket.emit('terminate_session', {
+            session_id: this.currentSessionId,
+            terminated_by: 'patient',
+            reason: 'patient_ended_chat',
+            message: 'El paciente ha finalizado la conversación',
+            timestamp: new Date().toISOString()
+        });
+        
+        if (this.debug) console.log('✅ PACIENTE: terminate_session emitido');
+        
+        // Evento 2: Evento simple para debugging
+        this.socket.emit('patient_leaving', {
+            session_id: this.currentSessionId,
+            message: 'Paciente se está desconectando'
+        });
+        
+        if (this.debug) console.log('✅ PACIENTE: patient_leaving emitido');
+        
+        // Dar tiempo para que se envíen
+        setTimeout(() => {
+            this.finalizeDisconnect();
+        }, 2000); // Aumentado a 2 segundos
+    } else {
+        if (this.debug) console.log('⚠️ PACIENTE: No hay conexión activa');
+        this.finalizeDisconnect();
+    }
+}
+
+finalizeDisconnect() {
+    console.log('🔚 Finalizando desconexión del paciente...');
+    
     this.isConnected = false;
     this.sessionJoined = false;
     
     if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
+        this.socket.disconnect();
+        this.socket = null;
     }
     
+    // Limpiar datos de sesión
+    this.currentSessionId = null;
+    this.currentUserId = null;
+    this.currentRoom = null;
+    this.lastSentMessage = null;
+    
+    // Limpiar archivos
+    this.myUploadedFiles.clear();
+    this.uploadingFiles.clear();
+    
     this.updateConnectionStatus('Desconectado');
-  }
+    
+    console.log('✅ Desconexión del paciente completada');
+}
+finishChat() {
+    if (!this.currentSessionId) {
+        showNotification('No hay sesión activa para finalizar', 'warning');
+        return;
+    }
+    
+    // Confirmar con el usuario
+    if (!confirm('¿Estás seguro de que deseas finalizar esta conversación?')) {
+        return;
+    }
+    
+    console.log('✋ Paciente finalizando chat voluntariamente');
+    
+    // Mostrar mensaje de despedida en el chat
+    this.addSystemMessage('Finalizando conversación...');
+    
+    // Proceder con la desconexión
+    this.disconnect();
+    
+    // Mostrar notificación de confirmación
+    showNotification('👋 Conversación finalizada. ¡Gracias por contactarnos!', 'success', 6000);
+}
+
+setupDisconnectionHandlers() {
+    // Detectar cierre de ventana/pestaña
+    window.addEventListener('beforeunload', (event) => {
+        if (this.isConnected && this.currentSessionId && this.socket && this.socket.connected) {
+            console.log('🚪 Ventana cerrándose, notificando al agente...');
+            
+            // Notificación síncrona para beforeunload
+            this.socket.emit('terminate_session', {
+                session_id: this.currentSessionId,
+                terminated_by: 'patient',
+                reason: 'page_closed',
+                message: 'El paciente cerró la ventana',
+                patient_initiated: true,
+                timestamp: new Date().toISOString()
+            });
+            
+            // También notificar para actualización de listas
+            this.socket.emit('session_ended_by_patient', {
+                session_id: this.currentSessionId,
+                user_id: this.currentUserId,
+                action: 'page_closed',
+                timestamp: new Date().toISOString()
+            });
+        }
+    });
+    
+    console.log('👂 Handlers de desconexión mejorados configurados');
+}
 
   getChatStats() {
     return {
@@ -1004,8 +1263,48 @@ class ChatClient {
       console.log(`Limpieza completada. ${removedCount} duplicados removidos`);
     }
   }
-}
 
+setupDebugging() {
+    if (!this.debug) return;
+    
+    console.log('🔧 PACIENTE: Activando debugging...');
+    
+    if (this.socket) {
+        // Listener para todos los eventos recibidos
+        this.socket.onAny = this.socket.onAny || function(fn) {
+            const originalEmit = this.emit;
+            this.emit = function(event, ...args) {
+                console.log('📤 PACIENTE ENVIANDO:', event, args);
+                return originalEmit.call(this, event, ...args);
+            };
+        };
+        
+        // Override del emit para debugging
+        const originalEmit = this.socket.emit.bind(this.socket);
+        this.socket.emit = (...args) => {
+            console.log('📤 PACIENTE EMIT:', args);
+            return originalEmit(...args);
+        };
+        
+        // Agregar listener para eventos del agente
+        this.socket.on('terminate_session', (data) => {
+            console.log('🔚 PACIENTE: terminate_session recibido del agente:', data);
+            
+            if (data.terminated_by === 'agent') {
+                console.log('👨‍💼 PACIENTE: Agente terminó la sesión');
+                
+                // Alert simple para debugging
+                alert(`DEBUGGING: Agente terminó la sesión. Motivo: ${data.reason || 'No especificado'}`);
+                
+                // Llamar al handler existente
+                this.handleSessionTerminated(data);
+            }
+        });
+        
+        console.log('PACIENTE: Debugging configurado');
+    }
+ }
+}
 window.chatClient = new ChatClient();
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -1063,8 +1362,48 @@ function showNotification(message, type = 'info', duration = 4000) {
         }, duration);
     }
 }
+function enableSocketDebugging() {
+    if (!chatSocket) {
+        console.log('❌ No hay chatSocket para debugging');
+        return;
+    }
+    
+    // Listener para TODOS los eventos (catch-all)
+    chatSocket.onAny((eventName, ...args) => {
+        console.log('📨 AGENTE RECIBIÓ EVENTO:', eventName, args);
+    });
+    
+    // Listeners específicos para debugging
+    chatSocket.on('terminate_session', (data) => {
+        console.log('🔚 AGENTE: terminate_session recibido:', data);
+        
+        if (data.terminated_by === 'patient') {
+            console.log('👤 AGENTE: Paciente terminó la sesión');
+            
+            // Mostrar alerta simple para debugging
+            alert(`DEBUGGING: Paciente terminó sesión ${data.session_id}`);
+            
+            // Mostrar notificación
+            showNotification('El paciente ha finalizado la conversación', 'info', 5000);
+            
+            // Si es mi sesión actual
+            if (data.session_id === currentSession?.id) {
+                console.log('🎯 AGENTE: Es mi sesión actual, desconectando...');
+                setTimeout(() => {
+                    disconnectFromCurrentSession();
+                }, 2000);
+            }
+        }
+    });
+    
+    chatSocket.on('patient_leaving', (data) => {
+        console.log('👋 AGENTE: patient_leaving recibido:', data);
+        alert(`DEBUGGING: Evento patient_leaving recibido para ${data.session_id}`);
+    });
+    
+    console.log('🔧 AGENTE: Debugging de socket activado');
+}
 
-// ✅ FUNCIÓN GLOBAL PARA ABRIR ARCHIVOS EN PREVIEW
 function openFileInNewTab(url, fileName) {
     console.log('🔍 Paciente abriendo vista previa:', { url, fileName });
     
@@ -1110,7 +1449,7 @@ function openFileInNewTab(url, fileName) {
     }
 }
 
-// ✅ FUNCIÓN GLOBAL PARA VERIFICAR SI SE PUEDE PREVISUALIZAR
+// FUNCIÓN GLOBAL PARA VERIFICAR SI SE PUEDE PREVISUALIZAR
 function canPreviewFile(fileName, fileType) {
     if (!fileName) return false;
     
@@ -1211,6 +1550,33 @@ function handleFileUpload(files) {
     fileInput.disabled = true;
   }
   
+  window.addEventListener('beforeunload', function(event) {
+    if (window.chatClient && window.chatClient.isConnected && window.chatClient.currentSessionId) {
+        // Notificar al agente de manera síncrona
+        if (window.chatClient.socket && window.chatClient.socket.connected) {
+            window.chatClient.socket.emit('terminate_session', {
+                session_id: window.chatClient.currentSessionId,
+                terminated_by: 'patient',
+                reason: 'page_closed',
+                message: 'El paciente cerró la ventana'
+            });
+        }
+    }
+});
+
+// Detectar cuando el usuario navega fuera de la página
+window.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden' && window.chatClient && window.chatClient.isConnected) {
+        // El usuario cambió de pestaña o minimizó
+        if (window.chatClient.socket && window.chatClient.socket.connected) {
+            window.chatClient.socket.emit('patient_inactive', {
+                session_id: window.chatClient.currentSessionId,
+                message: 'Paciente inactivo'
+            });
+        }
+    }
+});
+
   window.chatClient.uploadFile(file)
     .then((result) => {
       if (fileInput) {

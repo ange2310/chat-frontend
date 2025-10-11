@@ -1,3 +1,4 @@
+/*
 class AdminClient {
     constructor() {
         this.adminServiceUrl = 'http://localhost:3013/admin';
@@ -929,3 +930,4 @@ window.debugAdmin = {
 };
 
 console.log('🔧 AdminClient v1.0 cargado');
+*/

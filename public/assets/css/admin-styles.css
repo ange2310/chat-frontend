@@ -1,0 +1,206 @@
+
+        body { font-family: 'Inter', sans-serif; }
+        
+        .nav-link.active { background: #dc2626; color: white; }
+        .nav-link { 
+            display: flex; 
+            align-items: center; 
+            gap: 0.75rem; 
+            padding: 0.75rem 1rem; 
+            font-size: 0.875rem; 
+            font-weight: 500; 
+            color: #6b7280; 
+            text-decoration: none; 
+            border-radius: 0.5rem; 
+            transition: all 0.15s ease-in-out; 
+        }
+        .nav-link:hover { background: #f3f4f6; color: #1f2937; }
+        
+        .stats-card { 
+            background: white; 
+            border-radius: 0.75rem; 
+            padding: 1.5rem; 
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1); 
+            border: 1px solid #e5e7eb; 
+        }
+        .room-card { 
+            background: white; 
+            border: 1px solid #e5e7eb; 
+            border-radius: 0.75rem; 
+            padding: 1.5rem; 
+            transition: all 0.15s ease-in-out; 
+        }
+        .room-card:hover { 
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); 
+            border-color: #dc2626; 
+        }
+        .assignment-row { 
+            background: white; 
+            border: 1px solid #e5e7eb; 
+            border-radius: 0.5rem; 
+            padding: 1rem; 
+            margin-bottom: 0.5rem; 
+        }
+        .user-row {
+            background: white; 
+            border: 1px solid #e5e7eb; 
+            border-radius: 0.5rem; 
+            padding: 1rem; 
+            margin-bottom: 0.5rem; 
+        }
+        
+        .status-active { color: #059669; background: #d1fae5; }
+        .status-inactive { color: #dc2626; background: #fee2e2; }
+        .status-maintenance { color: #d97706; background: #fef3c7; }
+        
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
+        .modal-content { max-height: 90vh; overflow-y: auto; }
+        
+        .schedule-day { 
+            border: 1px solid #e5e7eb; 
+            border-radius: 0.5rem; 
+            padding: 1rem; 
+            margin-bottom: 0.5rem; 
+        }
+        .schedule-day.active { 
+            background: #f0f9ff; 
+            border-color: #0369a1; 
+        }
+        
+        .mobile-nav-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .mobile-nav-backdrop.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .mobile-nav {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .mobile-nav.active {
+            transform: translateX(0);
+        }
+        
+        @media (max-width: 768px) {
+            .stats-card {
+                padding: 1rem;
+            }
+            
+            .room-card {
+                padding: 1rem;
+            }
+            
+            .assignment-row {
+                padding: 0.75rem;
+            }
+            
+            .user-row {
+                padding: 0.75rem;
+            }
+            
+            .modal-content {
+                margin: 1rem;
+                max-height: calc(100vh - 2rem);
+            }
+        }
+        
+        @media (max-width: 640px) {
+            .mobile-card {
+                display: block !important;
+            }
+            
+            .mobile-card td {
+                display: block !important;
+                text-align: right !important;
+                border: none !important;
+                padding: 0.25rem 0.5rem !important;
+            }
+            
+            .mobile-card td:before {
+                content: attr(data-label) ": ";
+                float: left;
+                font-weight: bold;
+                color: #4b5563;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            .btn-responsive {
+                font-size: 0.75rem !important;
+                padding: 0.375rem 0.75rem !important;
+            }
+            
+            .btn-icon-only {
+                padding: 0.375rem !important;
+            }
+        }
+
+        .tiempo-promedio-card {
+            background: linear-gradient(135deg, #f97316, #ea580c) !important;
+            color: white !important;
+        }
+        
+        .tiempo-promedio-card * {
+            color: white !important;
+        }
+
+        .deleted-room-card {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.8;
+        }
+        
+        .deleted-room-card:hover {
+            opacity: 1;
+            border-color: #f87171;
+        }
+
+        @media (min-width: 1024px) {
+            .sidebar-fixed {
+                position: fixed;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 10;
+                overflow-y: auto;
+            }
+            
+            .content-with-sidebar {
+                margin-left: 16rem; /* 64 * 0.25rem = 16rem */
+            }
+        }
+
+        /* Mejorar scroll en sidebar */
+        .sidebar-fixed {
+            scrollbar-width: thin;
+            scrollbar-color: #d1d5db #f9fafb;
+        }
+
+        .sidebar-fixed::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar-fixed::-webkit-scrollbar-track {
+            background: #f9fafb;
+        }
+
+        .sidebar-fixed::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 2px;
+        }

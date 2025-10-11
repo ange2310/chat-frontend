@@ -1,0 +1,1081 @@
+
+        body { font-family: 'Inter', sans-serif; }
+        
+        .nav-link.active { 
+            background: #2563eb; 
+            color: white; 
+        }
+        .nav-link { 
+            display: flex; 
+            align-items: center; 
+            gap: 0.75rem; 
+            padding: 0.75rem 1rem; 
+            font-size: 0.875rem; 
+            font-weight: 500; 
+            color: #6b7280; 
+            text-decoration: none; 
+            border-radius: 0.5rem; 
+            transition: all 0.15s ease-in-out; 
+        }
+        .nav-link:hover { 
+            background: #f3f4f6; 
+            color: #1f2937; 
+        }
+
+        .content-card {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+            border: 1px solid #e5e7eb;
+        }
+
+        .countdown-urgent { 
+            animation: pulse-red 1s infinite; 
+        }
+
+        @keyframes pulse-red { 
+            0%, 100% { color: #dc2626; } 
+            50% { color: #ef4444; } 
+        }
+
+        .chat-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: row;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chat-sidebar { 
+            width: 300px; 
+            min-width: 300px; 
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            z-index: 20;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .chat-main { 
+            flex: 1; 
+            min-width: 0; 
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .patient-info-sidebar { 
+            width: 280px;
+            min-width: 280px;
+            max-width: 280px;
+            background: #f9fafb;
+            border-left: 1px solid #e5e7eb;
+            overflow-y: auto;
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        .chat-header {
+            flex-shrink: 0;
+            min-height: 80px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 1rem 1.5rem;
+        }
+
+        .chat-messages-container {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            background-color: #f9fafb;
+            min-height: 300px;
+            max-height: calc(100vh - 280px);
+        }
+
+        .chat-input-area {
+            flex-shrink: 0;
+            min-height: 140px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            padding: 1rem;
+        }
+
+        .typing-indicator-area {
+            flex-shrink: 0;
+            background-color: #f9fafb;
+            padding: 0.5rem 1.5rem;
+        }
+
+        .typing-dots { display: flex; gap: 4px; }
+        .typing-dot {
+            width: 6px; height: 6px; background: #9ca3af; border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        .chat-messages::-webkit-scrollbar, .chat-sidebar-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-messages::-webkit-scrollbar-track, .chat-sidebar-content::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb, .chat-sidebar-content::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb:hover, .chat-sidebar-content::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .chat-item {
+            position: relative;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            padding: 0.75rem;
+            border-bottom: 1px solid #f1f5f9;
+            cursor: pointer;
+        }
+        .chat-item:hover {
+            background-color: #f9fafb;
+            transform: translateX(2px);
+        }
+        .chat-item.active {
+            background-color: #eff6ff;
+            border-left: 3px solid #2563eb;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .status-unattended { background-color: #ef4444; }
+        .status-mine { background-color: #2563eb; }
+        .status-typing { 
+            background-color: #10b981; 
+            animation: pulse-typing 1.5s infinite;
+        }
+        .status-critical {
+            background-color: #ef4444 !important;
+            animation: pulse-critical 1s infinite;
+        }
+
+        @keyframes pulse-typing { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes pulse-critical { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.1); } }
+
+        .chat-preview {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .section-divider {
+            border-top: 1px solid #e5e7eb;
+            margin: 12px 0;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .section-divider::before {
+            content: attr(data-title);
+            position: absolute;
+            top: -8px;
+            left: 12px;
+            background: white;
+            padding: 0 8px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .chat-message {
+            margin-bottom: 1rem;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .chat-messages.auto-scroll {
+            scroll-behavior: smooth;
+        }
+
+        .timer-display {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        .file-upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            text-align: center;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            margin-bottom: 0.75rem;
+        }
+
+        .file-upload-area:hover {
+            border-color: #2563eb;
+            background-color: #f8fafc;
+        }
+
+        .file-upload-area.drag-over {
+            border-color: #2563eb;
+            background-color: #eff6ff;
+        }
+
+        .file-preview {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: #f3f4f6;
+            border-radius: 0.375rem;
+            margin-top: 0.5rem;
+        }
+
+        .file-progress {
+            width: 100%;
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .file-progress-bar {
+            height: 100%;
+            background: #2563eb;
+            transition: width 0.3s ease;
+        }
+
+        .attachment-button {
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            transition: all 0.2s ease;
+            background: #f3f4f6;
+            color: #6b7280;
+            border: none;
+            cursor: pointer;
+            min-width: 48px;
+            min-height: 48px;
+        }
+
+        .attachment-button:hover {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .attachment-button input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .availability-toggle {
+            display: flex;
+            align-items: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .toggle-slider {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: #ef4444;
+            border-radius: 12px;
+            transition: background 0.3s ease;
+        }
+
+        .toggle-slider.active {
+            background: #10b981;
+        }
+
+        .toggle-indicator {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle-slider.active .toggle-indicator {
+            transform: translateX(20px);
+        }
+
+        .availability-toggle[data-status="presente"] .toggle-slider {
+            background: #10b981;
+        }
+
+        .availability-toggle[data-status="presente"] .toggle-indicator {
+            transform: translateX(20px);
+        }
+
+        .availability-toggle[data-status="ausente"] .toggle-slider {
+            background: #ef4444;
+        }
+
+        .availability-toggle[data-status="ausente"] .toggle-indicator {
+            transform: translateX(0);
+        }
+
+        .mobile-nav-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-nav-backdrop.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .chat-sidebar-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 25;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .chat-sidebar-backdrop.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .patient-info-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .patient-info-backdrop.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* Sidebar fija con altura específica */
+        /* Sidebar Desktop */
+        .sidebar-desktop {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 16rem;
+            min-width: 16rem;
+            max-width: 16rem;
+            height: 100vh;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 30;
+        }
+
+        /* Sidebar Mobile */
+        .sidebar-mobile {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 16rem;
+            min-width: 16rem;
+            max-width: 16rem;
+            height: 100vh;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 50;
+            transition: transform 0.3s ease;
+            transform: translateX(-100%);
+            box-shadow: 4px 0 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar-mobile.mobile-open {
+            transform: translateX(0);
+        }
+
+        @media (min-width: 1024px) {
+            .sidebar-desktop {
+                display: flex;
+            }
+            .sidebar-mobile {
+                display: none;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar-desktop {
+                display: none;
+            }
+            .sidebar-mobile {
+                display: flex;
+            }
+        }
+            
+            @media (min-width: 1024px) {
+                .content-with-sidebar {
+                    margin-left: 16rem;
+                }
+            }
+            
+            @media (max-width: 1024px) {
+                .content-with-sidebar {
+                    margin-left: 0;
+                }
+            }
+        
+        .min-h-full.flex {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .flex-1.flex.flex-col {
+            flex: 1;
+            min-width: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header.bg-white.border-b {
+            flex-shrink: 0;
+            height: 80px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        main.flex-1.overflow-auto {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        /* Área de navegación que puede hacer scroll */
+        .sidebar-nav-area {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        /* Área de usuario fija en la parte inferior */
+        .sidebar-user-area {
+            flex-shrink: 0;
+            border-top: 1px solid #e5e7eb;
+            background: white;
+        }
+
+        /* Estilos mejorados para horarios */
+        .schedule-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        
+        .schedule-card:hover {
+            border-color: #d1d5db;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .schedule-day {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .schedule-time {
+            font-size: 0.75rem;
+            font-weight: 600;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+        
+        .schedule-status {
+            font-size: 0.75rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: 9999px;
+        }
+
+        @media (min-width: 1024px) {
+            .sidebar-main {
+                display: flex;
+            }
+        }
+        @media (max-width: 1024px) {
+            .patient-info-sidebar {
+                position: fixed;
+                right: -300px;
+                top: 0;
+                height: 100vh;
+                z-index: 50;
+                width: 300px;
+                min-width: 300px;
+                max-width: 300px;
+                box-shadow: -4px 0 6px -1px rgba(0, 0, 0, 0.1);
+                transition: transform 0.3s ease;
+            }
+            
+            .patient-info-sidebar.active {
+                transform: translateX(-300px);
+            }
+            
+            .chat-header {
+                padding-right: 5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .sidebar-mobile {
+                width: 300px;
+                min-width: 300px;
+                max-width: 300px;
+            }
+            
+            /* En pantallas muy pequeñas, área de usuario aún más compacta */
+            .sidebar-mobile > div:last-child {
+                min-height: 120px;
+                max-height: 120px;
+                padding: 0.5rem;
+            }
+            
+            /* Navegación con más altura disponible */
+            .sidebar-mobile nav {
+                max-height: calc(100vh - 180px);
+            }
+            
+            /* Avatar aún más pequeño */
+            .sidebar-mobile .w-10.h-10 {
+                width: 2rem;
+                height: 2rem;
+                font-size: 0.7rem;
+            }
+            
+            /* Switch aún más compacto */
+            .sidebar-mobile .toggle-slider {
+                width: 32px;
+                height: 18px;
+            }
+            
+            .sidebar-mobile .toggle-indicator {
+                width: 14px;
+                height: 14px;
+            }
+            
+            .sidebar-mobile .toggle-slider.active .toggle-indicator {
+                transform: translateX(14px);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar-mobile {
+                width: 20rem;
+                min-width: 20rem;
+                max-width: 20rem;
+                height: 100vh;
+                height: -webkit-fill-available;
+            }
+            
+            /* Ajustar altura del contenedor de navegación para dar más espacio al área de usuario */
+            .sidebar-mobile nav {
+                flex: 1;
+                overflow-y: auto;
+                max-height: calc(100vh - 200px); /* Reducido de altura automática */
+                padding-bottom: 0.5rem;
+            }
+            
+            /* Área de usuario más compacta y siempre visible */
+            .sidebar-mobile > div:last-child {
+                flex-shrink: 0;
+                margin-top: auto;
+                min-height: 140px; /* Altura mínima garantizada */
+                max-height: 140px;
+                padding: 0.75rem;
+                border-top: 2px solid #e5e7eb;
+                background: white;
+                position: relative;
+                bottom: 0;
+            }
+            
+            /* Hacer el área de usuario más compacta */
+            .sidebar-mobile .flex.items-center.gap-3 {
+                gap: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            /* Avatar más pequeño en móvil */
+            .sidebar-mobile .w-10.h-10 {
+                width: 2.25rem;
+                height: 2.25rem;
+                font-size: 0.75rem;
+            }
+            
+            /* Texto de usuario más compacto */
+            .sidebar-mobile .font-medium {
+                font-size: 0.8rem;
+                line-height: 1rem;
+            }
+            
+            .sidebar-mobile .text-sm {
+                font-size: 0.7rem;
+            }
+            
+            /* Botón logout más pequeño */
+            .sidebar-mobile button[onclick="logout()"] {
+                padding: 0.375rem;
+                min-width: 2rem;
+                min-height: 2rem;
+            }
+            
+            /* Área de disponibilidad más compacta */
+            .sidebar-mobile .mt-3.pt-3 {
+                margin-top: 0.5rem;
+                padding-top: 0.5rem;
+            }
+            
+            /* Switch de disponibilidad más pequeño pero funcional */
+            .sidebar-mobile .toggle-slider {
+                width: 36px;
+                height: 20px;
+            }
+            
+            .sidebar-mobile .toggle-indicator {
+                width: 16px;
+                height: 16px;
+                top: 2px;
+                left: 2px;
+            }
+            
+            .sidebar-mobile .toggle-slider.active .toggle-indicator {
+                transform: translateX(16px);
+            }
+            
+            /* Texto del switch más pequeño */
+            .sidebar-mobile .availability-toggle span {
+                font-size: 0.65rem;
+                margin-left: 0.25rem;
+            }
+            
+            /* Descripción más pequeña */
+            .sidebar-mobile .text-xs.text-gray-400 {
+                font-size: 0.6rem;
+                margin-top: 0.25rem;
+            }
+        }
+
+        /* Soporte para dispositivos con notch (iPhone X+) */
+        @supports (padding: max(0px)) {
+            @media (max-width: 768px) {
+                .sidebar-mobile {
+                    height: 100vh;
+                    height: -webkit-fill-available;
+                    padding-bottom: env(safe-area-inset-bottom, 0px);
+                }
+                
+                .sidebar-mobile > div:last-child {
+                    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+                }
+            }
+        }
+
+        @media (min-width: 769px) {
+            .chat-sidebar {
+                position: relative;
+                transform: none;
+                box-shadow: none;
+                left: 0;
+                top: 0;
+            }
+        }
+            
+            .chat-header {
+                padding: 1rem 0.75rem;
+                padding-left: 4rem;
+                padding-right: 4rem;
+                min-height: 70px;
+            }
+            
+            /* Mejoras para chat header en móviles */
+            .chat-header h2 {
+                font-size: 1.1rem;
+                line-height: 1.3rem;
+            }
+            
+            .chat-header .text-sm {
+                font-size: 0.8rem;
+            }
+            
+            /* Avatar más pequeño en tablet/móvil */
+            .chat-header .w-12.h-12 {
+                width: 2.75rem;
+                height: 2.75rem;
+            }
+            
+            /* Botones de acción más compactos */
+            .chat-header .flex-wrap button {
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+            
+            .chat-container {
+                height: calc(100vh - 70px);
+            }
+            
+            .chat-sidebar {
+                position: relative;
+                left: 0;
+                top: 0;
+                height: 100%;
+                z-index: 30;
+                box-shadow: none;
+                transition: transform 0.3s ease;
+            }
+
+            @media (max-width: 768px) {
+                .chat-sidebar {
+                    position: fixed;
+                    left: -300px;
+                    top: 70px;
+                    height: calc(100vh - 70px);
+                    z-index: 30;
+                    box-shadow: 4px 0 6px -1px rgba(0, 0, 0, 0.1);
+                }
+            }
+            
+            .chat-sidebar.mobile-open {
+                transform: translateX(300px);
+            }
+            
+            .chat-messages {
+                padding: 1rem 0.75rem;
+                max-height: none;
+                height: auto;
+                flex: 1;
+            }
+            
+            .chat-input-area {
+                padding: 0.75rem;
+                min-height: 110px;
+                background: white;
+                border-top: 2px solid #e5e7eb;
+            }
+
+            @media (max-width: 768px) {
+                .chat-messages {
+                    max-height: calc(100vh - 220px);
+                    padding-bottom: 1rem;
+                }
+                
+                .chat-input-area {
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    z-index: 40;
+                    border-top: 2px solid #e5e7eb;
+                    background: white;
+                    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+                }
+                
+                .chat-messages-container {
+                    padding-bottom: 140px;
+                }
+            }
+            
+            .patient-info-sidebar {
+                width: 90vw;
+                max-width: 280px;
+            }
+
+        @media (max-width: 480px) {
+            .sidebar-main {
+                left: -300px;
+                width: 300px;
+            }
+            
+            .sidebar-main.mobile-open {
+                transform: translateX(300px);
+            }
+            
+            .chat-header {
+                padding: 0.75rem 0.5rem;
+                padding-left: 3.75rem;
+                padding-right: 3.75rem;
+                min-height: 65px;
+            }
+            
+            .chat-container {
+                height: calc(100vh - 65px);
+            }
+            
+            .chat-sidebar {
+                top: 65px;
+                height: calc(100vh - 65px);
+                width: 90vw;
+                max-width: 280px;
+            }
+            
+            .patient-info-sidebar {
+                width: 100vw;
+                right: -100vw;
+            }
+            
+            .patient-info-sidebar.active {
+                transform: translateX(-100vw);
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(100px) scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+        }
+
+        /* Mejoras adicionales para móviles */
+        @media (max-width: 768px) {
+            /* Scroll mejorado para sidebar móvil */
+            .sidebar-main::-webkit-scrollbar {
+                width: 4px;
+            }
+            .sidebar-main::-webkit-scrollbar-track {
+                background: #f1f5f9;
+            }
+            .sidebar-main::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 2px;
+            }
+            
+            /* Mejorar botones en móvil */
+            .nav-link {
+                min-height: 48px;
+                padding: 0.875rem 1rem;
+                font-size: 0.9rem;
+            }
+            
+            /* Mejor espaciado en la sidebar móvil */
+            .sidebar-main .p-6 {
+                padding: 1rem;
+            }
+            
+            .sidebar-main .p-4:last-child {
+                padding: 1rem;
+                border-top: 1px solid #e5e7eb;
+            }
+        }
+
+        /* Mejoras específicas para iPhones y pantallas pequeñas */
+        @media (max-width: 414px) {
+            .sidebar-main {
+                left: -320px;
+                width: 320px;
+            }
+            
+            .sidebar-main.mobile-open {
+                transform: translateX(320px);
+            }
+            
+            /* Asegurar que el usuario info sea visible */
+            .sidebar-main > div:last-child {
+                background: white;
+                border-top: 2px solid #e5e7eb;
+                min-height: 120px;
+            }
+            
+            /* Mejorar el botón de logout */
+            .sidebar-main button[onclick="logout()"] {
+                min-width: 44px;
+                min-height: 44px;
+                padding: 0.75rem;
+            }
+            
+            /* Mejorar chat header en móviles */
+            .chat-header {
+                padding: 0.75rem 0.5rem;
+            }
+            
+            .chat-header h2 {
+                font-size: 0.95rem;
+                line-height: 1.2rem;
+            }
+            
+            .chat-header .text-sm {
+                font-size: 0.7rem;
+            }
+            
+            /* Botones de acción más compactos */
+            .chat-header .flex-wrap button {
+                padding: 3px 6px;
+                font-size: 10px;
+                min-height: 32px;
+            }
+            
+            /* Avatar más pequeño en móvil */
+            .chat-header .w-12.h-12 {
+                width: 2.25rem;
+                height: 2.25rem;
+            }
+            
+            /* Espaciado más compacto en el header del chat */
+            .chat-header .flex.items-center.gap-4 {
+                gap: 0.75rem;
+            }
+            
+            .chat-header .flex.items-center.gap-1 {
+                gap: 0.25rem;
+            }
+        }
+
+        /* Ajustes para Safari iOS */
+        @supports (-webkit-touch-callout: none) {
+            .sidebar-main {
+                height: 100vh;
+                height: -webkit-fill-available;
+            }
+            
+            .chat-container {
+                height: calc(100vh - 70px);
+                height: calc(-webkit-fill-available - 70px);
+            }
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+            .chat-item {
+                min-height: 56px;
+                padding: 1rem;
+            }
+            
+            button, .cursor-pointer {
+                min-height: 48px;
+                min-width: 48px;
+            }
+            
+            .nav-link {
+                min-height: 52px;
+                padding: 0.875rem;
+            }
+            
+            .chat-item:hover {
+                background-color: transparent;
+                transform: none;
+            }
+            
+            .chat-item:active {
+                background-color: #f9fafb;
+            }
+        }
+
+        @media (max-width: 896px) and (orientation: landscape) {
+            .chat-messages {
+                max-height: calc(100vh - 180px);
+            }
+            
+            .chat-input-area {
+                min-height: 90px;
+            }
+            
+            .chat-header {
+                min-height: 60px;
+                padding: 0.5rem 1rem;
+                padding-left: 3.5rem;
+                padding-right: 3.5rem;
+            }
+        }
+
+        /* Mejoras adicionales para touch devices */
+        @media (hover: none) and (pointer: coarse) {
+            .nav-link {
+                min-height: 52px;
+                padding: 0.875rem;
+            }
+            
+            button, .cursor-pointer {
+                min-height: 48px;
+                min-width: 48px;
+            }
+        }
+        
+        /* Ajustes para Safari iOS */
+        @supports (-webkit-touch-callout: none) {
+            .sidebar-main {
+                height: 100vh;
+                height: -webkit-fill-available;
+            }
+        }

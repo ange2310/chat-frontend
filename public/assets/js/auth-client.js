@@ -55,7 +55,7 @@ class AuthClient {
         }
     }
 
-    async register(userData) {
+   /*async register(userData) {
         try {
             console.log('Registrando usuario:', userData.email);
 
@@ -101,7 +101,7 @@ class AuthClient {
                 error: 'Error de conexión: ' + error.message 
             };
         }
-    }
+    }*/
 
     async verifyToken(token = null) {
         const toVerify = token || this.token;

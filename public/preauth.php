@@ -26,6 +26,122 @@ if (empty($pToken) || strlen($pToken) < 10) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
         body { font-family: 'Inter', sans-serif; }
+        /* ============== HEADER RESPONSIVE FIXES ============== */
+        
+        /* Mobile Large (hasta 768px) */
+        @media (max-width: 768px) {
+            header .h-16 {
+                height: 3.5rem !important; /* 56px - más compacto */
+            }
+            
+            header .max-w-7xl {
+                padding: 0 1rem !important;
+            }
+            
+            header .w-8 {
+                width: 1.75rem !important;
+                height: 1.75rem !important;
+            }
+            
+            header h1 {
+                font-size: 1rem !important;
+                line-height: 1.3 !important;
+            }
+            
+            header p {
+                font-size: 0.75rem !important;
+            }
+            
+            header .ml-4 {
+                margin-left: 0.75rem !important;
+            }
+            
+            header .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+                margin-left: 0.5rem !important;
+            }
+            
+            header .space-x-2 span {
+                display: none !important; /* Ocultar "Conexión segura" */
+            }
+        }
+        
+        /* Mobile Medium (hasta 640px) */
+        @media (max-width: 640px) {
+            header .h-16 {
+                height: 3.25rem !important; /* 52px */
+            }
+            
+            header .max-w-7xl {
+                padding: 0 0.75rem !important;
+            }
+            
+            header .w-8 {
+                width: 1.5rem !important;
+                height: 1.5rem !important;
+            }
+            
+            header h1 {
+                font-size: 0.9rem !important;
+            }
+            
+            header p {
+                font-size: 0.7rem !important;
+            }
+            
+            header .ml-4 {
+                margin-left: 0.5rem !important;
+            }
+        }
+        
+        /* Mobile Small (hasta 480px) */
+        @media (max-width: 480px) {
+            header .h-16 {
+                height: 3rem !important; /* 48px */
+            }
+            
+            header .max-w-7xl {
+                padding: 0 0.5rem !important;
+            }
+            
+            header h1 {
+                font-size: 0.85rem !important;
+                line-height: 1.2 !important;
+            }
+            
+            header p {
+                font-size: 0.65rem !important;
+            }
+            
+            header .ml-4 {
+                margin-left: 0.375rem !important;
+            }
+        }
+        
+        /* Mobile Extra Small (hasta 375px) */
+        @media (max-width: 375px) {
+            header .max-w-7xl {
+                padding: 0 0.375rem !important;
+            }
+            
+            header h1 {
+                font-size: 0.8rem !important;
+            }
+            
+            header p {
+                font-size: 0.6rem !important;
+            }
+        }
+        
+        /* Landscape móvil */
+        @media (max-width: 896px) and (orientation: landscape) and (max-height: 500px) {
+            header .h-16 {
+                height: 2.5rem !important;
+            }
+            
+            header p {
+                display: none !important; /* Ocultar subtítulo en landscape */
+            }
+        }
         .chat-fullscreen { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: white; }
         .chat-header { background: white; border-bottom: 1px solid #e5e7eb; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; min-height: 70px; }
         .chat-messages { flex: 1; overflow-y: auto; padding: 1.5rem; background: #f8fafc; display: flex; flex-direction: column; gap: 1rem; }
