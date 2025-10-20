@@ -1975,6 +1975,711 @@
                     this.refreshInterval = null;
                 }
             }
+            // ========== MÉTODOS PARA "MI PANEL" ==========
+
+        async loadMyInfo() {
+            try {
+                const response = await fetch(`${API_BASE}/agent-assignments/my-info`, {
+                    method: 'GET',
+                    headers: this.getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    this.displayMyAssignments(result.data || {});
+                } else {
+                    throw new Error('Error cargando información');
+                }
+            } catch (error) {
+                console.error('Error loading my info:', error);
+                this.showNotification('Error cargando mis asignaciones: ' + error.message, 'error');
+            }
+        }
+
+        displayMyAssignments(data) {
+            const container = document.getElementById('myAssignmentsContainer');
+            if (!container) return;
+
+            const assignments = data.assignments?.rooms || [];
+            
+            if (assignments.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <svg class="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        <p>No tienes asignaciones activas</p>
+                        <p class="text-sm text-gray-500 mt-2">Tienes acceso a todas las salas</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="space-y-3">
+                    ${assignments.map(assignment => `
+                        <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="font-medium text-gray-900">${assignment.room_name}</h4>
+                                <span class="px-2 py-1 text-xs font-medium rounded ${
+                                    assignment.is_primary_agent ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                                }">
+                                    ${assignment.is_primary_agent ? 'Principal' : 'Secundario'}
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                                <div><span class="font-medium">Prioridad:</span> ${assignment.priority}</div>
+                                <div><span class="font-medium">Max Chats:</span> ${assignment.max_concurrent_chats}</div>
+                                <div class="col-span-2"><span class="font-medium">Estado:</span> 
+                                    <span class="capitalize ${assignment.assignment_status === 'active' ? 'text-green-600' : 'text-gray-600'}">
+                                        ${assignment.assignment_status}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <div class="text-sm text-blue-800">
+                        <strong>${assignments.length}</strong> asignación(es) activa(s)
+                    </div>
+                </div>
+            `;
+        }
+        // ========== MÉTODOS PARA "MIS SALAS", "MIS SESIONES" Y "MIS HORARIOS" ==========
+        async loadMyRooms() {
+            try {
+                const response = await fetch(`${API_BASE}/agent-assignments/my-rooms`, {
+                    method: 'GET',
+                    headers: this.getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    this.displayMyRooms(result.data || {});
+                } else {
+                    throw new Error('Error cargando salas');
+                }
+            } catch (error) {
+                console.error('Error loading my rooms:', error);
+                this.showNotification('Error cargando mis salas: ' + error.message, 'error');
+            }
+        }
+
+        displayMyRooms(data) {
+            const container = document.getElementById('myRoomsContainer');
+            if (!container) return;
+
+            const rooms = data.rooms || [];
+            
+            if (rooms.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <svg class="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                        </svg>
+                        <p>No se encontraron salas</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="space-y-3">
+                    ${rooms.map(room => `
+                        <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="font-medium text-gray-900">${room.name || room.room_name}</h4>
+                                ${room.is_assigned ? '<span class="text-xs text-blue-600">✓ Asignado</span>' : ''}
+                            </div>
+                            <p class="text-sm text-gray-600">${room.description || room.room_description || 'Sin descripción'}</p>
+                            ${room.room_type ? `<p class="text-xs text-gray-500 mt-1">Tipo: ${room.room_type}</p>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="mt-4 p-4 bg-purple-50 rounded-lg">
+                    <div class="text-sm text-purple-800">
+                        <strong>${rooms.length}</strong> sala(s) disponible(s) • Tipo: <strong>${data.access_type || 'all_rooms'}</strong>
+                    </div>
+                </div>
+            `;
+        }
+
+        async loadMySessions() {
+            try {
+                const response = await fetch(`${API_BASE}/agent-assignments/my-sessions?status=all&limit=20`, {
+                    method: 'GET',
+                    headers: this.getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    this.displayMySessions(result.data || {});
+                } else {
+                    throw new Error('Error cargando sesiones');
+                }
+            } catch (error) {
+                console.error('Error loading my sessions:', error);
+                this.showNotification('Error cargando mis sesiones: ' + error.message, 'error');
+            }
+        }
+
+        displayMySessions(data) {
+            const container = document.getElementById('mySessionsContainer');
+            if (!container) return;
+
+            const sessions = data.sessions || [];
+            
+            if (sessions.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <svg class="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                        <p>No tienes sesiones activas</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sala</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duración</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            ${sessions.map(session => `
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3 text-sm text-gray-900">${session.room_name || 'N/A'}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">${session.user_name || 'Usuario'}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="px-2 py-1 text-xs font-medium rounded ${
+                                            session.status === 'active' ? 'bg-green-100 text-green-800' :
+                                            session.status === 'waiting' ? 'bg-yellow-100 text-yellow-800' :
+                                            'bg-gray-100 text-gray-800'
+                                        }">
+                                            ${session.status}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">${session.duration_minutes || 0} min</td>
+                                    <td class="px-4 py-3">
+                                        ${session.status === 'active' ? `
+                                            <button onclick="supervisorClient.openExistingSupervisionChat('${session.id || session.session_id}')"
+                                                    class="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700">
+                                                Ver
+                                            </button>
+                                        ` : '-'}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                ${data.working_status ? `
+                    <div class="mt-4 p-4 ${data.working_status.can_receive_new_sessions ? 'bg-green-50' : 'bg-yellow-50'} rounded-lg">
+                        <div class="text-sm ${data.working_status.can_receive_new_sessions ? 'text-green-800' : 'text-yellow-800'}">
+                            <strong>Estado:</strong> ${data.working_status.message || 'N/A'}
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        async loadMySchedules() {
+            try {
+                const response = await fetch(`${API_BASE}/agent-assignments/my-schedules`, {
+                    method: 'GET',
+                    headers: this.getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    this.displayMySchedules(result.data || {});
+                } else {
+                    throw new Error('Error cargando horarios');
+                }
+            } catch (error) {
+                console.error('Error loading my schedules:', error);
+                this.showNotification('Error cargando mis horarios: ' + error.message, 'error');
+            }
+        }
+
+        displayMySchedules(data) {
+            const container = document.getElementById('mySchedulesContainer');
+            if (!container) return;
+
+            const schedulesByRoom = data.schedules_by_room || [];
+            
+            if (schedulesByRoom.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <svg class="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        <p>No tienes horarios configurados</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+            container.innerHTML = `
+                <div class="space-y-6">
+                    ${schedulesByRoom.map(roomSchedule => `
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h4 class="font-medium text-gray-900 mb-3">${roomSchedule.room_name}</h4>
+                            <div class="space-y-2">
+                                ${roomSchedule.schedules.map(schedule => `
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                                        <div class="flex items-center gap-3">
+                                            <span class="font-medium text-gray-900">${dayNames[schedule.day_of_week]}</span>
+                                            <span class="text-gray-600">${schedule.start_time} - ${schedule.end_time}</span>
+                                        </div>
+                                        <span class="px-2 py-1 text-xs font-medium rounded ${
+                                            schedule.is_available ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                        }">
+                                            ${schedule.is_available ? 'Disponible' : 'No disponible'}
+                                        </span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <div class="text-sm text-blue-800">
+                        <strong>${data.total_schedules}</strong> horario(s) en <strong>${data.total_assignments}</strong> sala(s)
+                    </div>
+                </div>
+            `;
+        }
+
+        // ========== MONITOR DE SALAS ==========
+
+        async loadMyMonitor() {
+            try {
+                console.log('🚀 === INICIANDO CARGA DE MONITOR ===');
+                
+                const roomsResponse = await fetch(`${API_BASE}/agent-assignments/my-rooms`, {
+                    headers: this.getAuthHeaders()
+                });
+                
+                console.log('📡 Response my-rooms status:', roomsResponse.status);
+                
+                if (!roomsResponse.ok) {
+                    console.error('❌ Error cargando mis salas:', roomsResponse.status);
+                    throw new Error('Error cargando salas');
+                }
+                
+                const roomsResult = await roomsResponse.json();
+                console.log('📦 Resultado my-rooms completo:', roomsResult);
+                
+                const myRooms = roomsResult.data?.rooms || [];
+                console.log('🏠 Total de mis salas:', myRooms.length);
+                
+                if (myRooms.length > 0) {
+                    console.log('📋 Primera sala de ejemplo:', myRooms[0]);
+                }
+                
+                console.log('⏳ Cargando sesiones para cada sala...');
+                const roomPromises = myRooms.map(room => this.loadMonitorRoomSessions(room));
+                this.monitorRoomsData = await Promise.all(roomPromises);
+                
+                console.log('✅ Datos del monitor cargados:', this.monitorRoomsData);
+                
+                this.updateMonitorStats();
+                this.renderMonitorRooms();
+                
+                console.log('✅ === MONITOR CARGADO EXITOSAMENTE ===\n');
+                
+            } catch (error) {
+                console.error('❌ === ERROR CRÍTICO EN MONITOR ===');
+                console.error('❌ Error:', error);
+                console.error('❌ Stack:', error.stack);
+                this.showNotification('Error cargando monitor de salas', 'error');
+            }
+        }
+
+        async loadMonitorRoomSessions(room) {
+        try {
+            // 🔧 USAR EL MISMO ENDPOINT QUE EL AGENTE
+            const roomId = room.id || room.room_id;
+            
+            console.log('🔍 === CARGANDO SESIONES (MÉTODO AGENTE) ===');
+            console.log('📋 Sala:', room.name || room.room_name);
+            console.log('🆔 Room ID:', roomId);
+            
+            // ⭐ ENDPOINT IDÉNTICO AL DEL AGENTE
+            const url = `${CHAT_API}/chats/sessions?room_id=${roomId}&include_expired=false`;
+            console.log('🌐 URL:', url);
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: this.getAuthHeaders()
+            });
+            
+            console.log('📡 Response status:', response.status);
+            
+            if (!response.ok) {
+                console.error('❌ Error en respuesta:', response.status);
+                return { ...room, sessions: [], waiting: 0, active: 0 };
+            }
+            
+            const result = await response.json();
+            console.log('📦 Resultado completo:', result);
+            
+            // ⭐ PROCESAR IGUAL QUE EL AGENTE
+            if (result.success && result.data && result.data.sessions) {
+                const sessions = result.data.sessions.map(session => this.processSessionData(session));
+                
+                console.log('📊 Sesiones encontradas:', sessions.length);
+                
+                if (sessions.length > 0) {
+                    console.log('📋 Primera sesión:', sessions[0]);
+                }
+                
+                // Contar por status
+                const waiting = sessions.filter(s => s.status === 'waiting').length;
+                const active = sessions.filter(s => s.status === 'active').length;
+                
+                console.log('⏳ Waiting:', waiting);
+                console.log('✅ Active:', active);
+                console.log('✅ === FIN CARGA SESIONES ===\n');
+                
+                return {
+                    ...room,
+                    room_id: roomId,
+                    room_name: room.name || room.room_name,
+                    sessions: sessions,
+                    waiting: waiting,
+                    active: active,
+                    total: sessions.length
+                };
+            } else {
+                console.log('⚠️ Respuesta sin sesiones');
+                return { ...room, sessions: [], waiting: 0, active: 0 };
+            }
+            
+        } catch (error) {
+            console.error('❌ Error cargando sesiones:', error);
+            return { ...room, sessions: [], waiting: 0, active: 0 };
+        }
+    }
+processSessionData(session) {
+    return {
+        id: session.id,
+        room_id: session.room_id,
+        status: session.status || 'waiting',
+        created_at: session.created_at,
+        updated_at: session.updated_at,
+        user_data: session.user_data,
+        user_id: session.user_id,
+        agent_id: session.agent_id || null,
+        agent_name: session.agent_name || null,
+        user_name: session.user_name || this.getPatientNameFromSession(session),
+        patient_data: session.patient_data || {},
+        ptoken: session.ptoken,
+        transfer_info: session.transfer_info,
+        duration_minutes: session.duration_minutes || 0,
+        waiting_time_minutes: session.waiting_time_minutes || 0
+    };
+}
+
+        updateMonitorStats() {
+            if (!this.monitorRoomsData) return;
+            
+            const totalRooms = this.monitorRoomsData.length;
+            const totalWaiting = this.monitorRoomsData.reduce((sum, room) => sum + (room.waiting || 0), 0);
+            const totalActive = this.monitorRoomsData.reduce((sum, room) => sum + (room.active || 0), 0);
+            
+            const roomsEl = document.getElementById('monitorTotalRooms');
+            const waitingEl = document.getElementById('monitorTotalWaiting');
+            const activeEl = document.getElementById('monitorTotalActive');
+            
+            if (roomsEl) roomsEl.textContent = totalRooms;
+            if (waitingEl) waitingEl.textContent = totalWaiting;
+            if (activeEl) activeEl.textContent = totalActive;
+        }
+
+        applyMonitorFilters() {
+            const viewFilter = document.getElementById('monitorViewFilter')?.value || 'all';
+            const sortFilter = document.getElementById('monitorSortFilter')?.value || 'waiting_desc';
+            
+            if (!this.monitorRoomsData) return;
+            
+            let filteredRooms = [...this.monitorRoomsData];
+            
+            if (viewFilter === 'active') {
+                filteredRooms = filteredRooms.filter(room => room.active > 0);
+            } else if (viewFilter === 'waiting') {
+                filteredRooms = filteredRooms.filter(room => room.waiting > 0);
+            }
+            
+            if (sortFilter === 'waiting_desc') {
+                filteredRooms.sort((a, b) => (b.waiting || 0) - (a.waiting || 0));
+            } else if (sortFilter === 'active_desc') {
+                filteredRooms.sort((a, b) => (b.active || 0) - (a.active || 0));
+            } else if (sortFilter === 'name_asc') {
+                filteredRooms.sort((a, b) => (a.room_name || '').localeCompare(b.room_name || ''));
+            }
+            
+            this.renderMonitorRooms(filteredRooms);
+        }
+
+        renderMonitorRooms(rooms = this.monitorRoomsData) {
+            const grid = document.getElementById('monitorRoomsGrid');
+            if (!grid) return;
+            
+            if (!rooms || rooms.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full text-center py-20">
+                        <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                        </svg>
+                        <p class="text-gray-500">No tienes salas asignadas</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = rooms.map(room => this.createMonitorRoomCard(room)).join('');
+        }
+
+        createMonitorRoomCard(room) {
+            const waitingSessions = (room.sessions || []).filter(s => s.status === 'waiting');
+            const activeSessions = (room.sessions || []).filter(s => s.status === 'active');
+            
+            return `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center text-white font-semibold text-lg">
+                                ${(room.room_name || 'S').charAt(0)}
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900">${room.room_name || 'Sala'}</h3>
+                                <p class="text-xs text-gray-500">${room.room_description || room.description || 'Sala de chat'}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div class="text-center p-3 bg-yellow-50 rounded-lg">
+                            <div class="text-2xl font-bold text-yellow-600">${room.waiting || 0}</div>
+                            <div class="text-xs text-yellow-700">Pendientes</div>
+                        </div>
+                        <div class="text-center p-3 bg-green-50 rounded-lg">
+                            <div class="text-2xl font-bold text-green-600">${room.active || 0}</div>
+                            <div class="text-xs text-green-700">Activos</div>
+                        </div>
+                    </div>
+                    
+                    ${waitingSessions.length > 0 ? `
+                        <div class="mb-3">
+                            <h4 class="text-xs font-medium text-gray-600 uppercase mb-2">En Espera (${waitingSessions.length})</h4>
+                            <div class="space-y-2 max-h-40 overflow-y-auto">
+                                ${waitingSessions.slice(0, 3).map(session => this.createMonitorSessionItem(session, 'waiting')).join('')}
+                            </div>
+                            ${waitingSessions.length > 3 ? `<div class="text-xs text-blue-600 mt-2">+${waitingSessions.length - 3} más</div>` : ''}
+                        </div>
+                    ` : ''}
+                    
+                    ${activeSessions.length > 0 ? `
+                        <div>
+                            <h4 class="text-xs font-medium text-gray-600 uppercase mb-2">Activos (${activeSessions.length})</h4>
+                            <div class="space-y-2 max-h-40 overflow-y-auto">
+                                ${activeSessions.slice(0, 3).map(session => this.createMonitorSessionItem(session, 'active')).join('')}
+                            </div>
+                            ${activeSessions.length > 3 ? `<div class="text-xs text-blue-600 mt-2">+${activeSessions.length - 3} más</div>` : ''}
+                        </div>
+                    ` : ''}
+                    
+                    ${(room.sessions || []).length === 0 ? `
+                        <div class="text-center py-6 text-gray-400 text-sm">
+                            <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                            </svg>
+                            Sin actividad
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        createMonitorSessionItem(session, type) {
+            const userName = session.user_name || 'Usuario';
+            const agentName = session.agent_name || 'Sin asignar';
+            const duration = session.duration_minutes || session.waiting_time_minutes || 0;
+            const sessionId = session.id || session.session_id;
+            
+            return `
+                <div onclick="supervisorClient.openObserverChat('${sessionId}')" 
+                    class="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-sm font-medium text-gray-900">${userName}</span>
+                        <span class="px-2 py-1 text-xs rounded ${type === 'waiting' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                            ${type === 'waiting' ? 'Esperando' : 'Activo'}
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                        <span>${agentName}</span>
+                        <span>${duration} min</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        async openObserverChat(sessionId) {
+            try {
+                console.log('👁️ Abriendo chat en modo observador:', sessionId);
+                
+                const modal = document.getElementById('observerChatModal');
+                modal.classList.remove('hidden');
+                
+                const messagesContainer = document.getElementById('observerChatMessages');
+                messagesContainer.innerHTML = `
+                    <div class="text-center py-20">
+                        <div class="loading-spinner mx-auto mb-4"></div>
+                        <p class="text-gray-400">Cargando historial...</p>
+                    </div>
+                `;
+                
+                const sessionResponse = await fetch(`${CHAT_API}/chats/sessions?session_id=${sessionId}`, {
+                    headers: this.getAuthHeaders()
+                });
+                
+                if (!sessionResponse.ok) throw new Error('Error cargando sesión');
+                
+                const sessionResult = await sessionResponse.json();
+                const session = sessionResult.data?.sessions?.[0];
+                
+                if (!session) throw new Error('Sesión no encontrada');
+                
+                this.updateObserverChatHeader(session);
+                await this.loadObserverChatHistory(sessionId);
+                
+            } catch (error) {
+                console.error('❌ Error abriendo chat observador:', error);
+                this.showNotification('Error abriendo chat: ' + error.message, 'error');
+                this.closeObserverChat();
+            }
+        }
+
+        updateObserverChatHeader(session) {
+            const userName = session.user_name || 'Paciente';
+            const agentName = session.agent_name || 'Sin asignar';
+            const roomName = session.room_name || 'Sala';
+            
+            const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+            
+            document.getElementById('observerChatInitials').textContent = initials;
+            document.getElementById('observerChatTitle').textContent = userName;
+            document.getElementById('observerChatSubtitle').textContent = `${roomName} • ${agentName}`;
+        }
+
+        async loadObserverChatHistory(sessionId) {
+            try {
+                const response = await fetch(`${CHAT_API}/messages/${sessionId}?limit=100`, {
+                    headers: this.getAuthHeaders()
+                });
+                
+                if (!response.ok) throw new Error('Error cargando mensajes');
+                
+                const result = await response.json();
+                const messages = result.data?.messages || [];
+                
+                const container = document.getElementById('observerChatMessages');
+                
+                if (messages.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-8 text-gray-500">
+                            <p>No hay mensajes en esta conversación</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = messages.map(msg => this.createMessageBubble(msg)).join('');
+                
+                setTimeout(() => {
+                    container.scrollTop = container.scrollHeight;
+                }, 100);
+                
+            } catch (error) {
+                console.error('❌ Error cargando historial:', error);
+                document.getElementById('observerChatMessages').innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <p>Error cargando mensajes</p>
+                    </div>
+                `;
+            }
+        }
+
+        createMessageBubble(message) {
+            const senderType = message.sender_type || message.user_type || 'patient';
+            const senderName = message.sender_name || message.user_name || 'Usuario';
+            const content = this.escapeHtml(message.content || message.message || '');
+            
+            let timestamp = message.timestamp || message.created_at || new Date();
+            if (typeof timestamp === 'string') {
+                timestamp = new Date(timestamp);
+            }
+            
+            const time = timestamp.toLocaleTimeString('es-ES', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            const senderLabels = {
+                'patient': 'Paciente',
+                'agent': 'Agente',
+                'supervisor': 'Supervisor',
+                'admin': 'Admin'
+            };
+            
+            const senderLabel = senderLabels[senderType] || senderName;
+            
+            const messageClass = senderType === 'patient' ? 'justify-start' : 'justify-end';
+            const bubbleClass = senderType === 'patient' ? 'bg-gray-200 text-gray-900' : 
+                            senderType === 'supervisor' ? 'bg-purple-600 text-white' :
+                            'bg-blue-600 text-white';
+            
+            return `
+                <div class="flex ${messageClass} mb-4">
+                    <div class="max-w-xs lg:max-w-md ${bubbleClass} rounded-lg px-4 py-2">
+                        <div class="text-xs opacity-75 mb-1">${senderLabel}</div>
+                        <p>${content}</p>
+                        <div class="text-xs opacity-75 mt-1">${time}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        closeObserverChat() {
+            const modal = document.getElementById('observerChatModal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        }
+
+        async refreshMonitor() {
+            console.log('🔄 Actualizando monitor...');
+            this.showNotification('Actualizando...', 'info', 1000);
+            await this.loadMyMonitor();
+        }
+
 
             async init() {
                 try {
@@ -2077,7 +2782,9 @@
                 'transfers': 'Transferencias Pendientes (RF4)',
                 'escalations': 'Escalaciones Activas (RF5)', 
                 'analysis': 'Análisis de Mal Direccionamiento (RF6)',
-                'supervisor-chat': 'Chat de Supervisión'
+                'supervisor-chat': 'Chat de Supervisión',
+                'my-panel': 'Mi panel de supervisor',
+                'monitor': 'Monitor de Mis Salas'
             };
             document.getElementById('sectionTitle').textContent = titles[sectionName];
             
@@ -2101,6 +2808,15 @@
                     break;
                 case 'escalations':
                     supervisorClient.loadEscalations();
+                    break;
+                case 'my-panel':
+                    supervisorClient.loadMyInfo();
+                    supervisorClient.loadMyRooms();
+                    supervisorClient.loadMySessions();
+                    supervisorClient.loadMySchedules();
+                    break;
+                case 'monitor':
+                    supervisorClient.loadMyMonitor();
                     break;
             }
         }

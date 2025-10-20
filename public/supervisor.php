@@ -95,6 +95,14 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
                         </svg>
                         Análisis RF6
                     </a>
+                    <a href="#monitor" onclick="showSection('monitor'); closeMobileNav();" 
+                       id="nav-monitor" class="nav-link">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        </svg>
+                        Monitor de Salas
+                    </a>
                 </div>
             </nav>
                 
@@ -164,6 +172,14 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                         </svg>
                         Análisis RF6
+                    </a>
+                    <a href="#monitor" onclick="showSection('monitor'); closeMobileNav();" 
+                       id="mobile-nav-monitor" class="nav-link">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        </svg>
+                        Monitor de Salas
                     </a>
                 </div>
             </nav>
@@ -302,7 +318,76 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
                         </div>
                     </div>
                 </div>
-
+                <!-- Monitor Section -->
+                <div id="monitor-section" class="section-content hidden p-6">
+                    <div class="mb-6">
+                        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+                            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+                                <div>
+                                    <h3 class="text-xl font-semibold text-gray-900">Monitor de Mis Salas</h3>
+                                    <p class="text-sm text-gray-600 mt-1">Vista en tiempo real de las salas asignadas</p>
+                                </div>
+                                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                    <!-- Stats Summary -->
+                                    <div class="flex items-center gap-4 px-4 py-2 bg-gray-50 rounded-lg">
+                                        <div class="text-center">
+                                            <div id="monitorTotalRooms" class="text-xl font-bold text-gray-900">0</div>
+                                            <div class="text-xs text-gray-500">Salas</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div id="monitorTotalWaiting" class="text-xl font-bold text-yellow-600">0</div>
+                                            <div class="text-xs text-gray-500">Pendientes</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div id="monitorTotalActive" class="text-xl font-bold text-green-600">0</div>
+                                            <div class="text-xs text-gray-500">Activos</div>
+                                        </div>
+                                    </div>
+                                    <button onclick="supervisorClient.refreshMonitor()" 
+                                            class="btn btn-primary flex items-center gap-2 whitespace-nowrap">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                        </svg>
+                                        Actualizar
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Filters -->
+                            <div class="flex flex-wrap items-center gap-4">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm text-gray-600">Vista:</label>
+                                    <select id="monitorViewFilter" onchange="supervisorClient.applyMonitorFilters()" 
+                                            class="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm">
+                                        <option value="all">Todas mis salas</option>
+                                        <option value="active">Solo con actividad</option>
+                                        <option value="waiting">Solo con pendientes</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm text-gray-600">Ordenar:</label>
+                                    <select id="monitorSortFilter" onchange="supervisorClient.applyMonitorFilters()" 
+                                            class="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm">
+                                        <option value="waiting_desc">Más pendientes</option>
+                                        <option value="active_desc">Más activos</option>
+                                        <option value="name_asc">Nombre A-Z</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Rooms Grid -->
+                    <div id="monitorRoomsGrid" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                        <div class="col-span-full flex items-center justify-center py-20">
+                            <div class="text-center">
+                                <div class="loading-spinner mx-auto mb-4"></div>
+                                <p class="text-gray-500">Cargando salas...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div id="supervisor-chat-section" class="section-content hidden">
                     <div class="chat-container">
                         <div class="flex h-full">
@@ -568,7 +653,47 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
             </div>
         </div>
     </div>
-
+|   <!-- Observer Chat Modal -->
+    <div id="observerChatModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                <div class="flex items-center gap-3">
+                    <button onclick="supervisorClient.closeObserverChat()" 
+                            class="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                    </button>
+                    <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                        <span id="observerChatInitials" class="text-white font-semibold">P</span>
+                    </div>
+                    <div>
+                        <h3 id="observerChatTitle" class="text-lg font-semibold text-gray-900">Paciente</h3>
+                        <p id="observerChatSubtitle" class="text-sm text-gray-500">Sala • Agente</p>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
+                    MODO OBSERVADOR
+                </span>
+            </div>
+            
+            <div id="observerChatMessages" class="flex-1 overflow-y-auto p-6">
+                <div class="text-center py-8 text-gray-500">
+                    Cargando historial...
+                </div>
+            </div>
+            
+            <div class="p-4 border-t border-gray-200 bg-gray-50">
+                <div class="text-center text-sm text-gray-600">
+                    <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                    Observando conversación sin participar
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="assets/js/supervisor-app.js"></script>
 </body>
