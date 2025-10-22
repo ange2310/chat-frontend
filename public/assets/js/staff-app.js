@@ -39,6 +39,13 @@
         let lastUpdateTime = null;
         let sentMessages = new Set();
         let messageIdCounter = 0;
+        // ========== GROUP CHAT VARIABLES ==========
+        let currentGroupRoom = null;
+        let groupChatSocket = null;
+        let isGroupChatConnected = false;
+        let groupChatJoined = false;
+        let currentGroupRoomId = null;
+        let isSilentMode = false; // Agentes siempre activos (no modo silencioso)
         let sessionMessageIds = new Map();
         let selectedFiles = [];
         let isFileUploadVisible = false;
@@ -254,8 +261,7 @@
             const currentIds = new Set(currentConversations.map(conv => conv.id));
             console.log('🆔 IDs actuales:', Array.from(currentIds));
             console.log('🆔 IDs anteriores:', Array.from(previousPendingConversationIds));
-            
-            // CORRECCIÓN PRINCIPAL: No saltar en la primera verificación si hay conversaciones
+
             if (isFirstPendingCheck) {
                 isFirstPendingCheck = false;
                 
@@ -322,7 +328,7 @@
             const roomName = getRoomNameFromSession(conversation);
             const waitTime = getTimeAgo(conversation.created_at);
             
-            const message = `🔔 Nueva conversación pendiente\n👤 ${patientName}\n🏥 ${roomName}\n⏱️ Esperando ${waitTime}`;
+            const message = `Nueva conversación pendiente\n👤 ${patientName}\n🏥 ${roomName}\n⏱️ Esperando ${waitTime}`;
             
             showGlobalPendingNotification(message, 1, conversation.id);
         }
@@ -5889,6 +5895,8 @@
             }, 5 * 60 * 1000); // 5 minutos
         }
 
+        
+
         // Inicialización del sistema
         document.addEventListener('DOMContentLoaded', async () => {
 
@@ -6609,6 +6617,7 @@
                 `;
             }
         }
+        
 
         // ===== FUNCIONES DE VALIDACIÓN DE CONTRASEÑAS =====
 
@@ -6981,6 +6990,8 @@
             console.log('🚀 Monitoreo de transferencias mejorado iniciado cada 15 segundos');
             console.log('📡 Usando endpoint directo: /transfers/recent');
         }
+
+        
 
         // Exponer funciones globales
         window.testTransferSystemImproved = testTransferSystemImproved;

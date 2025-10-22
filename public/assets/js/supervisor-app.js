@@ -16,6 +16,12 @@
         let sentMessages = new Set();
         let messageIdCounter = 0;
         let chatHistoryCache = new Map();
+        let currentGroupRoom = null;
+        let groupChatSocket = null;
+        let isGroupChatConnected = false;
+        let groupChatJoined = false;
+        let currentGroupRoomId= null;
+        let isSilentMode = true;
 
         class SupervisorClient {
             constructor() {
@@ -2368,34 +2374,34 @@
                     total: sessions.length
                 };
             } else {
-                console.log('⚠️ Respuesta sin sesiones');
+                console.log('Respuesta sin sesiones');
                 return { ...room, sessions: [], waiting: 0, active: 0 };
             }
             
         } catch (error) {
-            console.error('❌ Error cargando sesiones:', error);
+            console.error('Error cargando sesiones:', error);
             return { ...room, sessions: [], waiting: 0, active: 0 };
         }
     }
-processSessionData(session) {
-    return {
-        id: session.id,
-        room_id: session.room_id,
-        status: session.status || 'waiting',
-        created_at: session.created_at,
-        updated_at: session.updated_at,
-        user_data: session.user_data,
-        user_id: session.user_id,
-        agent_id: session.agent_id || null,
-        agent_name: session.agent_name || null,
-        user_name: session.user_name || this.getPatientNameFromSession(session),
-        patient_data: session.patient_data || {},
-        ptoken: session.ptoken,
-        transfer_info: session.transfer_info,
-        duration_minutes: session.duration_minutes || 0,
-        waiting_time_minutes: session.waiting_time_minutes || 0
-    };
-}
+    processSessionData(session) {
+        return {
+            id: session.id,
+            room_id: session.room_id,
+            status: session.status || 'waiting',
+            created_at: session.created_at,
+            updated_at: session.updated_at,
+            user_data: session.user_data,
+            user_id: session.user_id,
+            agent_id: session.agent_id || null,
+            agent_name: session.agent_name || null,
+            user_name: session.user_name || this.getPatientNameFromSession(session),
+            patient_data: session.patient_data || {},
+            ptoken: session.ptoken,
+            transfer_info: session.transfer_info,
+            duration_minutes: session.duration_minutes || 0,
+            waiting_time_minutes: session.waiting_time_minutes || 0
+        };
+    }
 
         updateMonitorStats() {
             if (!this.monitorRoomsData) return;
@@ -2701,6 +2707,399 @@ processSessionData(session) {
                 }
                 closeAllMobileSidebars();
             }
+
+            // ========== MÉTODOS PARA CHAT GRUPAL ==========
+
+            async loadGroupRooms() {
+                try {
+                    console.log('🏠 Cargando salas grupales...');
+                    
+                    const response = await fetch(`${API_BASE}/agent-assignments/my-rooms`, {
+                        headers: this.getAuthHeaders()
+                    });
+                    
+                    if (!response.ok) throw new Error('Error cargando salas');
+                    
+                    const result = await response.json();
+                    const rooms = result.data?.rooms || [];
+                    
+                    console.log('✅ Salas cargadas:', rooms.length);
+                    this.displayGroupRooms(rooms);
+                    
+                } catch (error) {
+                    console.error('❌ Error cargando salas grupales:', error);
+                    this.showNotification('Error cargando salas grupales', 'error');
+                }
+            }
+
+            displayGroupRooms(rooms) {
+                const container = document.getElementById('groupRoomsList');
+                if (!container) return;
+                
+                if (rooms.length === 0) {
+                    container.innerHTML = `
+                        <div class="col-span-full text-center py-20">
+                            <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                            </svg>
+                            <p class="text-gray-500">No tienes salas asignadas</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = rooms.map(room => `
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+                        onclick="supervisorClient.joinGroupRoom('${room.id || room.room_id}', '${room.name || room.room_name}')">
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
+                                    <span class="text-white font-semibold text-lg">${(room.name || room.room_name || 'S').charAt(0)}</span>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-gray-900">${room.name || room.room_name}</h4>
+                                    <p class="text-sm text-gray-500">${room.description || room.room_description || 'Sala de chat'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600">Click para unirse</span>
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            async joinGroupRoom(roomId, roomName) {
+                try {
+                    console.log('🚪 Uniéndose a sala grupal:', roomId, roomName);
+                    
+                    currentGroupRoomId = roomId;
+                    currentGroupRoom = { id: roomId, name: roomName };
+                    
+                    // Ocultar lista de salas, mostrar chat activo
+                    document.getElementById('groupRoomsList').classList.add('hidden');
+                    document.getElementById('activeGroupChat').classList.remove('hidden');
+                    
+                    // Actualizar UI
+                    document.getElementById('groupChatRoomName').textContent = roomName;
+                    document.getElementById('groupChatModeIndicator').textContent = 'Modo Observador';
+                    document.getElementById('groupChatModeIndicator').className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800';
+                    
+                    // Mostrar input deshabilitado inicialmente (modo observador)
+                    document.getElementById('groupChatInputDisabled').classList.remove('hidden');
+                    document.getElementById('groupChatInputEnabled').classList.add('hidden');
+                    
+                    // Conectar WebSocket si no está conectado
+                    if (!groupChatSocket || !isGroupChatConnected) {
+                        await this.connectGroupChatWebSocket();
+                    }
+                    
+                    // Esperar a que el socket esté conectado
+                    await this.waitForGroupSocketConnection();
+                    
+                    // Unirse a la sala
+                    this.emitJoinGroupRoom(roomId);
+                    
+                } catch (error) {
+                    console.error('❌ Error uniéndose a sala grupal:', error);
+                    this.showNotification('Error uniéndose a sala: ' + error.message, 'error');
+                    this.exitGroupChat();
+                }
+            }
+
+            async connectGroupChatWebSocket() {
+                try {
+                    console.log('🔌 Conectando WebSocket para chat grupal...');
+                    
+                    const token = this.getToken();
+                    const currentUser = this.getCurrentUser();
+                    
+                    groupChatSocket = io(API_BASE, {
+                        transports: ['websocket', 'polling'],
+                        auth: {
+                            token: token,
+                            user_id: currentUser.id,
+                            user_type: 'supervisor',
+                            user_name: currentUser.name
+                        }
+                    });
+                    
+                    groupChatSocket.on('connect', () => {
+                        isGroupChatConnected = true;
+                        console.log('✅ WebSocket grupal conectado');
+                    });
+                    
+                    groupChatSocket.on('disconnect', () => {
+                        isGroupChatConnected = false;
+                        groupChatJoined = false;
+                        console.log('❌ WebSocket grupal desconectado');
+                    });
+                    
+                    groupChatSocket.on('group_room_joined', (data) => {
+                        groupChatJoined = true;
+                        isSilentMode = data.is_silent;
+                        console.log('✅ Unido a sala grupal:', data);
+                        
+                        this.updateGroupChatUI(data);
+                        this.loadGroupChatHistory(data.room_id);
+                    });
+                    
+                    groupChatSocket.on('new_group_message', (data) => {
+                        console.log('💬 Nuevo mensaje grupal:', data);
+                        this.handleGroupMessage(data);
+                    });
+                    
+                    groupChatSocket.on('participant_joined', (data) => {
+                        console.log('👋 Nuevo participante:', data);
+                        this.showNotification(`${data.user_name || 'Usuario'} se unió a la sala`, 'info');
+                    });
+                    
+                    groupChatSocket.on('participant_left', (data) => {
+                        console.log('👋 Participante salió:', data);
+                    });
+                    
+                    groupChatSocket.on('silent_mode_toggled', (data) => {
+                        isSilentMode = data.is_silent;
+                        this.updateSilentModeUI(data.is_silent, data.can_send_messages);
+                        this.showNotification(
+                            data.is_silent ? 'Modo observador activado' : 'Modo activo: puedes enviar mensajes',
+                            'success'
+                        );
+                    });
+                    
+                    groupChatSocket.on('error', (error) => {
+                        console.error('❌ Error en socket grupal:', error);
+                        this.showNotification('Error: ' + (error.message || error), 'error');
+                    });
+                    
+                } catch (error) {
+                    console.error('❌ Error conectando WebSocket grupal:', error);
+                    throw error;
+                }
+            }
+
+            waitForGroupSocketConnection(timeout = 5000) {
+                return new Promise((resolve, reject) => {
+                    if (isGroupChatConnected) {
+                        resolve();
+                        return;
+                    }
+                    
+                    const startTime = Date.now();
+                    const checkConnection = setInterval(() => {
+                        if (isGroupChatConnected) {
+                            clearInterval(checkConnection);
+                            resolve();
+                        } else if (Date.now() - startTime > timeout) {
+                            clearInterval(checkConnection);
+                            reject(new Error('Timeout esperando conexión WebSocket'));
+                        }
+                    }, 100);
+                });
+            }
+
+            emitJoinGroupRoom(roomId) {
+                if (!groupChatSocket || !isGroupChatConnected) {
+                    console.error('❌ Socket no conectado');
+                    return;
+                }
+                
+                const currentUser = this.getCurrentUser();
+                
+                groupChatSocket.emit('join_group_room', {
+                    room_id: roomId,
+                    user_id: currentUser.id,
+                    user_type: 'supervisor'
+                });
+            }
+
+            updateGroupChatUI(data) {
+                // Actualizar contador de participantes
+                const participants = data.participants || [];
+                document.getElementById('groupChatParticipantsCount').textContent = 
+                    `${participants.length} participante${participants.length !== 1 ? 's' : ''}`;
+                
+                // Actualizar modo
+                this.updateSilentModeUI(data.is_silent, data.can_send_messages);
+            }
+
+            updateSilentModeUI(isSilent, canSend) {
+                const indicator = document.getElementById('groupChatModeIndicator');
+                const toggleBtn = document.getElementById('toggleSilentModeBtn');
+                const inputDisabled = document.getElementById('groupChatInputDisabled');
+                const inputEnabled = document.getElementById('groupChatInputEnabled');
+                
+                if (isSilent) {
+                    indicator.textContent = 'Modo Observador';
+                    indicator.className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800';
+                    toggleBtn.innerHTML = `
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                        </svg>
+                        Activar Voz
+                    `;
+                    inputDisabled.classList.remove('hidden');
+                    inputEnabled.classList.add('hidden');
+                } else {
+                    indicator.textContent = 'Modo Activo';
+                    indicator.className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800';
+                    toggleBtn.innerHTML = `
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                        </svg>
+                        Silenciar
+                    `;
+                    inputDisabled.classList.add('hidden');
+                    inputEnabled.classList.remove('hidden');
+                }
+            }
+
+            async loadGroupChatHistory(roomId) {
+                const container = document.getElementById('groupChatMessages');
+                container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8">Cargando mensajes...</div>';
+                
+                try {
+                    // Aquí harías una llamada al backend para obtener el historial
+                    // Por ahora, solo limpiar el contenedor
+                    setTimeout(() => {
+                        container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8">No hay mensajes aún</div>';
+                    }, 500);
+                    
+                } catch (error) {
+                    console.error('❌ Error cargando historial grupal:', error);
+                    container.innerHTML = '<div class="text-center text-red-500 text-sm py-8">Error cargando mensajes</div>';
+                }
+            }
+
+            handleGroupMessage(data) {
+                const container = document.getElementById('groupChatMessages');
+                
+                // Eliminar mensaje de "no hay mensajes"
+                const emptyMsg = container.querySelector('.text-center');
+                if (emptyMsg && emptyMsg.textContent.includes('No hay mensajes')) {
+                    emptyMsg.remove();
+                }
+                
+                const currentUser = this.getCurrentUser();
+                const isMyMessage = data.sender_id === currentUser.id;
+                
+                const messageEl = document.createElement('div');
+                messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'}`;
+                
+                const senderLabel = data.sender_type === 'supervisor' ? 'Supervisor' :
+                                data.sender_type === 'agent' ? 'Agente' :
+                                data.sender_type === 'admin' ? 'Admin' : 'Usuario';
+                
+                const bubbleColor = isMyMessage ? 'bg-blue-600 text-white' :
+                                data.sender_type === 'supervisor' ? 'bg-purple-100 text-purple-900' :
+                                data.sender_type === 'agent' ? 'bg-green-100 text-green-900' :
+                                'bg-gray-200 text-gray-900';
+                
+                messageEl.innerHTML = `
+                    <div class="max-w-xs lg:max-w-md ${bubbleColor} rounded-lg px-4 py-2">
+                        <div class="text-xs opacity-75 mb-1">${isMyMessage ? 'Tú' : senderLabel}</div>
+                        <p class="text-sm">${this.escapeHtml(data.content)}</p>
+                        <div class="text-xs opacity-75 mt-1">${new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</div>
+                    </div>
+                `;
+                
+                container.appendChild(messageEl);
+                container.scrollTop = container.scrollHeight;
+            }
+
+            toggleGroupSilentMode() {
+                if (!groupChatSocket || !groupChatJoined) {
+                    this.showNotification('No estás conectado a la sala', 'error');
+                    return;
+                }
+                
+                groupChatSocket.emit('toggle_silent_mode', {});
+            }
+
+            exitGroupChat() {
+                // Desconectar del chat grupal
+                if (groupChatSocket && groupChatJoined) {
+                    groupChatSocket.disconnect();
+                    groupChatSocket = null;
+                    isGroupChatConnected = false;
+                    groupChatJoined = false;
+                }
+                
+                currentGroupRoomId = null;
+                currentGroupRoom = null;
+                
+                // Mostrar lista de salas nuevamente
+                document.getElementById('groupRoomsList').classList.remove('hidden');
+                document.getElementById('activeGroupChat').classList.add('hidden');
+                
+                // Limpiar mensajes
+                document.getElementById('groupChatMessages').innerHTML = '';
+            }
+
+            showGroupParticipants() {
+                if (!groupChatSocket || !groupChatJoined) {
+                    this.showNotification('No estás en una sala', 'error');
+                    return;
+                }
+                
+                // Emitir evento para obtener participantes
+                groupChatSocket.emit('get_room_participants', {}, (response) => {
+                    if (response && response.participants) {
+                        this.displayGroupParticipants(response.participants);
+                    }
+                });
+                
+                document.getElementById('groupParticipantsModal').classList.remove('hidden');
+            }
+
+            displayGroupParticipants(participants) {
+                const container = document.getElementById('groupParticipantsList');
+                
+                if (participants.length === 0) {
+                    container.innerHTML = '<div class="text-center text-gray-500 py-4">No hay participantes</div>';
+                    return;
+                }
+                
+                container.innerHTML = participants.map(p => `
+                    <div class="flex items-center justify-between py-3 border-b border-gray-200">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                                <span class="text-white font-semibold">${(p.user_name || 'U').charAt(0)}</span>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900">${p.user_name || 'Usuario'}</p>
+                                <p class="text-xs text-gray-500 capitalize">${p.role}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            ${p.is_silent ? 
+                                '<span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded">Observando</span>' :
+                                '<span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Activo</span>'
+                            }
+                            ${p.is_online ? 
+                                '<div class="w-2 h-2 bg-green-500 rounded-full"></div>' :
+                                '<div class="w-2 h-2 bg-gray-400 rounded-full"></div>'
+                            }
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            closeGroupParticipants() {
+                document.getElementById('groupParticipantsModal').classList.add('hidden');
+            }
+
+            refreshGroupRooms() {
+                this.loadGroupRooms();
+                this.showNotification('Actualizando salas...', 'info', 1000);
+            }
         }
 
         window.supervisorClient = new SupervisorClient();
@@ -2817,6 +3216,9 @@ processSessionData(session) {
                     break;
                 case 'monitor':
                     supervisorClient.loadMyMonitor();
+                    break;
+                case "group-chat":
+                    supervisorClient.loadGroupRooms();
                     break;
             }
         }
@@ -3219,6 +3621,47 @@ processSessionData(session) {
                 }
             }
         }
+
+
+        // ========== FUNCIONES GLOBALES PARA CHAT GRUPAL ==========
+
+        function sendGroupMessage() {
+            const input = document.getElementById('groupMessageInput');
+            if (!input) return;
+            
+            const message = input.value.trim();
+            if (!message) return;
+            
+            if (!groupChatSocket || !groupChatJoined) {
+                supervisorClient.showNotification('No estás conectado a la sala', 'error');
+                return;
+            }
+            
+            if (isSilentMode) {
+                supervisorClient.showNotification('Activa tu voz primero para enviar mensajes', 'warning');
+                return;
+            }
+            
+            const currentUser = supervisorClient.getCurrentUser();
+            
+            groupChatSocket.emit('send_group_message', {
+                content: message,
+                message_type: 'text'
+            });
+            
+            input.value = '';
+        }
+
+        function handleGroupChatKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendGroupMessage();
+            }
+        }
+
+        // Exponer funciones globalmente
+        window.sendGroupMessage = sendGroupMessage;
+        window.handleGroupChatKeyDown = handleGroupChatKeyDown;
         // Funciones globales
         window.openMobileNav = openMobileNav;
         window.closeMobileNav = closeMobileNav;
