@@ -1509,6 +1509,107 @@ if (!in_array($userRole, $validStaffRoles)) {
                     </div>
                 </div>
 
+                <!-- Group Chat Section -->
+                <div id="group-chat-section" class="section-content hidden p-6">
+                    <div class="mb-6">
+                        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+                            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                <div>
+                                    <h3 class="text-xl font-semibold text-gray-900">Salas de Chat Grupal</h3>
+                                    <p class="text-sm text-gray-600 mt-1">Únete a salas para colaboración en equipo</p>
+                                </div>
+                                <button onclick="staffClient.refreshGroupRooms()" 
+                                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 btn-responsive flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                    </svg>
+                                    Actualizar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Rooms List -->
+                    <div id="groupRoomsList" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+                        <div class="col-span-full flex items-center justify-center py-20">
+                            <div class="text-center">
+                                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                <p class="text-gray-500">Cargando salas...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Active Group Chat -->
+                    <div id="activeGroupChat" class="hidden">
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                            <!-- Chat Header -->
+                            <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                                <div class="flex items-center gap-3">
+                                    <button onclick="staffClient.exitGroupChat()" 
+                                            class="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                        </svg>
+                                    </button>
+                                    <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 id="groupChatRoomName" class="text-lg font-semibold text-gray-900">Sala</h3>
+                                        <div class="flex items-center gap-2">
+                                            <span id="groupChatParticipantsCount" class="text-sm text-gray-500">0 participantes</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center gap-2">
+                                    <button onclick="staffClient.showGroupParticipants()" 
+                                            class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Messages Container -->
+                            <div id="groupChatMessages" class="h-96 overflow-y-auto p-4 space-y-3 bg-gray-50">
+                                <div class="text-center text-gray-500 text-sm py-8">
+                                    No hay mensajes aún
+                                </div>
+                            </div>
+                            
+                            <!-- Input Area - SIEMPRE ACTIVO PARA AGENTES -->
+                            <div class="p-4 border-t border-gray-200 bg-white">
+                                <div class="flex items-end gap-3">
+                                    <div class="flex-1">
+                                        <textarea id="groupMessageInput" 
+                                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                                rows="2"
+                                                placeholder="Escribe tu mensaje..."
+                                                onkeydown="handleGroupChatKeyDown(event)"></textarea>
+                                    </div>
+                                    <button onclick="sendGroupMessage()" 
+                                            id="groupSendButton"
+                                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="flex justify-between items-center mt-2 text-xs text-gray-500">
+                                    <span>Enter para enviar, Shift+Enter para nueva línea</span>
+                                    <span id="groupChatStatus">Desconectado</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div id="patient-chat-panel" class="section-content hidden">
                     <div class="chat-container">
                         <div class="flex h-full">
@@ -2128,7 +2229,24 @@ if (!in_array($userRole, $validStaffRoles)) {
             </form>
         </div>
     </div>
-
+    
+    <!-- Participants Modal -->
+    <div id="groupParticipantsModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Participantes</h3>
+                <button onclick="staffClient.closeGroupParticipants()" 
+                        class="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="groupParticipantsList" class="p-4 max-h-96 overflow-y-auto">
+                <!-- Participants will be loaded here -->
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="assets/js/staff-app.js"></script>
 </body>

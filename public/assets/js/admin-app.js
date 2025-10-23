@@ -2536,6 +2536,431 @@
             destroy() {
                 this.stopAutoRefresh();
             }
+            // ========== MÉTODOS PARA CHAT GRUPAL ==========
+
+        async loadGroupRooms() {
+            try {
+                console.log('🏠 Cargando salas para chat grupal...');
+                
+                const response = await fetch(`${this.adminServiceUrl}/rooms`, {
+                    method: 'GET',
+                    headers: this.getAuthHeaders()
+                });
+                
+                if (!response.ok) throw new Error('Error cargando salas');
+                
+                const result = await response.json();
+                const rooms = result.data?.rooms || result.rooms || [];
+                
+                console.log('✅ Salas cargadas:', rooms.length);
+                this.displayGroupRooms(rooms);
+                
+            } catch (error) {
+                console.error('❌ Error cargando salas grupales:', error);
+                this.showNotification('Error cargando salas grupales', 'error');
+            }
+        }
+
+        displayGroupRooms(rooms) {
+            const container = document.getElementById('groupRoomsList');
+            if (!container) return;
+            
+            if (rooms.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full text-center py-20">
+                        <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                        <p class="text-gray-500">No hay salas disponibles</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = rooms.map(room => `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+                    onclick="adminClient.joinGroupRoom('${room.id}', '${room.name}')">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 ${this.getColorForRoom(room)} rounded-lg flex items-center justify-center">
+                                <span class="text-white font-semibold text-lg">${(room.name || 'S').charAt(0)}</span>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-900">${room.name}</h4>
+                                <p class="text-sm text-gray-500">${room.description || 'Sala de chat'}</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 text-xs font-medium rounded ${
+                            room.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }">
+                            ${room.is_active ? 'Activa' : 'Inactiva'}
+                        </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                        <div class="text-center p-2 bg-blue-50 rounded">
+                            <div class="text-sm font-bold text-blue-600">${room.max_agents || 0}</div>
+                            <div class="text-xs text-blue-700">Máx. Agentes</div>
+                        </div>
+                        <div class="text-center p-2 bg-green-50 rounded">
+                            <div class="text-sm font-bold text-green-600">${room.assigned_agents || 0}</div>
+                            <div class="text-xs text-green-700">Asignados</div>
+                        </div>
+                        <div class="text-center p-2 bg-purple-50 rounded">
+                            <div class="text-sm font-bold text-purple-600">${room.active_agents || 0}</div>
+                            <div class="text-xs text-purple-700">Activos</div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between text-sm mt-3 pt-3 border-t">
+                        <span class="text-gray-600">Click para unirse al chat grupal</span>
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async joinGroupRoom(roomId, roomName) {
+            try {
+                console.log('🚪 Administrador uniéndose a sala grupal:', roomId, roomName);
+                
+                currentGroupRoomId = roomId;
+                currentGroupRoom = { id: roomId, name: roomName };
+                
+                // Ocultar lista de salas, mostrar chat activo
+                document.getElementById('groupRoomsList').classList.add('hidden');
+                document.getElementById('activeGroupChat').classList.remove('hidden');
+                
+                // Actualizar UI
+                document.getElementById('groupChatRoomName').textContent = roomName;
+                document.getElementById('groupChatModeIndicator').textContent = 'Modo Administrador';
+                document.getElementById('groupChatModeIndicator').className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800';
+                
+                // Admin siempre tiene input habilitado
+                document.getElementById('groupChatInputDisabled').classList.add('hidden');
+                document.getElementById('groupChatInputEnabled').classList.remove('hidden');
+                
+                // Conectar WebSocket si no está conectado
+                if (!groupChatSocket || !isGroupChatConnected) {
+                    await this.connectGroupChatWebSocket();
+                }
+                
+                // Esperar a que el socket esté conectado
+                await this.waitForGroupSocketConnection();
+                
+                // Unirse a la sala
+                this.emitJoinGroupRoom(roomId);
+                
+            } catch (error) {
+                console.error('❌ Error uniéndose a sala grupal:', error);
+                this.showNotification('Error uniéndose a sala: ' + error.message, 'error');
+                this.exitGroupChat();
+            }
+        }
+
+        async connectGroupChatWebSocket() {
+            try {
+                console.log('🔌 Conectando WebSocket para chat grupal (Admin)...');
+                
+                const token = this.getToken();
+                const currentUser = this.getCurrentUser();
+                
+                groupChatSocket = io('http://187.33.158.246', {
+                    transports: ['websocket', 'polling'],
+                    auth: {
+                        token: token,
+                        user_id: currentUser.id,
+                        user_type: 'admin',
+                        user_name: currentUser.name
+                    }
+                });
+                
+                groupChatSocket.on('connect', () => {
+                    isGroupChatConnected = true;
+                    console.log('✅ WebSocket grupal conectado (Admin)');
+                });
+                
+                groupChatSocket.on('disconnect', () => {
+                    isGroupChatConnected = false;
+                    groupChatJoined = false;
+                    console.log('❌ WebSocket grupal desconectado');
+                });
+                
+                groupChatSocket.on('group_room_joined', (data) => {
+                    groupChatJoined = true;
+                    isSilentMode = false; // Admin nunca está en modo silencioso
+                    console.log('✅ Admin unido a sala grupal:', data);
+                    
+                    this.updateGroupChatUI(data);
+                    this.loadGroupChatHistory(data.room_id);
+                });
+                
+                groupChatSocket.on('new_group_message', (data) => {
+                    console.log('💬 Nuevo mensaje grupal:', data);
+                    this.handleGroupMessage(data);
+                });
+                
+                groupChatSocket.on('participant_joined', (data) => {
+                    console.log('👋 Nuevo participante:', data);
+                    this.showNotification(`${data.user_name || 'Usuario'} se unió a la sala`, 'info');
+                });
+                
+                groupChatSocket.on('participant_left', (data) => {
+                    console.log('👋 Participante salió:', data);
+                    this.showNotification(`${data.user_name || 'Usuario'} salió de la sala`, 'info');
+                });
+                
+                groupChatSocket.on('silent_mode_toggled', (data) => {
+                    console.log('🔇 Modo silencioso alternado:', data);
+                    // Admin observa estos cambios pero no afectan su estado
+                });
+                
+                groupChatSocket.on('error', (error) => {
+                    console.error('❌ Error en socket grupal:', error);
+                    this.showNotification('Error: ' + (error.message || error), 'error');
+                });
+                
+            } catch (error) {
+                console.error('❌ Error conectando WebSocket grupal:', error);
+                throw error;
+            }
+        }
+
+        waitForGroupSocketConnection(timeout = 5000) {
+            return new Promise((resolve, reject) => {
+                if (isGroupChatConnected) {
+                    resolve();
+                    return;
+                }
+                
+                const startTime = Date.now();
+                const checkConnection = setInterval(() => {
+                    if (isGroupChatConnected) {
+                        clearInterval(checkConnection);
+                        resolve();
+                    } else if (Date.now() - startTime > timeout) {
+                        clearInterval(checkConnection);
+                        reject(new Error('Timeout esperando conexión WebSocket'));
+                    }
+                }, 100);
+            });
+        }
+
+        emitJoinGroupRoom(roomId) {
+            if (!groupChatSocket || !isGroupChatConnected) {
+                console.error('❌ Socket no conectado');
+                return;
+            }
+            
+            const currentUser = this.getCurrentUser();
+            
+            groupChatSocket.emit('join_group_room', {
+                room_id: roomId,
+                user_id: currentUser.id,
+                user_type: 'admin'
+            });
+        }
+
+        updateGroupChatUI(data) {
+            // Actualizar contador de participantes
+            const participants = data.participants || [];
+            const participantsText = `${participants.length} participante${participants.length !== 1 ? 's' : ''}`;
+            
+            const counter = document.getElementById('groupChatParticipantsCount');
+            if (counter) {
+                counter.textContent = participantsText;
+            }
+            
+            // Admin siempre en modo activo
+            const indicator = document.getElementById('groupChatModeIndicator');
+            if (indicator) {
+                indicator.textContent = 'Modo Administrador';
+                indicator.className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800';
+            }
+        }
+
+        async loadGroupChatHistory(roomId) {
+            const container = document.getElementById('groupChatMessages');
+            if (!container) return;
+            
+            container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8">Cargando mensajes...</div>';
+            
+            try {
+                // Aquí harías una llamada al backend para obtener el historial
+                // Por ahora, mostrar mensaje de inicio
+                setTimeout(() => {
+                    container.innerHTML = `
+                        <div class="text-center py-8">
+                            <div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-3">
+                                <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                                </svg>
+                            </div>
+                            <p class="text-gray-600 font-medium">Chat Grupal Administrativo</p>
+                            <p class="text-sm text-gray-500 mt-1">Tienes acceso completo como administrador</p>
+                        </div>
+                    `;
+                }, 500);
+                
+            } catch (error) {
+                console.error('❌ Error cargando historial grupal:', error);
+                container.innerHTML = '<div class="text-center text-red-500 text-sm py-8">Error cargando mensajes</div>';
+            }
+        }
+
+        handleGroupMessage(data) {
+            const container = document.getElementById('groupChatMessages');
+            if (!container) return;
+            
+            // Eliminar mensaje de "no hay mensajes"
+            const emptyMsg = container.querySelector('.text-center');
+            if (emptyMsg && (emptyMsg.textContent.includes('No hay mensajes') || emptyMsg.textContent.includes('Chat Grupal'))) {
+                emptyMsg.remove();
+            }
+            
+            const currentUser = this.getCurrentUser();
+            const isMyMessage = data.sender_id === currentUser.id;
+            
+            const messageEl = document.createElement('div');
+            messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4`;
+            
+            const senderLabel = data.sender_type === 'admin' ? 'Admin' :
+                            data.sender_type === 'supervisor' ? 'Supervisor' :
+                            data.sender_type === 'agent' ? 'Agente' : 'Usuario';
+            
+            const bubbleColor = isMyMessage ? 'bg-red-600 text-white' :
+                            data.sender_type === 'supervisor' ? 'bg-purple-100 text-purple-900' :
+                            data.sender_type === 'agent' ? 'bg-green-100 text-green-900' :
+                            data.sender_type === 'admin' ? 'bg-red-100 text-red-900' :
+                            'bg-gray-200 text-gray-900';
+            
+            const time = new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+            
+            messageEl.innerHTML = `
+                <div class="max-w-xs lg:max-w-md ${bubbleColor} rounded-lg px-4 py-2">
+                    <div class="text-xs opacity-75 mb-1">${isMyMessage ? 'Tú' : senderLabel}</div>
+                    <p class="text-sm">${this.escapeHtml(data.content)}</p>
+                    <div class="text-xs opacity-75 mt-1">${time}</div>
+                </div>
+            `;
+            
+            container.appendChild(messageEl);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+
+        exitGroupChat() {
+            // Desconectar del chat grupal
+            if (groupChatSocket && groupChatJoined) {
+                groupChatSocket.disconnect();
+                groupChatSocket = null;
+                isGroupChatConnected = false;
+                groupChatJoined = false;
+            }
+            
+            currentGroupRoomId = null;
+            currentGroupRoom = null;
+            
+            // Mostrar lista de salas nuevamente
+            document.getElementById('groupRoomsList').classList.remove('hidden');
+            document.getElementById('activeGroupChat').classList.add('hidden');
+            
+            // Limpiar mensajes
+            const container = document.getElementById('groupChatMessages');
+            if (container) container.innerHTML = '';
+        }
+
+        showGroupParticipants() {
+            if (!groupChatSocket || !groupChatJoined) {
+                this.showNotification('No estás en una sala', 'error');
+                return;
+            }
+            
+            // Emitir evento para obtener participantes
+            groupChatSocket.emit('get_room_participants', {}, (response) => {
+                if (response && response.participants) {
+                    this.displayGroupParticipants(response.participants);
+                }
+            });
+            
+            document.getElementById('groupParticipantsModal').classList.remove('hidden');
+        }
+
+        displayGroupParticipants(participants) {
+            const container = document.getElementById('groupParticipantsList');
+            if (!container) return;
+            
+            if (participants.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-4">No hay participantes</div>';
+                return;
+            }
+            
+            container.innerHTML = participants.map(p => {
+                const roleColors = {
+                    'admin': 'from-red-500 to-pink-500',
+                    'supervisor': 'from-purple-500 to-blue-500',
+                    'agent': 'from-green-500 to-teal-500',
+                    'user': 'from-gray-500 to-gray-600'
+                };
+                
+                const roleLabels = {
+                    'admin': 'Administrador',
+                    'supervisor': 'Supervisor',
+                    'agent': 'Agente',
+                    'user': 'Usuario'
+                };
+                
+                return `
+                    <div class="flex items-center justify-between py-3 border-b border-gray-200 hover:bg-gray-50">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-br ${roleColors[p.role] || roleColors.user} flex items-center justify-center">
+                                <span class="text-white font-semibold">${(p.user_name || 'U').charAt(0)}</span>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900">${p.user_name || 'Usuario'}</p>
+                                <p class="text-xs text-gray-500">${roleLabels[p.role] || 'Usuario'}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            ${p.role === 'admin' ? 
+                                '<span class="px-2 py-1 bg-red-100 text-red-800 text-xs rounded font-medium">Admin</span>' :
+                                p.is_silent ? 
+                                '<span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded">Observando</span>' :
+                                '<span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Activo</span>'
+                            }
+                            ${p.is_online ? 
+                                '<div class="w-2 h-2 bg-green-500 rounded-full"></div>' :
+                                '<div class="w-2 h-2 bg-gray-400 rounded-full"></div>'
+                            }
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        closeGroupParticipants() {
+            const modal = document.getElementById('groupParticipantsModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        refreshGroupRooms() {
+            this.loadGroupRooms();
+            this.showNotification('Actualizando salas...', 'info', 1000);
+        }
         }
 
         window.adminClient = new AdminClient();
@@ -2667,6 +3092,40 @@
             adminClient.loadUsersForPasswordReset();
             document.getElementById('resetPasswordModal').classList.remove('hidden');
         }
+        // ========== FUNCIONES GLOBALES PARA CHAT GRUPAL ==========
+
+function sendGroupMessage() {
+    const input = document.getElementById('groupMessageInput');
+    if (!input) return;
+    
+    const message = input.value.trim();
+    if (!message) return;
+    
+    if (!groupChatSocket || !groupChatJoined) {
+        adminClient.showNotification('No estás conectado a la sala', 'error');
+        return;
+    }
+    
+    const currentUser = adminClient.getCurrentUser();
+    
+    groupChatSocket.emit('send_group_message', {
+        content: message,
+        message_type: 'text'
+    });
+    
+    input.value = '';
+}
+
+function handleGroupChatKeyDown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendGroupMessage();
+    }
+}
+
+// Exponer funciones globalmente
+window.sendGroupMessage = sendGroupMessage;
+window.handleGroupChatKeyDown = handleGroupChatKeyDown;
 
         document.addEventListener('DOMContentLoaded', async () => {
             updateTime();
