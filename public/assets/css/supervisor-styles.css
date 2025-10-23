@@ -782,3 +782,101 @@
             transform: translateX(2px);
             transition: all 0.2s ease;
         }
+
+        /* ============== DASHBOARD DE ESTADÍSTICAS ============== */
+.stats-summary-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    color: white;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.stats-summary-item {
+    text-align: center;
+    padding: 1rem;
+}
+
+.stats-summary-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+
+.stats-summary-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.room-stats-card {
+    transition: all 0.3s ease;
+}
+
+.room-stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.capacity-bar {
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.capacity-fill {
+    height: 100%;
+    transition: width 0.5s ease;
+}
+
+.trend-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-weight: 600;
+}
+
+.stats-grid-item {
+    background: #f9fafb;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    transition: background 0.2s ease;
+}
+
+.stats-grid-item:hover {
+    background: #f3f4f6;
+}
+
+/* Animación para números que cambian */
+@keyframes countUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stat-number {
+    animation: countUp 0.5s ease;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .stats-summary-value {
+        font-size: 1.5rem;
+    }
+    
+    .stats-summary-label {
+        font-size: 0.75rem;
+    }
+    
+    .room-stats-card {
+        padding: 1rem;
+    }
+}

@@ -2276,46 +2276,376 @@
 
         async loadMyMonitor() {
             try {
-                console.log('🚀 === INICIANDO CARGA DE MONITOR ===');
+                console.log('📊 === CARGANDO ESTADÍSTICAS DE SALAS ===');
                 
+                const timeframe = document.getElementById('statsTimeframe')?.value || '24h';
+                
+                // 1. Obtener mis salas
                 const roomsResponse = await fetch(`${API_BASE}/agent-assignments/my-rooms`, {
                     headers: this.getAuthHeaders()
                 });
                 
-                console.log('📡 Response my-rooms status:', roomsResponse.status);
-                
                 if (!roomsResponse.ok) {
-                    console.error('❌ Error cargando mis salas:', roomsResponse.status);
                     throw new Error('Error cargando salas');
                 }
                 
                 const roomsResult = await roomsResponse.json();
-                console.log('📦 Resultado my-rooms completo:', roomsResult);
-                
                 const myRooms = roomsResult.data?.rooms || [];
+                
                 console.log('🏠 Total de mis salas:', myRooms.length);
                 
-                if (myRooms.length > 0) {
-                    console.log('📋 Primera sala de ejemplo:', myRooms[0]);
+                if (myRooms.length === 0) {
+                    this.displayRoomsStatistics({ rooms: [], summary: {} });
+                    return;
                 }
                 
-                console.log('⏳ Cargando sesiones para cada sala...');
-                const roomPromises = myRooms.map(room => this.loadMonitorRoomSessions(room));
-                this.monitorRoomsData = await Promise.all(roomPromises);
+                // 2. Obtener estadísticas para cada sala
+                const roomsStats = await Promise.all(myRooms.map(room => this.getRoomStatistics(room, timeframe)));
                 
-                console.log('✅ Datos del monitor cargados:', this.monitorRoomsData);
+                // 3. Calcular resumen general
+                const summary = {
+                    total_active: roomsStats.reduce((sum, r) => sum + r.statistics.sessions.active, 0),
+                    total_waiting: roomsStats.reduce((sum, r) => sum + r.statistics.sessions.waiting, 0),
+                    total_completed: roomsStats.reduce((sum, r) => sum + r.statistics.sessions.completed, 0),
+                    avg_completion_rate: roomsStats.length > 0 
+                        ? (roomsStats.reduce((sum, r) => sum + parseFloat(r.statistics.performance.completion_rate), 0) / roomsStats.length).toFixed(2)
+                        : 0
+                };
                 
-                this.updateMonitorStats();
-                this.renderMonitorRooms();
+                // 4. Mostrar datos
+                this.displayRoomsStatistics({
+                    rooms: roomsStats,
+                    summary,
+                    timeframe,
+                    total_rooms: myRooms.length
+                });
                 
-                console.log('✅ === MONITOR CARGADO EXITOSAMENTE ===\n');
+                console.log('✅ === ESTADÍSTICAS CARGADAS ===\n');
                 
             } catch (error) {
-                console.error('❌ === ERROR CRÍTICO EN MONITOR ===');
-                console.error('❌ Error:', error);
-                console.error('❌ Stack:', error.stack);
-                this.showNotification('Error cargando monitor de salas', 'error');
+                console.error('❌ Error cargando estadísticas:', error);
+                this.showNotification('Error cargando estadísticas de salas', 'error');
             }
+        }
+
+        async getRoomStatistics(room, timeframe) {
+            try {
+                const roomId = room.id || room.room_id;
+                
+                // Obtener sesiones de la sala
+                const sessionsResponse = await fetch(`${CHAT_API}/chats/sessions?room_id=${roomId}&include_expired=false`, {
+                    headers: this.getAuthHeaders()
+                });
+                
+                let allSessions = [];
+                if (sessionsResponse.ok) {
+                    const sessionsResult = await sessionsResponse.json();
+                    allSessions = sessionsResult.data?.sessions || [];
+                }
+                
+                // Calcular período de tiempo
+                const now = new Date();
+                const timeframeHours = {
+                    '1h': 1,
+                    '6h': 6,
+                    '12h': 12,
+                    '24h': 24,
+                    '7d': 24 * 7,
+                    '30d': 24 * 30
+                };
+                
+                const hoursBack = timeframeHours[timeframe] || 24;
+                const cutoffTime = new Date(now - hoursBack * 60 * 60 * 1000);
+                
+                // Filtrar sesiones del período
+                const recentSessions = allSessions.filter(s => 
+                    new Date(s.created_at || s.updated_at) >= cutoffTime
+                );
+                
+                // Calcular estadísticas
+                const activeSessions = allSessions.filter(s => s.status === 'active').length;
+                const waitingSessions = allSessions.filter(s => s.status === 'waiting').length;
+                const completedSessions = recentSessions.filter(s => s.status === 'completed').length;
+                const abandonedSessions = recentSessions.filter(s => s.status === 'abandoned').length;
+                
+                // Calcular tiempos promedio
+                const completedWithDuration = recentSessions.filter(s => 
+                    s.status === 'completed' && s.duration_minutes
+                );
+                
+                const avgDuration = completedWithDuration.length > 0
+                    ? (completedWithDuration.reduce((sum, s) => sum + (s.duration_minutes || 0), 0) / completedWithDuration.length).toFixed(2)
+                    : 0;
+                
+                const waitingWithTime = recentSessions.filter(s => s.waiting_time_minutes);
+                const avgWaitTime = waitingWithTime.length > 0
+                    ? (waitingWithTime.reduce((sum, s) => sum + (s.waiting_time_minutes || 0), 0) / waitingWithTime.length).toFixed(2)
+                    : 0;
+                
+                // Tasa de finalización
+                const totalFinished = completedSessions + abandonedSessions;
+                const completionRate = totalFinished > 0
+                    ? ((completedSessions / totalFinished) * 100).toFixed(2)
+                    : 0;
+                
+                // Obtener agentes disponibles
+                const agentsResponse = await fetch(`${CHAT_API}/chats/agents/available?room_id=${roomId}`, {
+                    headers: this.getAuthHeaders()
+                });
+                
+                let totalAgents = 0;
+                let availableAgents = 0;
+                
+                if (agentsResponse.ok) {
+                    const agentsResult = await agentsResponse.json();
+                    const agents = agentsResult.data?.agents || [];
+                    totalAgents = agents.length;
+                    availableAgents = agents.filter(a => 
+                        a.recently_active && (a.active_sessions || 0) < (a.max_concurrent_chats || 5)
+                    ).length;
+                }
+                
+                // Calcular tendencia (comparar con período anterior)
+                const previousCutoff = new Date(cutoffTime - hoursBack * 60 * 60 * 1000);
+                const previousSessions = allSessions.filter(s => {
+                    const date = new Date(s.created_at || s.updated_at);
+                    return date >= previousCutoff && date < cutoffTime && s.status === 'completed';
+                }).length;
+                
+                let trend = 0;
+                if (previousSessions > 0) {
+                    trend = ((completedSessions - previousSessions) / previousSessions) * 100;
+                } else if (completedSessions > 0) {
+                    trend = 100;
+                }
+                
+                const trendDirection = trend > 5 ? 'up' : trend < -5 ? 'down' : 'stable';
+                
+                return {
+                    room_id: roomId,
+                    room_name: room.name || room.room_name,
+                    room_description: room.description || room.room_description,
+                    room_type: room.type || room.room_type,
+                    statistics: {
+                        sessions: {
+                            active: activeSessions,
+                            waiting: waitingSessions,
+                            completed: completedSessions,
+                            abandoned: abandonedSessions,
+                            total: activeSessions + waitingSessions + completedSessions + abandonedSessions
+                        },
+                        performance: {
+                            avg_duration_minutes: avgDuration,
+                            avg_wait_time_minutes: avgWaitTime,
+                            avg_satisfaction: null,
+                            completion_rate: completionRate
+                        },
+                        agents: {
+                            total: totalAgents,
+                            available: availableAgents,
+                            busy: totalAgents - availableAgents
+                        },
+                        transfers: {
+                            outgoing: 0,
+                            incoming: 0,
+                            rejected: 0
+                        },
+                        trend: {
+                            direction: trendDirection,
+                            percentage: Math.abs(trend).toFixed(2)
+                        }
+                    },
+                    last_updated: new Date().toISOString()
+                };
+                
+            } catch (error) {
+                console.error('Error obteniendo estadísticas de sala:', room.name, error);
+                
+                // Retornar datos vacíos en caso de error
+                return {
+                    room_id: room.id || room.room_id,
+                    room_name: room.name || room.room_name,
+                    room_description: room.description || '',
+                    room_type: room.type || '',
+                    statistics: {
+                        sessions: { active: 0, waiting: 0, completed: 0, abandoned: 0, total: 0 },
+                        performance: { avg_duration_minutes: 0, avg_wait_time_minutes: 0, avg_satisfaction: null, completion_rate: 0 },
+                        agents: { total: 0, available: 0, busy: 0 },
+                        transfers: { outgoing: 0, incoming: 0, rejected: 0 },
+                        trend: { direction: 'stable', percentage: 0 }
+                    },
+                    last_updated: new Date().toISOString()
+                };
+            }
+        }
+        displayRoomsStatistics(data) {
+            const container = document.getElementById('roomsStatsContainer');
+            if (!container) return;
+            
+            const rooms = data.rooms || [];
+            const summary = data.summary || {};
+            
+            // Actualizar resumen general
+            this.updateStatsSummary(summary);
+            
+            if (rooms.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full text-center py-20">
+                        <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        <p class="text-gray-500">No hay estadísticas disponibles</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = rooms.map(room => this.createRoomStatsCard(room)).join('');
+        }
+
+        updateStatsSummary(summary) {
+            const updates = [
+                { id: 'summaryTotalActive', value: summary.total_active || 0 },
+                { id: 'summaryTotalWaiting', value: summary.total_waiting || 0 },
+                { id: 'summaryTotalCompleted', value: summary.total_completed || 0 },
+                { id: 'summaryAvgCompletion', value: `${summary.avg_completion_rate || 0}%` }
+            ];
+            
+            updates.forEach(update => {
+                const element = document.getElementById(update.id);
+                if (element) element.textContent = update.value;
+            });
+        }
+
+        createRoomStatsCard(room) {
+            const stats = room.statistics;
+            const trend = stats.trend;
+            
+            const trendColor = trend.direction === 'up' ? 'text-green-600' : 
+                            trend.direction === 'down' ? 'text-red-600' : 
+                            'text-gray-600';
+            
+            const trendIcon = trend.direction === 'up' ? '↑' : 
+                            trend.direction === 'down' ? '↓' : 
+                            '→';
+            
+            const capacityPercent = stats.agents.total > 0 
+                ? ((stats.agents.busy / stats.agents.total) * 100).toFixed(0)
+                : 0;
+            
+            const capacityColor = capacityPercent > 80 ? 'bg-red-500' :
+                                capacityPercent > 50 ? 'bg-yellow-500' :
+                                'bg-green-500';
+            
+            return `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                    <div class="p-6 border-b border-gray-200">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-lg font-semibold text-gray-900">${room.room_name}</h3>
+                            <span class="px-3 py-1 text-xs font-medium rounded-full ${
+                                stats.sessions.active > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                            }">
+                                ${stats.sessions.active > 0 ? 'Activa' : 'Inactiva'}
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-500">${room.room_description || 'Sala de chat'}</p>
+                        
+                        <div class="mt-2 flex items-center gap-2">
+                            <span class="${trendColor} font-semibold text-sm">${trendIcon} ${trend.percentage}%</span>
+                            <span class="text-xs text-gray-500">vs período anterior</span>
+                        </div>
+                    </div>
+                    
+                    <div class="p-6 space-y-4">
+                        <!-- Sesiones -->
+                        <div>
+                            <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Sesiones</h4>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="text-center p-3 bg-green-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-green-600">${stats.sessions.active}</div>
+                                    <div class="text-xs text-green-700">Activas</div>
+                                </div>
+                                <div class="text-center p-3 bg-yellow-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-yellow-600">${stats.sessions.waiting}</div>
+                                    <div class="text-xs text-yellow-700">En Espera</div>
+                                </div>
+                                <div class="text-center p-3 bg-blue-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-blue-600">${stats.sessions.completed}</div>
+                                    <div class="text-xs text-blue-700">Completadas</div>
+                                </div>
+                                <div class="text-center p-3 bg-red-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-red-600">${stats.sessions.abandoned}</div>
+                                    <div class="text-xs text-red-700">Abandonadas</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Performance -->
+                        <div>
+                            <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Rendimiento</h4>
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                    <span class="text-sm text-gray-600">Tiempo promedio</span>
+                                    <span class="font-semibold text-gray-900">${stats.performance.avg_duration_minutes} min</span>
+                                </div>
+                                <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                    <span class="text-sm text-gray-600">Espera promedio</span>
+                                    <span class="font-semibold text-gray-900">${stats.performance.avg_wait_time_minutes} min</span>
+                                </div>
+                                <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                    <span class="text-sm text-gray-600">Tasa de finalización</span>
+                                    <span class="font-semibold text-gray-900">${stats.performance.completion_rate}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Agents -->
+                        <div>
+                            <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Agentes</h4>
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Total</span>
+                                    <span class="font-semibold text-gray-900">${stats.agents.total}</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Disponibles</span>
+                                    <span class="font-semibold text-green-600">${stats.agents.available}</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Ocupados</span>
+                                    <span class="font-semibold text-yellow-600">${stats.agents.busy}</span>
+                                </div>
+                                <div class="mt-2">
+                                    <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                                        <span>Capacidad</span>
+                                        <span>${capacityPercent}%</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="${capacityColor} h-2 rounded-full transition-all" style="width: ${capacityPercent}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 rounded-b-lg">
+                        <div class="flex items-center justify-between text-xs text-gray-500">
+                            <span>Última actualización</span>
+                            <span>${new Date(room.last_updated).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        changeStatsTimeframe() {
+            this.loadMyMonitor();
+        }
+
+        refreshRoomsStats() {
+            this.showNotification('Actualizando estadísticas...', 'info', 1000);
+            this.loadMyMonitor();
         }
 
         async loadMonitorRoomSessions(room) {
@@ -3219,6 +3549,9 @@
                     break;
                 case "group-chat":
                     supervisorClient.loadGroupRooms();
+                    break;
+                case "monitor":
+                    supervisorClient.loadMyMonitor();
                     break;
             }
         }
