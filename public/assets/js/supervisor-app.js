@@ -2273,6 +2273,73 @@
         }
 
         // ========== MONITOR DE SALAS ==========
+        async getRoomStatistics(room, timeframe = '24h') {
+    try {
+        console.log('📊 Obteniendo estadísticas para sala:', room.name || room.room_name);
+        
+        const roomId = room.id || room.room_id;
+        
+        // Construir URL con parámetros
+        const params = new URLSearchParams({
+            room_id: roomId,
+            timeframe: timeframe
+        });
+        
+        const response = await fetch(`${API_BASE}/supervisor/rooms/${roomId}/statistics?${params}`, {
+            method: 'GET',
+            headers: this.getAuthHeaders()
+        });
+        
+        if (!response.ok) {
+            console.warn('⚠️ Error obteniendo estadísticas, usando valores por defecto');
+            // Retornar estadísticas vacías en caso de error
+            return {
+                room_id: roomId,
+                room_name: room.name || room.room_name,
+                room_description: room.description || '',
+                statistics: {
+                    sessions: { active: 0, waiting: 0, completed: 0, abandoned: 0, total: 0 },
+                    performance: { avg_duration_minutes: 0, avg_wait_time_minutes: 0, completion_rate: 0 },
+                    agents: { total: 0, available: 0, busy: 0 },
+                    transfers: { outgoing: 0, incoming: 0, rejected: 0 },
+                    trend: { direction: 'stable', percentage: 0 }
+                },
+                last_updated: new Date().toISOString()
+            };
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            return {
+                room_id: roomId,
+                room_name: room.name || room.room_name,
+                room_description: room.description || '',
+                statistics: result.data.statistics || {},
+                last_updated: result.data.last_updated || new Date().toISOString()
+            };
+        }
+        
+        // Si no hay datos, retornar estructura vacía
+        return {
+            room_id: roomId,
+            room_name: room.name || room.room_name,
+            room_description: room.description || '',
+            statistics: {
+                sessions: { active: 0, waiting: 0, completed: 0, abandoned: 0, total: 0 },
+                performance: { avg_duration_minutes: 0, avg_wait_time_minutes: 0, completion_rate: 0 },
+                agents: { total: 0, available: 0, busy: 0 },
+                transfers: { outgoing: 0, incoming: 0, rejected: 0 },
+                trend: { direction: 'stable', percentage: 0 }
+            },
+            last_updated: new Date().toISOString()
+        };
+        
+    } catch (error) {
+        console.error('❌ Error en getRoomStatistics:', error);
+        throw error;
+    }
+}
 
         async loadMyMonitor() {
     try {
@@ -3453,66 +3520,75 @@ createRoomStatsCard(room) {
         }
         
         function showSection(sectionName) {
-            hideAllSections();
-            document.getElementById(`${sectionName}-section`).classList.remove('hidden');
-            
-            // Update navigation active states (both desktop and mobile)
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.classList.remove('active');
-            });
-            
-            document.getElementById(`nav-${sectionName}`)?.classList.add('active');
-            document.getElementById(`mobile-nav-${sectionName}`)?.classList.add('active');
-            
-            // Update title
-            const titles = {
-                'transfers': 'Transferencias Pendientes (RF4)',
-                'escalations': 'Escalaciones Activas (RF5)', 
-                'analysis': 'Análisis de Mal Direccionamiento (RF6)',
-                'supervisor-chat': 'Chat de Supervisión',
-                'my-panel': 'Mi panel de supervisor',
-                'monitor': 'Monitor de Mis Salas'
-            };
-            document.getElementById('sectionTitle').textContent = titles[sectionName];
-            
-            // Handle patient info button visibility - SIEMPRE mostrar en supervisor chat
-            if (sectionName === 'supervisor-chat') {
-                showPatientInfoButton();
-            } else {
-                hidePatientInfoButton();
-            }
+    hideAllSections();
+    
+    const section = document.getElementById(`${sectionName}-section`);
+    if (!section) {
+        console.error(`❌ No se encontró la sección: ${sectionName}-section`);
+        return;
+    }
+    
+    section.classList.remove('hidden');
+    
+    // Update navigation active states (both desktop and mobile)
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.remove('active');
+    });
+    
+    document.getElementById(`nav-${sectionName}`)?.classList.add('active');
+    document.getElementById(`mobile-nav-${sectionName}`)?.classList.add('active');
+    
+    // Update title
+    const titles = {
+        'transfers': 'Transferencias Pendientes (RF4)',
+        'escalations': 'Escalaciones Activas (RF5)', 
+        'analysis': 'Análisis de Mal Direccionamiento (RF6)',
+        'supervisor-chat': 'Chat de Supervisión',
+        'my-panel': 'Mi panel de supervisor',
+        'monitor': 'Monitor de Mis Salas',
+        'group-chat': 'Chat Grupal'  // ✅ AGREGADO
+    };
+    
+    const titleElement = document.getElementById('sectionTitle');
+    if (titleElement) {
+        titleElement.textContent = titles[sectionName] || 'Panel de Supervisor';
+    }
+    
+    // Handle patient info button visibility - SIEMPRE mostrar en supervisor chat
+    if (sectionName === 'supervisor-chat') {
+        showPatientInfoButton();
+    } else {
+        hidePatientInfoButton();
+    }
 
-            // Cerrar navegación móvil al cambiar sección
-            closeMobileNav();
-            
-            // Ajustar layout si es necesario
-            setTimeout(adjustChatLayout, 100);
-            
-            // Load section data
-            switch(sectionName) {
-                case 'transfers':
-                    supervisorClient.loadTransfers();
-                    break;
-                case 'escalations':
-                    supervisorClient.loadEscalations();
-                    break;
-                case 'my-panel':
-                    supervisorClient.loadMyInfo();
-                    supervisorClient.loadMyRooms();
-                    supervisorClient.loadMySessions();
-                    supervisorClient.loadMySchedules();
-                    break;
-                case 'monitor':
-                    supervisorClient.loadMyMonitor();
-                    break;
-                case "group-chat":
-                    supervisorClient.loadGroupRooms();
-                    break;
-                case "monitor":
-                    supervisorClient.loadMyMonitor();
-                    break;
-            }
-        }
+    // Cerrar navegación móvil al cambiar sección
+    closeMobileNav();
+    
+    // Ajustar layout si es necesario
+    setTimeout(adjustChatLayout, 100);
+    
+    // Load section data
+    switch(sectionName) {
+        case 'transfers':
+            supervisorClient.loadTransfers();
+            break;
+        case 'escalations':
+            supervisorClient.loadEscalations();
+            break;
+        case 'my-panel':
+            supervisorClient.loadMyInfo();
+            supervisorClient.loadMyRooms();
+            supervisorClient.loadMySessions();
+            supervisorClient.loadMySchedules();
+            break;
+        case 'monitor':
+            supervisorClient.loadMyMonitor();
+            break;
+        case 'group-chat':  // ✅ AGREGADO
+            supervisorClient.loadGroupRooms();
+            break;
+    }
+}
 
         function hideAllSections() {
             document.querySelectorAll('.section-content').forEach(section => {
