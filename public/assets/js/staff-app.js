@@ -911,6 +911,58 @@
             loadUserProfile();
         }
 
+        function showGroupChatSection() {
+            console.log('💬 Abriendo Chat Grupal');
+            
+            hideAllSections();
+            
+            const groupChatSection = document.getElementById('group-chat-section');
+            if (groupChatSection) {
+                groupChatSection.classList.remove('hidden');
+            } else {
+                console.error('❌ Sección group-chat-section no encontrada');
+                showNotification('Error: Sección de chat grupal no disponible', 'error');
+                return;
+            }
+            
+            document.getElementById('sectionTitle').textContent = 'Chat Grupal - Salas';
+            updateNavigation('group-chat');
+            hidePatientInfoButton();
+            
+            if (currentGroupRoomId) {
+                exitGroupChat();
+            }
+            
+            const roomsList = document.getElementById('groupRoomsList');
+            const activeChat = document.getElementById('activeGroupChat');
+            
+            if (roomsList) roomsList.classList.remove('hidden');
+            if (activeChat) activeChat.classList.add('hidden');
+            
+            loadGroupRooms();
+        }
+
+        function showSection(sectionName) {
+            console.log('📍 Navegando a sección:', sectionName);
+            
+            const sections = {
+                'pending': showPendingSection,
+                'my-chats': showMyChatsSection,
+                'rooms': showRoomsSection,
+                'profile': showProfileSection,
+                'group-chat': showGroupChatSection
+            };
+            
+            closeMobileNav();
+            
+            if (sections[sectionName]) {
+                sections[sectionName]();
+            } else {
+                console.error('❌ Sección no encontrada:', sectionName);
+                showNotification('Sección no disponible', 'error');
+            }
+        }
+
         function goBackToPending() {
             if (currentSession) {
                 if (chatSocket) {
@@ -932,7 +984,8 @@
                 'rooms-list-section',
                 'room-sessions-section',
                 'profile-section',
-                'patient-chat-panel'
+                'patient-chat-panel',
+                'group-chat-section'
             ];
             
             sections.forEach(sectionId => {
@@ -1719,7 +1772,8 @@
                 'pending': 'a[href="#pending"]',
                 'my-chats': 'a[href="#my-chats"]',
                 'rooms': 'a[href="#rooms"]',
-                'profile': 'a[href="#profile"]'
+                'profile': 'a[href="#profile"]',
+                'group-chat': 'a[href="#group-chat"]'
             };
             
             const activeLink = document.querySelector(navLinks[active]);
@@ -6036,63 +6090,242 @@
         // ========== FUNCIONES DE CHAT GRUPAL (STAFF) ==========
         
         /**
-         * Carga las salas disponibles para el staff
-         */
-        async function loadGroupRooms() {
-            try {
-                console.log('🏠 Cargando salas grupales para staff...');
-                
-                const response = await fetch(`${ADMIN_API}/admin/rooms`, {
-                    method: 'GET',
-                    headers: getAuthHeaders()
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Error cargando salas');
-                }
-                
-                const result = await response.json();
-                const rooms = result.data?.rooms || result.rooms || [];
-                
-                // Filtrar solo salas activas
-                const activeRooms = rooms.filter(room => room.is_active);
-                
-                console.log(`✅ Salas activas: ${activeRooms.length}`);
-                displayGroupRooms(activeRooms);
-                
-            } catch (error) {
-                console.error('❌ Error cargando salas:', error);
-                showNotification('Error cargando salas: ' + error.message, 'error');
-                displayGroupRooms([]);
+ * Carga las salas grupales asignadas al agente
+ * Usa el endpoint de agent-assignments para obtener solo las salas permitidas
+ */
+async function loadGroupRooms() {
+    const container = document.getElementById('groupRoomsContainer');
+    
+    if (!container) {
+        console.error('❌ Contenedor groupRoomsContainer no encontrado');
+        return;
+    }
+    
+    // Mostrar loading
+    container.innerHTML = `
+        <div class="col-span-full text-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p class="text-gray-500">Cargando tus salas asignadas...</p>
+        </div>
+    `;
+    
+    try {
+        console.log('🏠 Cargando salas grupales del agente...');
+        console.log('🔗 Endpoint:', `${ADMIN_API}/agent-assignments/my-rooms`);
+        
+        const response = await fetch(`${ADMIN_API}/agent-assignments/my-rooms`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+        
+        console.log('📡 Response status:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Sin detalles');
+            console.error('❌ Error response:', errorText);
+            
+            if (response.status === 403) {
+                throw new Error('No tienes permisos para ver salas grupales');
+            } else if (response.status === 401) {
+                throw new Error('Tu sesión ha expirado');
+            } else {
+                throw new Error(`Error ${response.status}: ${response.statusText}`);
             }
         }
-
-        /**
-         * Renderiza la lista de salas
-         */
-        function displayGroupRooms(rooms) {
-            const container = document.getElementById('groupRoomsList');
-            if (!container) {
-                console.warn('⚠️ Contenedor groupRoomsList no encontrado');
-                return;
-            }
-            
-            if (rooms.length === 0) {
-                container.innerHTML = `
-                    <div class="col-span-full text-center py-20">
-                        <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        
+        const result = await response.json();
+        console.log('✅ Respuesta del servidor:', result);
+        
+        // Extraer salas del formato de respuesta
+        let rooms = [];
+        if (result.success && result.data && result.data.rooms) {
+            rooms = result.data.rooms;
+        } else if (result.data && Array.isArray(result.data)) {
+            rooms = result.data;
+        } else if (result.rooms) {
+            rooms = result.rooms;
+        } else if (Array.isArray(result)) {
+            rooms = result;
+        }
+        
+        console.log(`📦 Salas asignadas encontradas: ${rooms.length}`);
+        
+        // Filtrar salas activas
+        const activeRooms = rooms.filter(room => {
+            return room && room.id && room.is_active !== false;
+        });
+        
+        console.log(`✅ Salas activas: ${activeRooms.length}`);
+        
+        if (activeRooms.length === 0) {
+            container.innerHTML = `
+                <div class="col-span-full text-center py-20">
+                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                                 d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
                         </svg>
-                        <p class="text-gray-500 font-medium">No hay salas disponibles</p>
-                        <p class="text-sm text-gray-400 mt-2">Las salas activas aparecerán aquí</p>
                     </div>
-                `;
-                return;
-            }
-            
-            container.innerHTML = rooms.map(room => createGroupRoomCard(room)).join('');
+                    <p class="text-gray-700 font-medium mb-2">No tienes salas asignadas</p>
+                    <p class="text-sm text-gray-500 mb-4">
+                        Contacta a tu supervisor para que te asigne salas de chat grupal
+                    </p>
+                    <button onclick="refreshGroupRooms()" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Reintentar
+                    </button>
+                </div>
+            `;
+            showNotification('No tienes salas asignadas', 'info');
+            return;
         }
+        
+        // Mostrar salas
+        displayGroupRooms(activeRooms);
+        showNotification(`${activeRooms.length} sala(s) encontrada(s)`, 'success', 2000);
+        
+    } catch (error) {
+        console.error('❌ Error completo:', error);
+        
+        container.innerHTML = `
+            <div class="col-span-full text-center py-20">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <p class="text-gray-700 font-medium mb-2">Error al cargar salas</p>
+                <p class="text-sm text-red-600 mb-4">${error.message}</p>
+                <div class="flex justify-center gap-3">
+                    <button onclick="refreshGroupRooms()" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Reintentar
+                    </button>
+                    <button onclick="showSection('pending')" 
+                            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                        Ir a Pendientes
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        showNotification('Error cargando salas: ' + error.message, 'error');
+    }
+}
+
+        /**
+ * Renderiza las salas grupales en el contenedor
+ */
+function displayGroupRooms(rooms) {
+    const container = document.getElementById('groupRoomsContainer');
+    if (!container) {
+        console.warn('⚠️ Contenedor groupRoomsContainer no encontrado');
+        return;
+    }
+    
+    if (!rooms || rooms.length === 0) {
+        container.innerHTML = `
+            <div class="col-span-full text-center py-20">
+                <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                </svg>
+                <p class="text-gray-500 font-medium">No hay salas disponibles</p>
+                <p class="text-sm text-gray-400 mt-2">Las salas activas aparecerán aquí</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = rooms.map(room => createGroupRoomCard(room)).join('');
+}
+
+/**
+ * Crea la tarjeta HTML para una sala grupal
+ */
+function createGroupRoomCard(room) {
+    const roomColor = getRoomColor(room);
+    const roomInitial = (room.name || 'S').charAt(0).toUpperCase();
+    
+    return `
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all cursor-pointer transform hover:scale-102"
+             onclick="joinGroupRoom('${room.id}', '${escapeHtml(room.name)}')">
+            
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 ${roomColor} rounded-lg flex items-center justify-center shadow-sm">
+                        <span class="text-white font-bold text-lg">${roomInitial}</span>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-gray-900">${escapeHtml(room.name)}</h4>
+                        <p class="text-sm text-gray-500">${escapeHtml(room.description || 'Sala de chat grupal')}</p>
+                    </div>
+                </div>
+                <span class="px-2 py-1 text-xs font-medium rounded ${room.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}">
+                    ${room.is_active ? 'Activa' : 'Inactiva'}
+                </span>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <div class="text-center p-2 bg-blue-50 rounded">
+                    <div class="text-sm font-bold text-blue-600">${room.max_agents || 0}</div>
+                    <div class="text-xs text-blue-700">Capacidad</div>
+                </div>
+                <div class="text-center p-2 bg-green-50 rounded">
+                    <div class="text-sm font-bold text-green-600">${room.assigned_agents || 0}</div>
+                    <div class="text-xs text-green-700">Asignados</div>
+                </div>
+                <div class="text-center p-2 bg-purple-50 rounded">
+                    <div class="text-sm font-bold text-purple-600">${room.active_agents || 0}</div>
+                    <div class="text-xs text-purple-700">En línea</div>
+                </div>
+            </div>
+            
+            <div class="flex items-center justify-between text-sm pt-3 border-t border-gray-100">
+                <span class="text-gray-600 flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"></path>
+                    </svg>
+                    Click para unirse
+                </span>
+                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Obtiene el color para la sala (basado en el tipo o ID)
+ */
+function getRoomColor(room) {
+    const colors = [
+        'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500',
+        'bg-yellow-500', 'bg-indigo-500', 'bg-red-500', 'bg-orange-500'
+    ];
+    
+    if (room.color) return room.color;
+    
+    if (room.id) {
+        // Usar el último dígito del ID para elegir color
+        const index = parseInt(room.id.toString().slice(-1)) % colors.length;
+        return colors[index];
+    }
+    
+    return colors[0];
+}
+
+/**
+ * Refresca la lista de salas
+ */
+function refreshGroupRooms() {
+    console.log('🔄 Refrescando salas...');
+    loadGroupRooms();
+    showNotification('Actualizando salas...', 'info', 1500);
+}
 
         /**
          * Crea la tarjeta HTML para una sala
@@ -6737,6 +6970,55 @@
             return String(text).replace(/[&<>"']/g, m => map[m]);
         }
 
+        function updateActiveNav(sectionId) {
+            // Desktop nav
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            const desktopNav = document.getElementById('nav-' + sectionId);
+            if (desktopNav) {
+                desktopNav.classList.add('active');
+            }
+            
+            // Mobile nav
+            const mobileNav = document.getElementById('mobile-nav-' + sectionId);
+            if (mobileNav) {
+                mobileNav.classList.add('active');
+            }
+        }
+
+        // ========== FUNCIONES DE NAVEGACIÓN MEJORADAS ==========
+
+        /**
+         * Función genérica para mostrar secciones
+         */
+        function showSection(sectionName) {
+            console.log('📍 Navegando a sección:', sectionName);
+            
+            // Mapeo de nombres de sección a funciones específicas
+            const sectionMap = {
+                'pending': showPendingSection,
+                'my-chats': showMyChatsSection,
+                'rooms': showRoomsSection,
+                'profile': showProfileSection,
+                'group-chat': showGroupChatSection
+            };
+            
+            // Llamar a la función correspondiente
+            if (sectionMap[sectionName]) {
+                sectionMap[sectionName]();
+            } else {
+                console.error('❌ Sección no encontrada:', sectionName);
+                showNotification('Sección no disponible', 'error');
+            }
+        }
+
+        // Exponer funciones globalmente
+        window.showSection = showSection;
+        window.showGroupChatSection = showGroupChatSection;
+
+
         // ========== EXPONER FUNCIONES GLOBALMENTE ==========
         window.loadGroupRooms = loadGroupRooms;
         window.joinGroupRoom = joinGroupRoom;
@@ -6746,6 +7028,7 @@
         window.showGroupParticipants = showGroupParticipants;
         window.closeGroupParticipants = closeGroupParticipants;
         window.refreshGroupRooms = refreshGroupRooms;
+        window.showGroupChatSection = showGroupChatSection;
 
         // Eventos globales
         document.addEventListener('keydown', (e) => {
@@ -6774,77 +7057,101 @@
         });
 
         // Funciones globales accesibles
-        window.showPatientInfoButton = showPatientInfoButton;
-        window.hidePatientInfoButton = hidePatientInfoButton;
-        window.openPatientInfoSidebar = openPatientInfoSidebar;
-        window.closePatientInfoSidebar = closePatientInfoSidebar;
-        window.togglePatientInfoSidebar = togglePatientInfoSidebar;
-        window.openMobileNav = openMobileNav;
-        window.closeMobileNav = closeMobileNav;
-        window.toggleChatSidebar = toggleChatSidebar;
-        window.showPendingSection = showPendingSection;
-        window.showMyChatsSection = showMyChatsSection;
-        window.showRoomsSection = showRoomsSection;
-        window.showProfileSection = showProfileSection;
-        window.goBackToPending = goBackToPending;
-        window.loadPendingConversations = loadPendingConversationsWithTransferDetection;
-        window.loadMyChats = loadMyChatsWithTransferDetection;
-        window.loadChatsSidebar = loadChatsSidebar;
-        window.updateScheduleStatusUI = updateScheduleStatusUI;
-        window.renderPendingConversationsHTML = renderPendingConversationsHTML;
-        window.renderMyChatsHTML = renderMyChatsHTML;
-        window.loadRoomsFromAuthService = loadRoomsFromAuthService;
-        window.selectRoom = selectRoom;
-        window.loadSessionsByRoom = loadSessionsByRoom;
-        window.takeSessionFromRoom = takeSessionFromRoom;
-        window.continueSessionFromRoom = continueSessionFromRoom;
-        window.takeConversation = takeConversation;
-        window.takeConversationFromSidebar = takeConversationFromSidebar;
-        window.openChatFromMyChats = openChatFromMyChats;
-        window.selectChatFromSidebar = selectChatFromSidebar;
-        window.sendMessage = sendMessage;
-        window.handleAgentKeyDown = handleAgentKeyDown;
-        window.showTransferModal = showTransferModal;
-        window.showEndSessionModal = showEndSessionModal;
-        window.showReturnModal = showReturnModal;
-        window.showEscalationModal = showEscalationModal;
-        window.closeModal = closeModal;
-        window.toggleTransferFields = toggleTransferFields;
-        window.executeTransfer = executeTransfer;
-        window.executeEndSession = executeEndSession;
-        window.executeReturn = executeReturn;
-        window.executeEscalation = executeEscalation;
-        window.showEmptyChat = showEmptyChat;
-        window.openFileInNewTab = openFileInNewTab;
-        window.logout = logout;
-        window.clearDuplicationForTransferredChat = clearDuplicationForTransferredChat;
-        window.showProfileSection = showProfileSection;
-        window.loadUserProfile = loadUserProfile;
-        window.showEditProfileModal = showEditProfileModal;
-        window.showChangePasswordModal = showChangePasswordModal;
-        window.toggleAvailability = toggleAvailability;
-        window.handleTransferNotificationAction = handleTransferNotificationAction;
-        window.startTransferMonitoring = startTransferMonitoring;
-        window.stopTransferMonitoring = stopTransferMonitoring;
-        window.clearTransferNotificationCache = clearTransferNotificationCache;
-        window.loadAvailableRooms = loadAvailableRooms;
-        window.populateRoomSelect = populateRoomSelect;
-        // RF7: Funciones globales de archivos
-        window.toggleFileUpload = toggleFileUpload;
-        window.removeSelectedFile = removeSelectedFile;
-        window.clearSelectedFiles = clearSelectedFiles;
-        window.stopGlobalPendingMonitoring = stopGlobalPendingMonitoring;
-        window.handleSessionTerminated = handleSessionTerminated;
-        window.handlePatientDisconnected = handlePatientDisconnected;
-        window.disableAgentChatControls = disableAgentChatControls;
-        window.updateListsAfterSessionTermination = updateListsAfterSessionTermination;
-        window.checkGlobalPendingConversations = checkGlobalPendingConversations;
-        window.detectAndNotifyNewConversationsFixed = detectAndNotifyNewConversationsFixed;
-        window.startGlobalPendingMonitoringFixed = startGlobalPendingMonitoringFixed;
-        window.showSingleConversationNotification = showSingleConversationNotification;
-        window.takeConversationDirectlyFromNotification = takeConversationDirectlyFromNotification;
-        window.handleSessionEndedByPatient = handleSessionEndedByPatient;
-        window.setupSocketEventHandlers = setupSocketEventHandlers;
+        // ========== EXPONER TODAS LAS FUNCIONES GLOBALES ==========
+// Funciones de navegación
+window.showSection = showSection;
+window.showPendingSection = showPendingSection;
+window.showMyChatsSection = showMyChatsSection;
+window.showRoomsSection = showRoomsSection;
+window.showProfileSection = showProfileSection;
+window.showGroupChatSection = showGroupChatSection;
+window.goBackToPending = goBackToPending;
+window.hideAllSections = hideAllSections;
+window.updateNavigation = updateNavigation;
+
+// Funciones de carga de datos
+window.loadPendingConversations = loadPendingConversationsWithTransferDetection;
+window.loadMyChats = loadMyChatsWithTransferDetection;
+window.loadChatsSidebar = loadChatsSidebar;
+window.loadRoomsFromAuthService = loadRoomsFromAuthService;
+window.loadSessionsByRoom = loadSessionsByRoom;
+window.loadUserProfile = loadUserProfile;
+window.loadAgentSchedules = loadAgentSchedules;
+
+// Funciones de chat grupal
+window.loadGroupRooms = loadGroupRooms;
+window.displayGroupRooms = displayGroupRooms;
+window.createGroupRoomCard = createGroupRoomCard;
+window.getRoomColor = getRoomColor;
+window.refreshGroupRooms = refreshGroupRooms;
+window.joinGroupRoom = joinGroupRoom;
+window.sendGroupMessage = sendGroupMessage;
+window.handleGroupChatKeyDown = handleGroupChatKeyDown;
+window.exitGroupChat = exitGroupChat;
+window.showGroupParticipants = showGroupParticipants;
+window.closeGroupParticipants = closeGroupParticipants;
+
+// Funciones de conversaciones
+window.takeConversation = takeConversation;
+window.takeConversationFromSidebar = takeConversationFromSidebar;
+window.openChatFromMyChats = openChatFromMyChats;
+window.selectChatFromSidebar = selectChatFromSidebar;
+window.selectRoom = selectRoom;
+window.takeSessionFromRoom = takeSessionFromRoom;
+window.continueSessionFromRoom = continueSessionFromRoom;
+
+// Funciones de mensajería
+window.sendMessage = sendMessage;
+window.handleAgentKeyDown = handleAgentKeyDown;
+window.openFileInNewTab = openFileInNewTab;
+window.toggleFileUpload = toggleFileUpload;
+window.removeSelectedFile = removeSelectedFile;
+window.clearSelectedFiles = clearSelectedFiles;
+
+// Funciones de modales
+window.showTransferModal = showTransferModal;
+window.showEndSessionModal = showEndSessionModal;
+window.showReturnModal = showReturnModal;
+window.showEscalationModal = showEscalationModal;
+window.closeModal = closeModal;
+window.showEditProfileModal = showEditProfileModal;
+window.showChangePasswordModal = showChangePasswordModal;
+window.toggleTransferFields = toggleTransferFields;
+
+// Funciones de acciones
+window.executeTransfer = executeTransfer;
+window.executeEndSession = executeEndSession;
+window.executeReturn = executeReturn;
+window.executeEscalation = executeEscalation;
+window.toggleAvailability = toggleAvailability;
+window.logout = logout;
+window.showEmptyChat = showEmptyChat;
+
+// Funciones de UI
+window.showPatientInfoButton = showPatientInfoButton;
+window.hidePatientInfoButton = hidePatientInfoButton;
+window.openPatientInfoSidebar = openPatientInfoSidebar;
+window.closePatientInfoSidebar = closePatientInfoSidebar;
+window.togglePatientInfoSidebar = togglePatientInfoSidebar;
+window.openMobileNav = openMobileNav;
+window.closeMobileNav = closeMobileNav;
+window.toggleChatSidebar = toggleChatSidebar;
+
+// Funciones de transferencias
+window.handleTransferNotificationAction = handleTransferNotificationAction;
+window.startTransferMonitoring = startTransferMonitoring;
+window.stopTransferMonitoring = stopTransferMonitoring;
+window.clearTransferNotificationCache = clearTransferNotificationCache;
+window.loadAvailableRooms = loadAvailableRooms;
+window.populateRoomSelect = populateRoomSelect;
+
+// Funciones de validación de contraseñas
+window.validatePasswordStrength = validatePasswordStrength;
+window.validatePasswordMatch = validatePasswordMatch;
+window.changePassword = changePassword;
+window.closeStaffModal = closeStaffModal;
+
+console.log('✅ Todas las funciones JavaScript cargadas correctamente');
 
 
 
