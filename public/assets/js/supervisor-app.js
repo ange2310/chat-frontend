@@ -2645,26 +2645,55 @@ async loadRoomSessions(roomId) {
 
 createRoomMonitorCard(room) {
     console.log('🎴 Creando card para:', room.room_name);
-    
-    const sessions = room.sessions || {};
-    const agents = room.agents || {};
-    const messages = room.messages || {};
-    
+    console.log('📊 Datos completos de la sala:', room);
+
+    // ✅ Extracción de datos mejorada
+    const sessions = room.sessions || {
+        total: 0,
+        active: 0,
+        waiting: 0,
+        completed: 0,
+        abandoned: 0,
+        attendance_rate: 0,
+        abandonment_rate: 0,
+        avg_duration: 0
+    };
+
+    const agents = room.agents || {
+        total_assigned: 0,
+        currently_active: 0,
+        available_now: 0,
+        on_session: 0,
+        utilization_rate: 0
+    };
+
+    const messages = room.messages || {
+        total_today: 0,
+        from_patients: 0,
+        from_agents: 0,
+        avg_per_session: 0
+    };
+
+    // ✅ Usar los valores directos
     const activeSessions = sessions.active || 0;
     const waitingSessions = sessions.waiting || 0;
     const completedSessions = sessions.completed || 0;
     const abandonedSessions = sessions.abandoned || 0;
-    
-    const capacityPercent = agents.total_assigned > 0 
-        ? ((agents.on_session / agents.total_assigned) * 100).toFixed(0) : 0;
-    const capacityColor = capacityPercent > 80 ? 'bg-red-500' :
-                         capacityPercent > 50 ? 'bg-yellow-500' : 'bg-green-500';
-    
+
+    // ✅ Calcular capacidad
+    const capacityPercent = agents.total_assigned > 0
+        ? ((agents.on_session / agents.total_assigned) * 100).toFixed(0)
+        : 0;
+    const capacityColor = capacityPercent > 80 ? 'bg-red-500'
+                        : capacityPercent > 50 ? 'bg-yellow-500'
+                        : 'bg-green-500';
+
     const hasActiveSessions = activeSessions > 0 || waitingSessions > 0;
-    
-    // Generar ID único para tabs
+
+    // ✅ ID único para tabs
     const safeRoomId = room.room_id.replace(/[^a-zA-Z0-9]/g, '_');
-    
+
+    // ✅ Mantiene TODA la estructura de la primera función
     return `
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
             <!-- Header de la Sala -->
@@ -2679,7 +2708,7 @@ createRoomMonitorCard(room) {
                 </div>
                 <p class="text-sm text-gray-500">${room.room_description || 'Sala de chat'}</p>
             </div>
-            
+
             <!-- Tabs: Estadísticas / Sesiones -->
             <div class="border-b border-gray-200">
                 <nav class="flex -mb-px">
@@ -2696,7 +2725,7 @@ createRoomMonitorCard(room) {
                     </button>
                 </nav>
             </div>
-            
+
             <!-- Contenido: Estadísticas -->
             <div id="content-${safeRoomId}-stats" class="room-content p-6">
                 <div class="space-y-4">
@@ -2722,7 +2751,7 @@ createRoomMonitorCard(room) {
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Performance -->
                     <div>
                         <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Rendimiento</h4>
@@ -2741,7 +2770,7 @@ createRoomMonitorCard(room) {
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Agentes -->
                     <div>
                         <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Agentes</h4>
@@ -2769,7 +2798,7 @@ createRoomMonitorCard(room) {
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Mensajes -->
                     <div>
                         <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Mensajes</h4>
@@ -2786,11 +2815,15 @@ createRoomMonitorCard(room) {
                                 <span class="text-sm text-gray-600">De agentes</span>
                                 <span class="font-semibold text-purple-600">${messages.from_agents || 0}</span>
                             </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">Promedio/sesión</span>
+                                <span class="font-semibold text-gray-900">${messages.avg_per_session || 0}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Contenido: Sesiones -->
             <div id="content-${safeRoomId}-sessions" class="room-content hidden p-6">
                 <div class="flex items-center justify-between mb-4">
@@ -2813,7 +2846,7 @@ createRoomMonitorCard(room) {
                     </div>
                 </div>
             </div>
-            
+
             <!-- Footer -->
             <div class="px-6 py-3 bg-gray-50 border-t border-gray-200">
                 <div class="flex items-center justify-between text-xs text-gray-500">
@@ -2824,6 +2857,7 @@ createRoomMonitorCard(room) {
         </div>
     `;
 }
+
 createSessionItem(session, roomId) {
     const userName = session.user_name || 'Usuario';
     const agentName = session.agent_name || 'Sin asignar';
