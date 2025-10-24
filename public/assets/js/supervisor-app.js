@@ -2341,121 +2341,469 @@
     }
 }
 
-        async loadMyMonitor() {
+    // ========== MONITOR DE SALAS MEJORADO ==========
+
+async loadMyMonitor() {
     try {
-        console.log('📊 === CARGANDO ESTADÍSTICAS DE SALAS ===');
+        console.log('📊 === CARGANDO MONITOR DE SALAS ===');
         
         const timeframe = document.getElementById('statsTimeframe')?.value || '24h';
-        console.log('⏰ Timeframe:', timeframe);
+        
+        // Mostrar loading
+        this.showMonitorLoading();
         
         // 1. Obtener mis salas
-        console.log('🔄 Paso 1: Obteniendo salas...');
         const roomsResponse = await fetch(`${API_BASE}/agent-assignments/my-rooms`, {
             headers: this.getAuthHeaders()
         });
         
-        console.log('📡 Respuesta salas - Status:', roomsResponse.status);
-        
         if (!roomsResponse.ok) {
-            const errorText = await roomsResponse.text();
-            console.error('❌ Error en respuesta:', errorText);
             throw new Error('Error cargando salas');
         }
         
         const roomsResult = await roomsResponse.json();
-        console.log('📦 Resultado completo:', roomsResult);
-        
         const myRooms = roomsResult.data?.rooms || [];
-        console.log('🏠 Total de mis salas:', myRooms.length);
-        console.log('📋 Salas:', myRooms);
+        
+        console.log('🏠 Total de salas:', myRooms.length);
         
         if (myRooms.length === 0) {
-            console.log('⚠️ No hay salas, mostrando vacío');
-            this.displayRoomsStatistics({ rooms: [], summary: {}, total_rooms: 0 });
+            this.showMonitorEmpty();
             return;
         }
         
-        // 2. Obtener estadísticas para cada sala UNA POR UNA (no Promise.all)
-        console.log('🔄 Paso 2: Obteniendo estadísticas...');
-        const roomsStats = [];
+        // 2. Obtener estadísticas Y sesiones para cada sala
+        const roomsData = [];
         
-        for (let i = 0; i < myRooms.length; i++) {
-            const room = myRooms[i];
-            console.log(`📊 Procesando sala ${i+1}/${myRooms.length}:`, room.name);
-            
+        for (const room of myRooms) {
             try {
-                const stats = await this.getRoomStatistics(room, timeframe);
-                console.log(`✅ Estadísticas de ${room.name}:`, stats);
-                roomsStats.push(stats);
-            } catch (error) {
-                console.error(`❌ Error en sala ${room.name}:`, error);
-                // Agregar sala con datos vacíos
-                roomsStats.push({
+                // Obtener estadísticas
+                const statsResponse = await fetch(
+                    `${API_BASE}/admin/supervisor/rooms/${room.id}/statistics?timeframe=${timeframe}`,
+                    { headers: this.getAuthHeaders() }
+                );
+                
+                const statsResult = await statsResponse.json();
+                const stats = statsResult.success ? statsResult.data?.statistics : null;
+                
+                // Obtener sesiones activas
+                const sessionsResponse = await fetch(
+                    `${API_BASE}/admin/supervisor/rooms/${room.id}/sessions`,
+                    { headers: this.getAuthHeaders() }
+                );
+                
+                const sessionsResult = await sessionsResponse.json();
+                const sessions = sessionsResult.success ? sessionsResult.data?.sessions || [] : [];
+                
+                roomsData.push({
                     room_id: room.id,
-                    room_name: room.name,
-                    room_description: room.description || '',
-                    statistics: {
-                        sessions: { active: 0, waiting: 0, completed: 0, abandoned: 0, total: 0 },
-                        performance: { avg_duration_minutes: 0, avg_wait_time_minutes: 0, completion_rate: 0 },
-                        agents: { total: 0, available: 0, busy: 0 },
-                        transfers: { outgoing: 0, incoming: 0, rejected: 0 },
-                        trend: { direction: 'stable', percentage: 0 }
-                    },
+                    room_name: room.name || room.room_name,
+                    room_description: room.description || room.room_description,
+                    statistics: stats || this.getEmptyStats(),
+                    sessions: sessions,
+                    waiting_count: sessions.filter(s => s.status === 'waiting').length,
+                    active_count: sessions.filter(s => s.status === 'active').length,
+                    last_updated: new Date().toISOString()
+                });
+                
+            } catch (error) {
+                console.error(`Error en sala ${room.name}:`, error);
+                // Agregar con datos vacíos
+                roomsData.push({
+                    room_id: room.id,
+                    room_name: room.name || room.room_name,
+                    room_description: room.description || room.room_description,
+                    statistics: this.getEmptyStats(),
+                    sessions: [],
+                    waiting_count: 0,
+                    active_count: 0,
                     last_updated: new Date().toISOString()
                 });
             }
         }
         
-        console.log('✅ Todas las estadísticas obtenidas:', roomsStats);
-        
-        // 3. Calcular resumen general
-        console.log('🔄 Paso 3: Calculando resumen...');
-        const summary = {
-            total_active: roomsStats.reduce((sum, r) => sum + (r.statistics?.sessions?.active || 0), 0),
-            total_waiting: roomsStats.reduce((sum, r) => sum + (r.statistics?.sessions?.waiting || 0), 0),
-            total_completed: roomsStats.reduce((sum, r) => sum + (r.statistics?.sessions?.completed || 0), 0),
-            avg_completion_rate: roomsStats.length > 0 
-                ? (roomsStats.reduce((sum, r) => sum + parseFloat(r.statistics?.performance?.completion_rate || 0), 0) / roomsStats.length).toFixed(2)
-                : 0
-        };
-        
-        console.log('📈 Resumen:', summary);
+        // 3. Calcular resumen
+        const summary = this.calculateSummary(roomsData);
         
         // 4. Mostrar datos
-        console.log('🔄 Paso 4: Mostrando datos en UI...');
-        this.displayRoomsStatistics({
-            rooms: roomsStats,
+        this.displayMonitorData({
+            rooms: roomsData,
             summary,
             timeframe,
             total_rooms: myRooms.length
         });
         
-        console.log('✅ === ESTADÍSTICAS CARGADAS EXITOSAMENTE ===\n');
+        console.log('✅ Monitor cargado exitosamente');
         
     } catch (error) {
-        console.error('❌ === ERROR FATAL ===');
-        console.error('Error:', error);
-        console.error('Stack:', error.stack);
-        this.showNotification('Error cargando estadísticas de salas', 'error');
-        
-        const container = document.getElementById('roomsStatsContainer');
-        if (container) {
-            container.innerHTML = `
-                <div class="col-span-full text-center py-20">
-                    <svg class="w-16 h-16 text-red-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <p class="text-red-500 font-medium">Error cargando estadísticas</p>
-                    <p class="text-gray-500 text-sm mt-2">${error.message}</p>
-                    <button onclick="supervisorClient.loadMyMonitor()" 
-                            class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                        Reintentar
-                    </button>
-                </div>
-            `;
-        }
+        console.error('❌ Error en loadMyMonitor:', error);
+        this.showMonitorError(error.message);
     }
+}
+
+getEmptyStats() {
+    return {
+        sessions: { active: 0, waiting: 0, completed: 0, abandoned: 0, total: 0 },
+        performance: { avg_duration_minutes: 0, avg_wait_time_minutes: 0, completion_rate: 0 },
+        agents: { total: 0, available: 0, busy: 0 },
+        transfers: { outgoing: 0, incoming: 0, rejected: 0 },
+        trend: { direction: 'stable', percentage: 0 }
+    };
+}
+
+calculateSummary(roomsData) {
+    return {
+        total_active: roomsData.reduce((sum, r) => sum + r.active_count, 0),
+        total_waiting: roomsData.reduce((sum, r) => sum + r.waiting_count, 0),
+        total_completed: roomsData.reduce((sum, r) => sum + (r.statistics?.sessions?.completed || 0), 0),
+        avg_completion_rate: roomsData.length > 0 
+            ? (roomsData.reduce((sum, r) => sum + parseFloat(r.statistics?.performance?.completion_rate || 0), 0) / roomsData.length).toFixed(2)
+            : 0
+    };
+}
+
+showMonitorLoading() {
+    const container = document.getElementById('roomsStatsContainer');
+    if (container) {
+        container.innerHTML = `
+            <div class="col-span-full flex items-center justify-center py-20">
+                <div class="text-center">
+                    <div class="loading-spinner mx-auto mb-4"></div>
+                    <p class="text-gray-500">Cargando estadísticas...</p>
+                </div>
+            </div>
+        `;
+    }
+}
+
+showMonitorEmpty() {
+    const container = document.getElementById('roomsStatsContainer');
+    if (container) {
+        container.innerHTML = `
+            <div class="col-span-full text-center py-20">
+                <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                </svg>
+                <p class="text-gray-500">No tienes salas asignadas</p>
+            </div>
+        `;
+    }
+}
+
+showMonitorError(message) {
+    const container = document.getElementById('roomsStatsContainer');
+    if (container) {
+        container.innerHTML = `
+            <div class="col-span-full text-center py-20">
+                <svg class="w-16 h-16 text-red-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <p class="text-red-500 font-medium">Error cargando estadísticas</p>
+                <p class="text-gray-500 text-sm mt-2">${message}</p>
+                <button onclick="supervisorClient.loadMyMonitor()" 
+                        class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Reintentar
+                </button>
+            </div>
+        `;
+    }
+}
+
+displayMonitorData(data) {
+    // Actualizar resumen
+    this.updateStatsSummary(data.summary);
+    
+    // Renderizar salas
+    const container = document.getElementById('roomsStatsContainer');
+    if (!container) return;
+    
+    container.innerHTML = data.rooms.map(room => this.createRoomMonitorCard(room)).join('');
+    
+    // Setup handlers después de renderizar
+    this.setupRoomTabHandlers();
+}
+
+updateStatsSummary(summary) {
+    const updates = [
+        { id: 'summaryTotalActive', value: summary.total_active || 0 },
+        { id: 'summaryTotalWaiting', value: summary.total_waiting || 0 },
+        { id: 'summaryTotalCompleted', value: summary.total_completed || 0 },
+        { id: 'summaryAvgCompletion', value: `${summary.avg_completion_rate || 0}%` }
+    ];
+    
+    updates.forEach(update => {
+        const element = document.getElementById(update.id);
+        if (element) element.textContent = update.value;
+    });
+}
+// ========== FUNCIONES DE CONTROL DE TABS ==========
+
+setupRoomTabHandlers() {
+    // Esta función se llamará después de renderizar las salas
+    // Permite manejar los tabs dinámicamente
+}
+
+switchRoomTab(roomId, tab) {
+    console.log(`🔄 Cambiando a tab: ${tab} en sala: ${roomId}`);
+    
+    // Actualizar tabs
+    const allTabs = document.querySelectorAll(`[id^="tab-${roomId}-"]`);
+    allTabs.forEach(tabBtn => {
+        tabBtn.classList.remove('active');
+    });
+    
+    const activeTab = document.getElementById(`tab-${roomId}-${tab}`);
+    if (activeTab) {
+        activeTab.classList.add('active');
+    }
+    
+    // Actualizar contenido
+    const allContents = document.querySelectorAll(`[id^="content-${roomId}-"]`);
+    allContents.forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    const activeContent = document.getElementById(`content-${roomId}-${tab}`);
+    if (activeContent) {
+        activeContent.classList.remove('hidden');
+    }
+}
+
+// ========== FIN FUNCIONES DE CONTROL DE TABS ==========
+
+createRoomMonitorCard(room) {
+    const stats = room.statistics || {};
+    const sessions = stats.sessions || {};
+    const performance = stats.performance || {};
+    const agents = stats.agents || {};
+    const trend = stats.trend || { direction: 'stable', percentage: 0 };
+    
+    const trendColor = trend.direction === 'up' ? 'text-green-600' : 
+                      trend.direction === 'down' ? 'text-red-600' : 'text-gray-600';
+    const trendIcon = trend.direction === 'up' ? '↑' : 
+                     trend.direction === 'down' ? '↓' : '→';
+    
+    const capacityPercent = agents.total > 0 
+        ? ((agents.busy / agents.total) * 100).toFixed(0) : 0;
+    const capacityColor = capacityPercent > 80 ? 'bg-red-500' :
+                         capacityPercent > 50 ? 'bg-yellow-500' : 'bg-green-500';
+    
+    const hasActiveSessions = room.sessions && room.sessions.length > 0;
+    const waitingSessions = room.sessions ? room.sessions.filter(s => s.status === 'waiting') : [];
+    const activeSessions = room.sessions ? room.sessions.filter(s => s.status === 'active') : [];
+    
+    // Generar un ID único para esta sala
+    const safeRoomId = room.room_id.replace(/[^a-zA-Z0-9]/g, '_');
+    
+    return `
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+            <!-- Header de la Sala -->
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-lg font-semibold text-gray-900">${room.room_name}</h3>
+                    <span class="px-3 py-1 text-xs font-medium rounded-full ${
+                        hasActiveSessions ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }">
+                        ${hasActiveSessions ? 'Activa' : 'Inactiva'}
+                    </span>
+                </div>
+                <p class="text-sm text-gray-500">${room.room_description || 'Sala de chat'}</p>
+                
+                <div class="mt-2 flex items-center gap-2">
+                    <span class="${trendColor} font-semibold text-sm">${trendIcon} ${trend.percentage}%</span>
+                    <span class="text-xs text-gray-500">tendencia</span>
+                </div>
+            </div>
+            
+            <!-- Tabs: Estadísticas / Sesiones -->
+            <div class="border-b border-gray-200">
+                <nav class="flex -mb-px">
+                    <button onclick="supervisorClient.switchRoomTab('${safeRoomId}', 'stats')" 
+                            id="tab-${safeRoomId}-stats"
+                            class="room-tab active px-4 py-3 text-sm font-medium border-b-2">
+                        Estadísticas
+                    </button>
+                    <button onclick="supervisorClient.switchRoomTab('${safeRoomId}', 'sessions')" 
+                            id="tab-${safeRoomId}-sessions"
+                            class="room-tab px-4 py-3 text-sm font-medium border-b-2">
+                        Sesiones (${room.sessions ? room.sessions.length : 0})
+                        ${hasActiveSessions ? `<span class="ml-2 w-2 h-2 bg-green-500 rounded-full inline-block"></span>` : ''}
+                    </button>
+                </nav>
+            </div>
+            
+            <!-- Contenido: Estadísticas -->
+            <div id="content-${safeRoomId}-stats" class="room-content p-6">
+                <div class="space-y-4">
+                    <!-- Sesiones -->
+                    <div>
+                        <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Sesiones</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="text-center p-3 bg-green-50 rounded-lg">
+                                <div class="text-2xl font-bold text-green-600">${sessions.active || 0}</div>
+                                <div class="text-xs text-green-700">Activas</div>
+                            </div>
+                            <div class="text-center p-3 bg-yellow-50 rounded-lg">
+                                <div class="text-2xl font-bold text-yellow-600">${sessions.waiting || 0}</div>
+                                <div class="text-xs text-yellow-700">En Espera</div>
+                            </div>
+                            <div class="text-center p-3 bg-blue-50 rounded-lg">
+                                <div class="text-2xl font-bold text-blue-600">${sessions.completed || 0}</div>
+                                <div class="text-xs text-blue-700">Completadas</div>
+                            </div>
+                            <div class="text-center p-3 bg-red-50 rounded-lg">
+                                <div class="text-2xl font-bold text-red-600">${sessions.abandoned || 0}</div>
+                                <div class="text-xs text-red-700">Abandonadas</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Performance -->
+                    <div>
+                        <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Rendimiento</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                <span class="text-sm text-gray-600">Tiempo promedio</span>
+                                <span class="font-semibold text-gray-900">${performance.avg_duration_minutes || 0} min</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                <span class="text-sm text-gray-600">Espera promedio</span>
+                                <span class="font-semibold text-gray-900">${performance.avg_wait_time_minutes || 0} min</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                <span class="text-sm text-gray-600">Tasa finalización</span>
+                                <span class="font-semibold text-gray-900">${performance.completion_rate || 0}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Agentes -->
+                    <div>
+                        <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Agentes</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">Total</span>
+                                <span class="font-semibold text-gray-900">${agents.total || 0}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">Disponibles</span>
+                                <span class="font-semibold text-green-600">${agents.available || 0}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">Ocupados</span>
+                                <span class="font-semibold text-yellow-600">${agents.busy || 0}</span>
+                            </div>
+                            <div class="mt-2">
+                                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                                    <span>Capacidad</span>
+                                    <span>${capacityPercent}%</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="${capacityColor} h-2 rounded-full transition-all" style="width: ${capacityPercent}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contenido: Sesiones -->
+            <div id="content-${safeRoomId}-sessions" class="room-content hidden p-6">
+                ${hasActiveSessions ? `
+                    <div class="space-y-4">
+                        ${waitingSessions.length > 0 ? `
+                            <div>
+                                <h4 class="text-sm font-medium text-yellow-700 mb-3">En Espera (${waitingSessions.length})</h4>
+                                <div class="space-y-2">
+                                    ${waitingSessions.map(session => this.createSessionItem(session, room.room_id)).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        ${activeSessions.length > 0 ? `
+                            <div>
+                                <h4 class="text-sm font-medium text-green-700 mb-3">Activas (${activeSessions.length})</h4>
+                                <div class="space-y-2">
+                                    ${activeSessions.map(session => this.createSessionItem(session, room.room_id)).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                ` : `
+                    <div class="text-center py-8 text-gray-500">
+                        <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                        <p class="text-sm">No hay sesiones activas</p>
+                    </div>
+                `}
+            </div>
+            
+            <!-- Footer -->
+            <div class="px-6 py-3 bg-gray-50 border-t border-gray-200">
+                <div class="flex items-center justify-between text-xs text-gray-500">
+                    <span>Última actualización</span>
+                    <span>${new Date(room.last_updated).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+createSessionItem(session, roomId) {
+    const userName = session.user_name || 'Usuario';
+    const agentName = session.agent_name || 'Sin asignar';
+    const duration = Math.round(session.duration_minutes || session.waiting_time_minutes || 0);
+    const sessionId = session.id || session.session_id;
+    const isWaiting = session.status === 'waiting';
+    
+    return `
+        <div class="p-3 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                        <span class="text-white text-xs font-semibold">${userName.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">${userName}</p>
+                        <p class="text-xs text-gray-500">${agentName}</p>
+                    </div>
+                </div>
+                <span class="px-2 py-1 text-xs rounded ${isWaiting ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                    ${isWaiting ? 'Esperando' : 'Activo'}
+                </span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-xs text-gray-500">
+                    <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    ${duration} min
+                </span>
+                <button onclick="supervisorClient.openObserverChat('${sessionId}')" 
+                        class="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700">
+                    <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                    Observar
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+changeStatsTimeframe() {
+    this.loadMyMonitor();
+}
+
+refreshRoomsStats() {
+    this.showNotification('Actualizando estadísticas...', 'info', 1000);
+    this.loadMyMonitor();
 }
 
         displayRoomsStatistics(data) {
@@ -3047,6 +3395,15 @@ createRoomStatsCard(room) {
                     await this.loadTransfers();
                     await this.loadEscalations();
                     this.startAutoRefresh();
+                    
+                    // Refresh automático del monitor cada 30 segundos si está activo
+                    setInterval(() => {
+                        const monitorSection = document.getElementById('monitor-section');
+                        if (monitorSection && !monitorSection.classList.contains('hidden')) {
+                            this.loadMyMonitor();
+                        }
+                    }, 30000);
+                    
                     console.log('✅ SupervisorClient inicializado correctamente');
                 } catch (error) {
                     console.error('❌ Error de inicialización:', error);

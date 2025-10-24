@@ -880,3 +880,43 @@
         padding: 1rem;
     }
 }
+
+/* Tabs de Sala */
+.room-tab {
+    color: #6b7280;
+    border-bottom-color: transparent;
+    transition: all 0.2s;
+}
+
+.room-tab:hover {
+    color: #374151;
+    border-bottom-color: #e5e7eb;
+}
+
+.room-tab.active {
+    color: #7c3aed;
+    border-bottom-color: #7c3aed;
+}
+
+.room-content {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Mejorar visualización en móviles */
+@media (max-width: 768px) {
+    .room-tab {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.75rem;
+    }
+}
