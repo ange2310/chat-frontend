@@ -1166,6 +1166,7 @@
             }
         }
 
+
         async function loadRoomsFromAuthService() {
             try {
                 const token = getToken();
@@ -1268,6 +1269,7 @@
             }
         }
 
+        
         function loadRoomsFallback() {
             rooms = [
                 {
@@ -6030,6 +6032,720 @@
                 }
             });
         });
+
+        // ========== FUNCIONES DE CHAT GRUPAL (STAFF) ==========
+        
+        /**
+         * Carga las salas disponibles para el staff
+         */
+        async function loadGroupRooms() {
+            try {
+                console.log('🏠 Cargando salas grupales para staff...');
+                
+                const response = await fetch(`${ADMIN_API}/admin/rooms`, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Error cargando salas');
+                }
+                
+                const result = await response.json();
+                const rooms = result.data?.rooms || result.rooms || [];
+                
+                // Filtrar solo salas activas
+                const activeRooms = rooms.filter(room => room.is_active);
+                
+                console.log(`✅ Salas activas: ${activeRooms.length}`);
+                displayGroupRooms(activeRooms);
+                
+            } catch (error) {
+                console.error('❌ Error cargando salas:', error);
+                showNotification('Error cargando salas: ' + error.message, 'error');
+                displayGroupRooms([]);
+            }
+        }
+
+        /**
+         * Renderiza la lista de salas
+         */
+        function displayGroupRooms(rooms) {
+            const container = document.getElementById('groupRoomsList');
+            if (!container) {
+                console.warn('⚠️ Contenedor groupRoomsList no encontrado');
+                return;
+            }
+            
+            if (rooms.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full text-center py-20">
+                        <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                        <p class="text-gray-500 font-medium">No hay salas disponibles</p>
+                        <p class="text-sm text-gray-400 mt-2">Las salas activas aparecerán aquí</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = rooms.map(room => createGroupRoomCard(room)).join('');
+        }
+
+        /**
+         * Crea la tarjeta HTML para una sala
+         */
+        function createGroupRoomCard(room) {
+            const roomColor = getRoomColor(room);
+            const roomInitial = (room.name || 'S').charAt(0).toUpperCase();
+            
+            return `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all cursor-pointer transform hover:scale-102"
+                     onclick="joinGroupRoom('${room.id}', '${escapeHtml(room.name)}')">
+                    
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 ${roomColor} rounded-lg flex items-center justify-center shadow-sm">
+                                <span class="text-white font-bold text-lg">${roomInitial}</span>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-900">${escapeHtml(room.name)}</h4>
+                                <p class="text-sm text-gray-500">${escapeHtml(room.description || 'Sala de chat grupal')}</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">
+                            Activa
+                        </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-2 mb-4">
+                        <div class="text-center p-2 bg-blue-50 rounded">
+                            <div class="text-sm font-bold text-blue-600">${room.max_agents || 0}</div>
+                            <div class="text-xs text-blue-700">Capacidad</div>
+                        </div>
+                        <div class="text-center p-2 bg-green-50 rounded">
+                            <div class="text-sm font-bold text-green-600">${room.assigned_agents || 0}</div>
+                            <div class="text-xs text-green-700">Asignados</div>
+                        </div>
+                        <div class="text-center p-2 bg-purple-50 rounded">
+                            <div class="text-sm font-bold text-purple-600">${room.active_agents || 0}</div>
+                            <div class="text-xs text-purple-700">En línea</div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between text-sm pt-3 border-t border-gray-100">
+                        <span class="text-gray-600 flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                    d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"></path>
+                            </svg>
+                            Click para unirse
+                        </span>
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Une al staff a una sala grupal
+         */
+        async function joinGroupRoom(roomId, roomName) {
+            try {
+                console.log(`🚪 Uniéndose a sala: ${roomId} - ${roomName}`);
+                
+                if (!roomId || !roomName) {
+                    throw new Error('ID de sala o nombre inválido');
+                }
+                
+                currentGroupRoomId = roomId;
+                currentGroupRoom = { id: roomId, name: roomName };
+                
+                // Cambiar vista
+                document.getElementById('groupRoomsList')?.classList.add('hidden');
+                document.getElementById('activeGroupChat')?.classList.remove('hidden');
+                
+                // Actualizar UI
+                updateGroupRoomInfo(roomName);
+                
+                // Conectar WebSocket
+                if (!groupChatSocket || !isGroupChatConnected) {
+                    await connectGroupChatWebSocket();
+                }
+                
+                await waitForGroupSocketConnection();
+                emitJoinGroupRoom(roomId);
+                
+                showNotification(`Uniéndose a ${roomName}...`, 'info', 2000);
+                
+            } catch (error) {
+                console.error('❌ Error uniéndose:', error);
+                showNotification('Error: ' + error.message, 'error');
+                exitGroupChat();
+            }
+        }
+
+        /**
+         * Actualiza la info de la sala en el header
+         */
+        function updateGroupRoomInfo(roomName) {
+            const currentUser = getCurrentUser();
+            const roleLabels = {
+                2: { text: 'Agente', color: 'bg-green-100 text-green-800' },
+                3: { text: 'Supervisor', color: 'bg-purple-100 text-purple-800' },
+                4: { text: 'Administrador', color: 'bg-red-100 text-red-800' }
+            };
+            
+            const userRole = roleLabels[currentUser?.role] || roleLabels[2];
+            
+            const roomNameEl = document.getElementById('groupChatRoomName');
+            if (roomNameEl) roomNameEl.textContent = roomName;
+            
+            const modeIndicator = document.getElementById('groupChatModeIndicator');
+            if (modeIndicator) {
+                modeIndicator.textContent = userRole.text;
+                modeIndicator.className = `px-2 py-0.5 text-xs font-medium rounded-full ${userRole.color}`;
+            }
+            
+            // Habilitar input (staff puede escribir siempre)
+            document.getElementById('groupChatInputDisabled')?.classList.add('hidden');
+            document.getElementById('groupChatInputEnabled')?.classList.remove('hidden');
+        }
+
+        /**
+         * Conecta el WebSocket para chat grupal
+         */
+        async function connectGroupChatWebSocket() {
+            try {
+                console.log('🔌 Conectando WebSocket grupal...');
+                
+                const token = getToken();
+                if (!token) throw new Error('Token no disponible');
+                
+                const currentUser = getCurrentUser();
+                if (!currentUser) throw new Error('Usuario no disponible');
+                
+                const userTypeMap = {
+                    2: 'agent',
+                    3: 'supervisor',
+                    4: 'admin'
+                };
+                const userType = userTypeMap[currentUser.role] || 'agent';
+                
+                groupChatSocket = io('http://187.33.158.246', {
+                    transports: ['websocket', 'polling'],
+                    reconnection: true,
+                    reconnectionDelay: 1000,
+                    reconnectionAttempts: 5,
+                    auth: {
+                        token: token,
+                        user_id: currentUser.id,
+                        user_type: userType,
+                        user_name: currentUser.name
+                    }
+                });
+                
+                setupGroupChatSocketHandlers();
+                
+            } catch (error) {
+                console.error('❌ Error conectando:', error);
+                throw error;
+            }
+        }
+
+        /**
+         * Configura los handlers del WebSocket
+         */
+        function setupGroupChatSocketHandlers() {
+            if (!groupChatSocket) return;
+            
+            groupChatSocket.on('connect', () => {
+                isGroupChatConnected = true;
+                console.log('✅ WebSocket conectado');
+                showNotification('Conectado al chat grupal', 'success', 2000);
+            });
+            
+            groupChatSocket.on('disconnect', (reason) => {
+                isGroupChatConnected = false;
+                groupChatJoined = false;
+                console.log(`❌ Desconectado: ${reason}`);
+            });
+            
+            groupChatSocket.on('group_room_joined', (data) => {
+                groupChatJoined = true;
+                isSilentMode = false;
+                console.log('✅ Unido a sala:', data);
+                
+                updateGroupChatUI(data);
+                loadGroupChatHistory(data.room_id);
+                showNotification(`Te uniste a ${currentGroupRoom?.name}`, 'success', 2000);
+            });
+            
+            groupChatSocket.on('new_group_message', (data) => {
+                console.log('💬 Nuevo mensaje:', data);
+                handleGroupMessage(data);
+            });
+            
+            groupChatSocket.on('participant_joined', (data) => {
+                console.log('👋 Nuevo participante:', data);
+                showNotification(`${data.user_name || 'Usuario'} se unió`, 'info', 2000);
+                updateParticipantsCount(data.participants_count);
+            });
+            
+            groupChatSocket.on('participant_left', (data) => {
+                console.log('👋 Participante salió:', data);
+                showNotification(`${data.user_name || 'Usuario'} salió`, 'info', 2000);
+                updateParticipantsCount(data.participants_count);
+            });
+            
+            groupChatSocket.on('error', (error) => {
+                console.error('❌ Error:', error);
+                showNotification('Error: ' + (error.message || error), 'error');
+            });
+            
+            groupChatSocket.on('reconnect', (attemptNumber) => {
+                console.log(`✅ Reconectado (intento ${attemptNumber})`);
+                showNotification('Reconectado', 'success', 2000);
+                if (currentGroupRoomId) emitJoinGroupRoom(currentGroupRoomId);
+            });
+        }
+
+        /**
+         * Espera a que el socket esté conectado
+         */
+        function waitForGroupSocketConnection(timeout = 5000) {
+            return new Promise((resolve, reject) => {
+                if (isGroupChatConnected) {
+                    resolve();
+                    return;
+                }
+                
+                const startTime = Date.now();
+                const checkInterval = setInterval(() => {
+                    if (isGroupChatConnected) {
+                        clearInterval(checkInterval);
+                        resolve();
+                    } else if (Date.now() - startTime > timeout) {
+                        clearInterval(checkInterval);
+                        reject(new Error('Timeout'));
+                    }
+                }, 100);
+            });
+        }
+
+        /**
+         * Emite el evento de unirse a la sala
+         */
+        function emitJoinGroupRoom(roomId) {
+            if (!groupChatSocket || !isGroupChatConnected) {
+                console.error('❌ Socket no conectado');
+                showNotification('No conectado', 'error');
+                return;
+            }
+            
+            const currentUser = getCurrentUser();
+            const userTypeMap = { 2: 'agent', 3: 'supervisor', 4: 'admin' };
+            
+            groupChatSocket.emit('join_group_room', {
+                room_id: roomId,
+                user_id: currentUser.id,
+                user_type: userTypeMap[currentUser.role] || 'agent'
+            });
+        }
+
+        /**
+         * Actualiza la UI del chat grupal
+         */
+        function updateGroupChatUI(data) {
+            const participants = data.participants || [];
+            updateParticipantsCount(participants.length);
+        }
+
+        /**
+         * Actualiza el contador de participantes
+         */
+        function updateParticipantsCount(count) {
+            const counter = document.getElementById('groupChatParticipantsCount');
+            if (counter) {
+                counter.textContent = `${count} participante${count !== 1 ? 's' : ''}`;
+            }
+        }
+
+        /**
+         * Carga el historial de mensajes
+         */
+        async function loadGroupChatHistory(roomId) {
+            const container = document.getElementById('groupChatMessages');
+            if (!container) return;
+            
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="inline-flex items-center justify-center w-12 h-12 mb-3">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                    </div>
+                    <p class="text-sm text-gray-500">Cargando mensajes...</p>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                const currentUser = getCurrentUser();
+                const roleIcons = { 2: '👨‍💼', 3: '👔', 4: '👑' };
+                
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-full mb-3 shadow-lg">
+                            <span class="text-3xl">${roleIcons[currentUser?.role] || '💬'}</span>
+                        </div>
+                        <p class="text-gray-700 font-medium">¡Bienvenido al Chat Grupal!</p>
+                        <p class="text-sm text-gray-500 mt-1">Sala: ${currentGroupRoom?.name}</p>
+                        <p class="text-xs text-gray-400 mt-2">Puedes comenzar a escribir mensajes</p>
+                    </div>
+                `;
+            }, 500);
+        }
+
+        /**
+         * Maneja un nuevo mensaje grupal
+         */
+        function handleGroupMessage(data) {
+            const container = document.getElementById('groupChatMessages');
+            if (!container) return;
+            
+            // Eliminar mensajes de bienvenida
+            const stateMessages = container.querySelectorAll('.text-center');
+            stateMessages.forEach(msg => {
+                if (msg.textContent.includes('Bienvenido') || msg.textContent.includes('Chat Grupal')) {
+                    msg.remove();
+                }
+            });
+            
+            const messageEl = createGroupMessageElement(data);
+            container.appendChild(messageEl);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        /**
+         * Crea el elemento HTML del mensaje
+         */
+        function createGroupMessageElement(data) {
+            const currentUser = getCurrentUser();
+            const isMyMessage = data.sender_id === currentUser?.id;
+            
+            const messageEl = document.createElement('div');
+            messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4`;
+            
+            const time = data.created_at ? 
+                new Date(data.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) :
+                new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            
+            if (isMyMessage) {
+                messageEl.innerHTML = `
+                    <div class="max-w-xs lg:max-w-md">
+                        <div class="bg-green-600 text-white rounded-lg rounded-br-none px-4 py-2 shadow-sm">
+                            <div class="text-xs opacity-90 mb-1">Tú</div>
+                            <p class="text-sm break-words">${escapeHtml(data.content)}</p>
+                            <div class="text-xs opacity-75 mt-1 text-right">${time}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const senderInfo = getGroupSenderInfo(data.sender_type);
+                messageEl.innerHTML = `
+                    <div class="max-w-xs lg:max-w-md">
+                        <div class="${senderInfo.bgColor} rounded-lg rounded-bl-none px-4 py-2 shadow-sm">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-medium ${senderInfo.textColor}">
+                                    ${senderInfo.icon} ${escapeHtml(data.sender_name || 'Usuario')}
+                                </span>
+                                <span class="text-xs ${senderInfo.badgeColor} px-1.5 py-0.5 rounded">
+                                    ${senderInfo.label}
+                                </span>
+                            </div>
+                            <p class="text-sm ${senderInfo.contentColor} break-words">
+                                ${escapeHtml(data.content)}
+                            </p>
+                            <div class="text-xs opacity-75 mt-1">${time}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            return messageEl;
+        }
+
+        /**
+         * Obtiene info de estilo según el remitente
+         */
+        function getGroupSenderInfo(senderType) {
+            const types = {
+                'admin': {
+                    label: 'Admin',
+                    icon: '👑',
+                    bgColor: 'bg-red-50',
+                    textColor: 'text-red-900',
+                    contentColor: 'text-red-900',
+                    badgeColor: 'bg-red-200 text-red-800'
+                },
+                'supervisor': {
+                    label: 'Supervisor',
+                    icon: '👔',
+                    bgColor: 'bg-purple-50',
+                    textColor: 'text-purple-900',
+                    contentColor: 'text-purple-900',
+                    badgeColor: 'bg-purple-200 text-purple-800'
+                },
+                'agent': {
+                    label: 'Agente',
+                    icon: '👨‍💼',
+                    bgColor: 'bg-blue-50',
+                    textColor: 'text-blue-900',
+                    contentColor: 'text-blue-900',
+                    badgeColor: 'bg-blue-200 text-blue-800'
+                },
+                'user': {
+                    label: 'Usuario',
+                    icon: '👤',
+                    bgColor: 'bg-gray-100',
+                    textColor: 'text-gray-900',
+                    contentColor: 'text-gray-900',
+                    badgeColor: 'bg-gray-300 text-gray-800'
+                }
+            };
+            
+            return types[senderType] || types.user;
+        }
+
+        /**
+         * Envía un mensaje al chat grupal
+         */
+        function sendGroupMessage() {
+            const input = document.getElementById('groupMessageInput');
+            if (!input) return;
+            
+            const message = input.value.trim();
+            if (!message) return;
+            
+            if (!groupChatSocket || !isGroupChatConnected) {
+                showNotification('No conectado', 'error');
+                return;
+            }
+            
+            if (!groupChatJoined) {
+                showNotification('No estás en una sala', 'error');
+                return;
+            }
+            
+            if (message.length > 1000) {
+                showNotification('Mensaje muy largo (máx. 1000)', 'error');
+                return;
+            }
+            
+            groupChatSocket.emit('send_group_message', {
+                room_id: currentGroupRoomId,
+                content: message,
+                message_type: 'text'
+            });
+            
+            input.value = '';
+            input.style.height = 'auto';
+        }
+
+        /**
+         * Maneja teclas en el input
+         */
+        function handleGroupChatKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendGroupMessage();
+            }
+        }
+
+        /**
+         * Sale del chat grupal
+         */
+        function exitGroupChat() {
+            try {
+                console.log('🚪 Saliendo...');
+                
+                if (groupChatSocket && groupChatJoined && currentGroupRoomId) {
+                    groupChatSocket.emit('leave_group_room', {
+                        room_id: currentGroupRoomId
+                    });
+                }
+                
+                if (groupChatSocket) {
+                    groupChatSocket.disconnect();
+                    groupChatSocket = null;
+                }
+                
+                isGroupChatConnected = false;
+                groupChatJoined = false;
+                isSilentMode = false;
+                currentGroupRoomId = null;
+                currentGroupRoom = null;
+                
+                document.getElementById('groupRoomsList')?.classList.remove('hidden');
+                document.getElementById('activeGroupChat')?.classList.add('hidden');
+                
+                const messagesContainer = document.getElementById('groupChatMessages');
+                if (messagesContainer) messagesContainer.innerHTML = '';
+                
+                const input = document.getElementById('groupMessageInput');
+                if (input) input.value = '';
+                
+            } catch (error) {
+                console.error('❌ Error saliendo:', error);
+            }
+        }
+
+        /**
+         * Muestra el modal de participantes
+         */
+        function showGroupParticipants() {
+            if (!groupChatSocket || !groupChatJoined) {
+                showNotification('No estás en una sala', 'error');
+                return;
+            }
+            
+            groupChatSocket.emit('get_room_participants', {
+                room_id: currentGroupRoomId
+            }, (response) => {
+                if (response?.success && response.participants) {
+                    displayGroupParticipants(response.participants);
+                }
+            });
+            
+            document.getElementById('groupParticipantsModal')?.classList.remove('hidden');
+        }
+
+        /**
+         * Muestra lista de participantes
+         */
+        function displayGroupParticipants(participants) {
+            const container = document.getElementById('groupParticipantsList');
+            if (!container) return;
+            
+            if (participants.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+                        </svg>
+                        <p class="text-gray-500 text-sm">No hay participantes</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const roleOrder = { 'admin': 0, 'supervisor': 1, 'agent': 2, 'user': 3 };
+            const sorted = [...participants].sort((a, b) => 
+                (roleOrder[a.role] || 4) - (roleOrder[b.role] || 4)
+            );
+            
+            container.innerHTML = sorted.map(p => {
+                const roleConfig = getParticipantRoleConfig(p.role);
+                const initial = (p.user_name || 'U').charAt(0).toUpperCase();
+                const statusDot = p.is_online ? 
+                    '<div class="w-2 h-2 bg-green-500 rounded-full"></div>' :
+                    '<div class="w-2 h-2 bg-gray-400 rounded-full"></div>';
+                
+                return `
+                    <div class="flex items-center justify-between py-3 px-2 border-b border-gray-100 hover:bg-gray-50">
+                        <div class="flex items-center gap-3">
+                            <div class="relative">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-br ${roleConfig.gradient} flex items-center justify-center shadow-sm">
+                                    <span class="text-white font-semibold text-sm">${initial}</span>
+                                </div>
+                                <div class="absolute -bottom-0.5 -right-0.5">${statusDot}</div>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900 text-sm">${escapeHtml(p.user_name || 'Usuario')}</p>
+                                <p class="text-xs text-gray-500">${roleConfig.label}</p>
+                            </div>
+                        </div>
+                        ${p.role === 'admin' ? 
+                            '<span class="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full font-medium">Admin</span>' :
+                            '<span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">✓ Activo</span>'
+                        }
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Config visual por rol
+         */
+        function getParticipantRoleConfig(role) {
+            const configs = {
+                'admin': { label: 'Administrador', gradient: 'from-red-500 to-pink-600' },
+                'supervisor': { label: 'Supervisor', gradient: 'from-purple-500 to-indigo-600' },
+                'agent': { label: 'Agente', gradient: 'from-green-500 to-teal-600' },
+                'user': { label: 'Usuario', gradient: 'from-gray-500 to-gray-600' }
+            };
+            return configs[role] || configs.user;
+        }
+
+        /**
+         * Cierra modal de participantes
+         */
+        function closeGroupParticipants() {
+            document.getElementById('groupParticipantsModal')?.classList.add('hidden');
+        }
+
+        /**
+         * Refresca lista de salas
+         */
+        function refreshGroupRooms() {
+            loadGroupRooms();
+            showNotification('Actualizando salas...', 'info', 1500);
+        }
+
+        /**
+         * Obtiene color para sala
+         */
+        function getRoomColor(room) {
+            const colors = [
+                'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500',
+                'bg-yellow-500', 'bg-indigo-500', 'bg-red-500', 'bg-orange-500'
+            ];
+            
+            if (room.color) return room.color;
+            if (room.id) {
+                const index = parseInt(room.id.toString().slice(-1)) % colors.length;
+                return colors[index];
+            }
+            return colors[0];
+        }
+
+        /**
+         * Escapa HTML
+         */
+        function escapeHtml(text) {
+            if (!text) return '';
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // ========== EXPONER FUNCIONES GLOBALMENTE ==========
+        window.loadGroupRooms = loadGroupRooms;
+        window.joinGroupRoom = joinGroupRoom;
+        window.sendGroupMessage = sendGroupMessage;
+        window.handleGroupChatKeyDown = handleGroupChatKeyDown;
+        window.exitGroupChat = exitGroupChat;
+        window.showGroupParticipants = showGroupParticipants;
+        window.closeGroupParticipants = closeGroupParticipants;
+        window.refreshGroupRooms = refreshGroupRooms;
 
         // Eventos globales
         document.addEventListener('keydown', (e) => {
