@@ -1380,6 +1380,7 @@ if (strpos($host, 'localhost') === false && strpos($host, '127.0.0.1') === false
             </div>
         </div>
     </div>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="assets/js/admin-app.js"></script>
 </body>
 </html>

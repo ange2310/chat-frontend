@@ -1859,7 +1859,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                                                     <h3 class="text-xl font-semibold text-gray-900">Salas de Chat Grupal</h3>
                                                     <p class="text-sm text-gray-600 mt-1">Únete a salas para colaboración en equipo</p>
                                                 </div>
-                                                <button onclick="supervisorClient.refreshGroupRooms()" 
+                                                <button onclick="refreshGroupRooms()" 
                                                         class="btn btn-primary flex items-center gap-2">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 

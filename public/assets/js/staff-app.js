@@ -6094,12 +6094,16 @@
  * Usa el endpoint de agent-assignments para obtener solo las salas permitidas
  */
 async function loadGroupRooms() {
-    const container = document.getElementById('groupRoomsContainer');
+    // Buscar el contenedor correcto (groupRoomsList en lugar de groupRoomsContainer)
+    const container = document.getElementById('groupRoomsList');
     
     if (!container) {
-        console.error('❌ Contenedor groupRoomsContainer no encontrado');
+        console.error('❌ Contenedor groupRoomsList no encontrado');
+        showNotification('Error: Sección de chat grupal no disponible', 'error');
         return;
     }
+    
+    console.log('🏠 Cargando salas grupales del agente...');
     
     // Mostrar loading
     container.innerHTML = `
@@ -6110,7 +6114,6 @@ async function loadGroupRooms() {
     `;
     
     try {
-        console.log('🏠 Cargando salas grupales del agente...');
         console.log('🔗 Endpoint:', `${ADMIN_API}/agent-assignments/my-rooms`);
         
         const response = await fetch(`${ADMIN_API}/agent-assignments/my-rooms`, {
@@ -6218,9 +6221,9 @@ async function loadGroupRooms() {
  * Renderiza las salas grupales en el contenedor
  */
 function displayGroupRooms(rooms) {
-    const container = document.getElementById('groupRoomsContainer');
+    const container = document.getElementById('groupRoomsList'); // Cambio aquí
     if (!container) {
-        console.warn('⚠️ Contenedor groupRoomsContainer no encontrado');
+        console.warn('⚠️ Contenedor groupRoomsList no encontrado');
         return;
     }
     
