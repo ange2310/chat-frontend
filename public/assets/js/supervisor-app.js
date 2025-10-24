@@ -2342,7 +2342,6 @@
 }
 
     // ========== MONITOR DE SALAS MEJORADO ==========
-
 async loadMyMonitor() {
     try {
         console.log('📊 === CARGANDO MONITOR DE SALAS ===');
@@ -2351,124 +2350,43 @@ async loadMyMonitor() {
         
         this.showMonitorLoading();
         
-        // 1. Obtener mis salas
-        const roomsResponse = await fetch(`${API_BASE}/agent-assignments/my-rooms`, {
+        // ✅ USAR EL ENDPOINT CORRECTO QUE DEVUELVE TODAS LAS SALAS
+        const url = `${API_BASE}/admin/supervisor/rooms/statistics?timeframe=${timeframe}`;
+        console.log('🌐 URL completa:', url);
+        
+        const response = await fetch(url, {
             headers: this.getAuthHeaders()
         });
         
-        if (!roomsResponse.ok) {
-            throw new Error('Error cargando salas');
+        console.log('📡 Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
         }
         
-        const roomsResult = await roomsResponse.json();
-        const myRooms = roomsResult.data?.rooms || [];
+        const result = await response.json();
+        console.log('📦 Resultado completo del backend:', result);
         
-        console.log('🏠 Total de salas:', myRooms.length);
-        console.log('🏠 Salas completas:', myRooms);
-        
-        if (myRooms.length === 0) {
-            this.showMonitorEmpty();
-            return;
+        if (!result.success || !result.data) {
+            throw new Error('Respuesta inválida del servidor');
         }
         
-        // 2. Obtener estadísticas Y sesiones para cada sala
-        const roomsData = [];
+        const roomsData = result.data.rooms || [];
+        const summary = result.data.summary || {};
         
-        for (const room of myRooms) {
-            console.log('\n📍 === PROCESANDO SALA ===');
-            console.log('📍 Room ID:', room.id);
-            console.log('📍 Room Name:', room.name || room.room_name);
-            
-            try {
-                // ✅ OBTENER ESTADÍSTICAS
-                console.log('📈 Solicitando estadísticas...');
-                const statsUrl = `${API_BASE}/admin/supervisor/rooms/${room.id}/statistics?timeframe=${timeframe}`;
-                console.log('🌐 Stats URL:', statsUrl);
-                
-                const statsResponse = await fetch(statsUrl, { 
-                    headers: this.getAuthHeaders() 
-                });
-                
-                console.log('📡 Stats Response Status:', statsResponse.status);
-                
-                const statsResult = await statsResponse.json();
-                console.log('📦 Stats Result:', statsResult);
-
-                // ✅ Los datos están directamente en statsResult.data
-                const stats = statsResult.success ? statsResult.data : null;
-                console.log('📊 Stats Procesadas:', stats);
-                console.log('📊 Sessions en stats:', stats?.sessions);
-                console.log('📊 Agents en stats:', stats?.agents);
-                
-                // ✅ OBTENER SESIONES
-                console.log('💬 Solicitando sesiones...');
-                const sessionsUrl = `${API_BASE}/admin/supervisor/rooms/${room.id}/sessions`;
-                console.log('🌐 Sessions URL:', sessionsUrl);
-                
-                const sessionsResponse = await fetch(sessionsUrl, {
-                    headers: this.getAuthHeaders()
-                });
-                
-                console.log('📡 Sessions Response Status:', sessionsResponse.status);
-                
-                const sessionsResult = await sessionsResponse.json();
-                console.log('📦 Sessions Result:', sessionsResult);
-                
-                const sessions = sessionsResult.success ? sessionsResult.data?.sessions || [] : [];
-                console.log('💬 Sesiones encontradas:', sessions.length);
-                console.log('💬 Sesiones completas:', sessions);
-                
-                const waiting = sessions.filter(s => s.status === 'waiting').length;
-                const active = sessions.filter(s => s.status === 'active').length;
-                
-                console.log('⏳ Waiting:', waiting);
-                console.log('✅ Active:', active);
-                
-                const roomData = {
-                    room_id: room.id,
-                    room_name: room.name || room.room_name,
-                    room_description: room.description || room.room_description,
-                    statistics: stats || this.getEmptyStats(),
-                    sessions: sessions,
-                    waiting_count: waiting,
-                    active_count: active,
-                    last_updated: new Date().toISOString()
-                };
-                
-                console.log('📋 Room Data Final:', roomData);
-                roomsData.push(roomData);
-                
-            } catch (error) {
-                console.error(`❌ Error en sala ${room.name}:`, error);
-                console.error('❌ Error stack:', error.stack);
-                
-                // Agregar con datos vacíos
-                roomsData.push({
-                    room_id: room.id,
-                    room_name: room.name || room.room_name,
-                    room_description: room.description || room.room_description,
-                    statistics: this.getEmptyStats(),
-                    sessions: [],
-                    waiting_count: 0,
-                    active_count: 0,
-                    last_updated: new Date().toISOString()
-                });
-            }
+        console.log('🏠 Salas recibidas:', roomsData.length);
+        console.log('📊 Summary:', summary);
+        
+        if (roomsData.length > 0) {
+            console.log('🔍 Primera sala de ejemplo:', roomsData[0]);
         }
         
-        console.log('\n🎯 === DATOS FINALES ===');
-        console.log('🎯 Rooms Data Completo:', roomsData);
-        
-        // 3. Calcular resumen
-        const summary = this.calculateSummary(roomsData);
-        console.log('📊 Summary calculado:', summary);
-        
-        // 4. Mostrar datos
+        // Mostrar datos
         this.displayMonitorData({
             rooms: roomsData,
             summary,
             timeframe,
-            total_rooms: myRooms.length
+            total_rooms: roomsData.length
         });
         
         console.log('✅ Monitor cargado exitosamente');
@@ -2479,7 +2397,6 @@ async loadMyMonitor() {
         this.showMonitorError(error.message);
     }
 }
-
 getEmptyStats() {
     return {
         sessions: { active: 0, waiting: 0, completed: 0, abandoned: 0, total: 0 },
@@ -2610,30 +2527,142 @@ switchRoomTab(roomId, tab) {
     }
 }
 
+switchRoomTab(roomId, tab) {
+    console.log(`🔄 Cambiando a tab: ${tab} en sala: ${roomId}`);
+    
+    // Actualizar tabs
+    const allTabs = document.querySelectorAll(`[id^="tab-${roomId}-"]`);
+    allTabs.forEach(tabBtn => {
+        tabBtn.classList.remove('active');
+    });
+    
+    const activeTab = document.getElementById(`tab-${roomId}-${tab}`);
+    if (activeTab) {
+        activeTab.classList.add('active');
+    }
+    
+    // Actualizar contenido
+    const allContents = document.querySelectorAll(`[id^="content-${roomId}-"]`);
+    allContents.forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    const activeContent = document.getElementById(`content-${roomId}-${tab}`);
+    if (activeContent) {
+        activeContent.classList.remove('hidden');
+    }
+}
+
+async loadRoomSessions(roomId) {
+    const container = document.getElementById(`sessions-list-${roomId.replace(/[^a-zA-Z0-9]/g, '_')}`);
+    if (!container) return;
+    
+    container.innerHTML = `
+        <div class="text-center py-8">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-gray-500">Cargando sesiones...</p>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/supervisor/rooms/${roomId}/sessions?status=all&limit=20`, {
+            headers: this.getAuthHeaders()
+        });
+        
+        if (!response.ok) throw new Error('Error cargando sesiones');
+        
+        const result = await response.json();
+        const sessions = result.data?.sessions || [];
+        
+        if (sessions.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                    </svg>
+                    <p class="text-sm">No hay sesiones en esta sala</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = `
+            <div class="space-y-3">
+                ${sessions.map(session => `
+                    <div class="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+                                    <span class="text-white font-semibold">${(session.patient_name || 'P').charAt(0)}</span>
+                                </div>
+                                <div>
+                                    <p class="font-medium text-gray-900">${session.patient_name || 'Paciente'}</p>
+                                    <p class="text-xs text-gray-500">${session.agent_name || 'Sin asignar'}</p>
+                                </div>
+                            </div>
+                            <span class="px-2 py-1 text-xs rounded ${
+                                session.status === 'waiting' ? 'bg-yellow-100 text-yellow-800' :
+                                session.status === 'active' ? 'bg-green-100 text-green-800' :
+                                'bg-gray-100 text-gray-800'
+                            }">
+                                ${session.status}
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-gray-500">
+                                ${session.duration_minutes} min • ${session.message_count} mensajes
+                            </span>
+                            ${session.status === 'active' || session.status === 'waiting' ? `
+                                <button onclick="supervisorClient.openObserverChat('${session.id}')" 
+                                        class="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700">
+                                    <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
+                                    Observar
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('❌ Error cargando sesiones:', error);
+        container.innerHTML = `
+            <div class="text-center py-8 text-red-500">
+                <p>Error cargando sesiones</p>
+            </div>
+        `;
+    }
+}
+
 // ========== FIN FUNCIONES DE CONTROL DE TABS ==========
 
 createRoomMonitorCard(room) {
-    const stats = room.statistics || {};
-    const sessions = stats.sessions || {};
-    const performance = stats.performance || {};
-    const agents = stats.agents || {};
-    const trend = stats.trend || { direction: 'stable', percentage: 0 };
+    console.log('🎴 Creando card para:', room.room_name);
     
-    const trendColor = trend.direction === 'up' ? 'text-green-600' : 
-                      trend.direction === 'down' ? 'text-red-600' : 'text-gray-600';
-    const trendIcon = trend.direction === 'up' ? '↑' : 
-                     trend.direction === 'down' ? '↓' : '→';
+    const sessions = room.sessions || {};
+    const agents = room.agents || {};
+    const messages = room.messages || {};
     
-    const capacityPercent = agents.total > 0 
-        ? ((agents.busy / agents.total) * 100).toFixed(0) : 0;
+    const activeSessions = sessions.active || 0;
+    const waitingSessions = sessions.waiting || 0;
+    const completedSessions = sessions.completed || 0;
+    const abandonedSessions = sessions.abandoned || 0;
+    
+    const capacityPercent = agents.total_assigned > 0 
+        ? ((agents.on_session / agents.total_assigned) * 100).toFixed(0) : 0;
     const capacityColor = capacityPercent > 80 ? 'bg-red-500' :
                          capacityPercent > 50 ? 'bg-yellow-500' : 'bg-green-500';
     
-    const hasActiveSessions = room.sessions && room.sessions.length > 0;
-    const waitingSessions = room.sessions ? room.sessions.filter(s => s.status === 'waiting') : [];
-    const activeSessions = room.sessions ? room.sessions.filter(s => s.status === 'active') : [];
+    const hasActiveSessions = activeSessions > 0 || waitingSessions > 0;
     
-    // Generar un ID único para esta sala
+    // Generar ID único para tabs
     const safeRoomId = room.room_id.replace(/[^a-zA-Z0-9]/g, '_');
     
     return `
@@ -2649,11 +2678,6 @@ createRoomMonitorCard(room) {
                     </span>
                 </div>
                 <p class="text-sm text-gray-500">${room.room_description || 'Sala de chat'}</p>
-                
-                <div class="mt-2 flex items-center gap-2">
-                    <span class="${trendColor} font-semibold text-sm">${trendIcon} ${trend.percentage}%</span>
-                    <span class="text-xs text-gray-500">tendencia</span>
-                </div>
             </div>
             
             <!-- Tabs: Estadísticas / Sesiones -->
@@ -2667,7 +2691,7 @@ createRoomMonitorCard(room) {
                     <button onclick="supervisorClient.switchRoomTab('${safeRoomId}', 'sessions')" 
                             id="tab-${safeRoomId}-sessions"
                             class="room-tab px-4 py-3 text-sm font-medium border-b-2">
-                        Sesiones (${room.sessions ? room.sessions.length : 0})
+                        Sesiones (${activeSessions + waitingSessions})
                         ${hasActiveSessions ? `<span class="ml-2 w-2 h-2 bg-green-500 rounded-full inline-block"></span>` : ''}
                     </button>
                 </nav>
@@ -2681,19 +2705,19 @@ createRoomMonitorCard(room) {
                         <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Sesiones</h4>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="text-center p-3 bg-green-50 rounded-lg">
-                                <div class="text-2xl font-bold text-green-600">${sessions.active || 0}</div>
+                                <div class="text-2xl font-bold text-green-600">${activeSessions}</div>
                                 <div class="text-xs text-green-700">Activas</div>
                             </div>
                             <div class="text-center p-3 bg-yellow-50 rounded-lg">
-                                <div class="text-2xl font-bold text-yellow-600">${sessions.waiting || 0}</div>
+                                <div class="text-2xl font-bold text-yellow-600">${waitingSessions}</div>
                                 <div class="text-xs text-yellow-700">En Espera</div>
                             </div>
                             <div class="text-center p-3 bg-blue-50 rounded-lg">
-                                <div class="text-2xl font-bold text-blue-600">${sessions.completed || 0}</div>
+                                <div class="text-2xl font-bold text-blue-600">${completedSessions}</div>
                                 <div class="text-xs text-blue-700">Completadas</div>
                             </div>
                             <div class="text-center p-3 bg-red-50 rounded-lg">
-                                <div class="text-2xl font-bold text-red-600">${sessions.abandoned || 0}</div>
+                                <div class="text-2xl font-bold text-red-600">${abandonedSessions}</div>
                                 <div class="text-xs text-red-700">Abandonadas</div>
                             </div>
                         </div>
@@ -2705,15 +2729,15 @@ createRoomMonitorCard(room) {
                         <div class="space-y-2">
                             <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
                                 <span class="text-sm text-gray-600">Tiempo promedio</span>
-                                <span class="font-semibold text-gray-900">${performance.avg_duration_minutes || 0} min</span>
+                                <span class="font-semibold text-gray-900">${sessions.avg_duration || 0} min</span>
                             </div>
                             <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                <span class="text-sm text-gray-600">Espera promedio</span>
-                                <span class="font-semibold text-gray-900">${performance.avg_wait_time_minutes || 0} min</span>
+                                <span class="text-sm text-gray-600">Tasa atención</span>
+                                <span class="font-semibold text-gray-900">${sessions.attendance_rate || 0}%</span>
                             </div>
                             <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                <span class="text-sm text-gray-600">Tasa finalización</span>
-                                <span class="font-semibold text-gray-900">${performance.completion_rate || 0}%</span>
+                                <span class="text-sm text-gray-600">Tasa abandono</span>
+                                <span class="font-semibold text-gray-900">${sessions.abandonment_rate || 0}%</span>
                             </div>
                         </div>
                     </div>
@@ -2724,15 +2748,15 @@ createRoomMonitorCard(room) {
                         <div class="space-y-2">
                             <div class="flex items-center justify-between">
                                 <span class="text-sm text-gray-600">Total</span>
-                                <span class="font-semibold text-gray-900">${agents.total || 0}</span>
+                                <span class="font-semibold text-gray-900">${agents.total_assigned || 0}</span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span class="text-sm text-gray-600">Disponibles</span>
-                                <span class="font-semibold text-green-600">${agents.available || 0}</span>
+                                <span class="font-semibold text-green-600">${agents.available_now || 0}</span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-600">Ocupados</span>
-                                <span class="font-semibold text-yellow-600">${agents.busy || 0}</span>
+                                <span class="text-sm text-gray-600">En sesión</span>
+                                <span class="font-semibold text-yellow-600">${agents.on_session || 0}</span>
                             </div>
                             <div class="mt-2">
                                 <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
@@ -2745,53 +2769,61 @@ createRoomMonitorCard(room) {
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Mensajes -->
+                    <div>
+                        <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Mensajes</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">Total</span>
+                                <span class="font-semibold text-gray-900">${messages.total_today || 0}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">De pacientes</span>
+                                <span class="font-semibold text-blue-600">${messages.from_patients || 0}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">De agentes</span>
+                                <span class="font-semibold text-purple-600">${messages.from_agents || 0}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             
             <!-- Contenido: Sesiones -->
             <div id="content-${safeRoomId}-sessions" class="room-content hidden p-6">
-                ${hasActiveSessions ? `
-                    <div class="space-y-4">
-                        ${waitingSessions.length > 0 ? `
-                            <div>
-                                <h4 class="text-sm font-medium text-yellow-700 mb-3">En Espera (${waitingSessions.length})</h4>
-                                <div class="space-y-2">
-                                    ${waitingSessions.map(session => this.createSessionItem(session, room.room_id)).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
-                        
-                        ${activeSessions.length > 0 ? `
-                            <div>
-                                <h4 class="text-sm font-medium text-green-700 mb-3">Activas (${activeSessions.length})</h4>
-                                <div class="space-y-2">
-                                    ${activeSessions.map(session => this.createSessionItem(session, room.room_id)).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
-                    </div>
-                ` : `
+                <div class="flex items-center justify-between mb-4">
+                    <button onclick="supervisorClient.loadRoomSessions('${room.room_id}')" 
+                            class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+                        <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Cargar Sesiones
+                    </button>
+                </div>
+                <div id="sessions-list-${safeRoomId}">
                     <div class="text-center py-8 text-gray-500">
                         <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                                 d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
                         </svg>
-                        <p class="text-sm">No hay sesiones activas</p>
+                        <p class="text-sm">Haz clic en "Cargar Sesiones" para ver las sesiones activas</p>
                     </div>
-                `}
+                </div>
             </div>
             
             <!-- Footer -->
             <div class="px-6 py-3 bg-gray-50 border-t border-gray-200">
                 <div class="flex items-center justify-between text-xs text-gray-500">
                     <span>Última actualización</span>
-                    <span>${new Date(room.last_updated).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</span>
+                    <span>${new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</span>
                 </div>
             </div>
         </div>
     `;
 }
-
 createSessionItem(session, roomId) {
     const userName = session.user_name || 'Usuario';
     const agentName = session.agent_name || 'Sin asignar';
@@ -3514,42 +3546,54 @@ createRoomStatsCard(room) {
             }
 
             async joinGroupRoom(roomId, roomName) {
-                try {
-                    console.log('🚪 Uniéndose a sala grupal:', roomId, roomName);
-                    
-                    currentGroupRoomId = roomId;
-                    currentGroupRoom = { id: roomId, name: roomName };
-                    
-                    // Ocultar lista de salas, mostrar chat activo
-                    document.getElementById('groupRoomsList').classList.add('hidden');
-                    document.getElementById('activeGroupChat').classList.remove('hidden');
-                    
-                    // Actualizar UI
-                    document.getElementById('groupChatRoomName').textContent = roomName;
-                    document.getElementById('groupChatModeIndicator').textContent = 'Modo Observador';
-                    document.getElementById('groupChatModeIndicator').className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800';
-                    
-                    // Mostrar input deshabilitado inicialmente (modo observador)
-                    document.getElementById('groupChatInputDisabled').classList.remove('hidden');
-                    document.getElementById('groupChatInputEnabled').classList.add('hidden');
-                    
-                    // Conectar WebSocket si no está conectado
-                    if (!groupChatSocket || !isGroupChatConnected) {
-                        await this.connectGroupChatWebSocket();
-                    }
-                    
-                    // Esperar a que el socket esté conectado
-                    await this.waitForGroupSocketConnection();
-                    
-                    // Unirse a la sala
-                    this.emitJoinGroupRoom(roomId);
-                    
-                } catch (error) {
-                    console.error('❌ Error uniéndose a sala grupal:', error);
-                    this.showNotification('Error uniéndose a sala: ' + error.message, 'error');
-                    this.exitGroupChat();
+            try {
+                console.log('🚪 Administrador uniéndose a sala grupal:', roomId, roomName);
+                
+                // Resetear estado
+                groupChatJoined = false;
+                currentGroupRoomId = roomId;
+                currentGroupRoom = { id: roomId, name: roomName };
+                
+                // Ocultar lista de salas, mostrar chat activo
+                document.getElementById('groupRoomsList').classList.add('hidden');
+                document.getElementById('activeGroupChat').classList.remove('hidden');
+                
+                // Actualizar UI
+                document.getElementById('groupChatRoomName').textContent = roomName;
+                document.getElementById('groupChatModeIndicator').textContent = 'Conectando...';
+                document.getElementById('groupChatModeIndicator').className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800';
+                
+                // Deshabilitar input hasta conectar
+                document.getElementById('groupChatInputEnabled').classList.add('hidden');
+                document.getElementById('groupChatInputDisabled').classList.remove('hidden');
+                
+                // Conectar WebSocket si no está conectado
+                if (!groupChatSocket || !isGroupChatConnected) {
+                    await this.connectGroupChatWebSocket();
                 }
+                
+                // Esperar a que el socket esté conectado
+                await this.waitForGroupSocketConnection();
+                
+                // Unirse a la sala y esperar confirmación
+                await this.emitJoinGroupRoom(roomId);
+                
+                // Habilitar input después de unirse
+                document.getElementById('groupChatInputDisabled').classList.add('hidden');
+                document.getElementById('groupChatInputEnabled').classList.remove('hidden');
+                
+                // Actualizar indicador
+                document.getElementById('groupChatModeIndicator').textContent = 'Modo Administrador';
+                document.getElementById('groupChatModeIndicator').className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800';
+                
+                this.showNotification('Conectado a la sala', 'success');
+                
+            } catch (error) {
+                console.error('❌ Error uniéndose a sala grupal:', error);
+                this.showNotification('Error uniéndose a sala: ' + error.message, 'error');
+                this.exitGroupChat();
             }
+        }
 
             async connectGroupChatWebSocket() {
                 try {
@@ -3581,8 +3625,14 @@ createRoomStatsCard(room) {
                     
                     groupChatSocket.on('group_room_joined', (data) => {
                         groupChatJoined = true;
-                        isSilentMode = data.is_silent;
-                        console.log('✅ Unido a sala grupal:', data);
+                        isSilentMode = false; // Admin nunca está en modo silencioso
+                        currentGroupRoomId = data.room_id;
+                        console.log('✅ Admin unido a sala grupal:', data);
+                        console.log('Estado actual:', {
+                            groupChatJoined,
+                            currentGroupRoomId,
+                            isGroupChatConnected
+                        });
                         
                         this.updateGroupChatUI(data);
                         this.loadGroupChatHistory(data.room_id);
@@ -3643,17 +3693,43 @@ createRoomStatsCard(room) {
             }
 
             emitJoinGroupRoom(roomId) {
-                if (!groupChatSocket || !isGroupChatConnected) {
-                    console.error('❌ Socket no conectado');
-                    return;
-                }
-                
-                const currentUser = this.getCurrentUser();
-                
-                groupChatSocket.emit('join_group_room', {
-                    room_id: roomId,
-                    user_id: currentUser.id,
-                    user_type: 'supervisor'
+                return new Promise((resolve, reject) => {
+                    if (!groupChatSocket || !isGroupChatConnected) {
+                        reject(new Error('Socket no conectado'));
+                        return;
+                    }
+                    
+                    const currentUser = this.getCurrentUser();
+                    
+                    console.log('📤 Emitiendo join_group_room:', {
+                        room_id: roomId,
+                        user_id: currentUser.id,
+                        user_type: 'admin'
+                    });
+                    
+                    // Establecer timeout de 10 segundos
+                    const timeout = setTimeout(() => {
+                        if (!groupChatJoined) {
+                            reject(new Error('Timeout: No se recibió confirmación de la sala'));
+                        }
+                    }, 10000);
+                    
+                    // Escuchar el evento de confirmación
+                    const onJoined = (data) => {
+                        clearTimeout(timeout);
+                        groupChatSocket.off('group_room_joined', onJoined);
+                        console.log('✅ Confirmación recibida de group_room_joined');
+                        resolve(data);
+                    };
+                    
+                    groupChatSocket.once('group_room_joined', onJoined);
+                    
+                    // Emitir el evento
+                    groupChatSocket.emit('join_group_room', {
+                        room_id: roomId,
+                        user_id: currentUser.id,
+                        user_type: 'admin'
+                    });
                 });
             }
 
@@ -4378,29 +4454,53 @@ createRoomStatsCard(room) {
 
         function sendGroupMessage() {
             const input = document.getElementById('groupMessageInput');
-            if (!input) return;
+            if (!input) {
+                console.error('❌ Input no encontrado');
+                return;
+            }
             
             const message = input.value.trim();
-            if (!message) return;
-            
-            if (!groupChatSocket || !groupChatJoined) {
-                supervisorClient.showNotification('No estás conectado a la sala', 'error');
+            if (!message) {
+                console.log('⚠️ Mensaje vacío');
                 return;
             }
             
-            if (isSilentMode) {
-                supervisorClient.showNotification('Activa tu voz primero para enviar mensajes', 'warning');
+            console.log('📝 Intentando enviar mensaje:', {
+                groupChatSocket: !!groupChatSocket,
+                isGroupChatConnected,
+                groupChatJoined,
+                currentGroupRoomId
+            });
+            
+            if (!groupChatSocket) {
+                adminClient.showNotification('Socket no inicializado', 'error');
                 return;
             }
             
-            const currentUser = supervisorClient.getCurrentUser();
+            if (!isGroupChatConnected) {
+                adminClient.showNotification('No estás conectado al servidor', 'error');
+                return;
+            }
+            
+            if (!groupChatJoined || !currentGroupRoomId) {
+                adminClient.showNotification('No estás unido a una sala', 'error');
+                return;
+            }
+            
+            const currentUser = adminClient.getCurrentUser();
+            
+            console.log('📤 Enviando mensaje a sala:', currentGroupRoomId);
             
             groupChatSocket.emit('send_group_message', {
+                room_id: currentGroupRoomId,
                 content: message,
-                message_type: 'text'
+                message_type: 'text',
+                sender_id: currentUser.id,
+                sender_type: 'admin'
             });
             
             input.value = '';
+            input.focus();
         }
 
         function handleGroupChatKeyDown(event) {

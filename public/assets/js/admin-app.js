@@ -2635,6 +2635,8 @@
             try {
                 console.log('🚪 Administrador uniéndose a sala grupal:', roomId, roomName);
                 
+                // Resetear estado
+                groupChatJoined = false;
                 currentGroupRoomId = roomId;
                 currentGroupRoom = { id: roomId, name: roomName };
                 
@@ -2644,12 +2646,12 @@
                 
                 // Actualizar UI
                 document.getElementById('groupChatRoomName').textContent = roomName;
-                document.getElementById('groupChatModeIndicator').textContent = 'Modo Administrador';
-                document.getElementById('groupChatModeIndicator').className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800';
+                document.getElementById('groupChatModeIndicator').textContent = 'Conectando...';
+                document.getElementById('groupChatModeIndicator').className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800';
                 
-                // Admin siempre tiene input habilitado
-                document.getElementById('groupChatInputDisabled').classList.add('hidden');
-                document.getElementById('groupChatInputEnabled').classList.remove('hidden');
+                // Deshabilitar input hasta conectar
+                document.getElementById('groupChatInputEnabled').classList.add('hidden');
+                document.getElementById('groupChatInputDisabled').classList.remove('hidden');
                 
                 // Conectar WebSocket si no está conectado
                 if (!groupChatSocket || !isGroupChatConnected) {
@@ -2659,8 +2661,18 @@
                 // Esperar a que el socket esté conectado
                 await this.waitForGroupSocketConnection();
                 
-                // Unirse a la sala
-                this.emitJoinGroupRoom(roomId);
+                // Unirse a la sala y esperar confirmación
+                await this.emitJoinGroupRoom(roomId);
+                
+                // Habilitar input después de unirse
+                document.getElementById('groupChatInputDisabled').classList.add('hidden');
+                document.getElementById('groupChatInputEnabled').classList.remove('hidden');
+                
+                // Actualizar indicador
+                document.getElementById('groupChatModeIndicator').textContent = 'Modo Administrador';
+                document.getElementById('groupChatModeIndicator').className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800';
+                
+                this.showNotification('Conectado a la sala', 'success');
                 
             } catch (error) {
                 console.error('❌ Error uniéndose a sala grupal:', error);
@@ -2670,72 +2682,137 @@
         }
 
         async connectGroupChatWebSocket() {
-            try {
-                console.log('🔌 Conectando WebSocket para chat grupal (Admin)...');
-                
-                const token = this.getToken();
-                const currentUser = this.getCurrentUser();
-                
-                groupChatSocket = io('http://187.33.158.246', {
-                    transports: ['websocket', 'polling'],
-                    auth: {
-                        token: token,
-                        user_id: currentUser.id,
-                        user_type: 'admin',
-                        user_name: currentUser.name
-                    }
-                });
-                
-                groupChatSocket.on('connect', () => {
-                    isGroupChatConnected = true;
-                    console.log('✅ WebSocket grupal conectado (Admin)');
-                });
-                
-                groupChatSocket.on('disconnect', () => {
-                    isGroupChatConnected = false;
-                    groupChatJoined = false;
-                    console.log('❌ WebSocket grupal desconectado');
-                });
-                
-                groupChatSocket.on('group_room_joined', (data) => {
-                    groupChatJoined = true;
-                    isSilentMode = false; // Admin nunca está en modo silencioso
-                    console.log('✅ Admin unido a sala grupal:', data);
+            return new Promise((resolve, reject) => {
+                try {
+                    console.log('🔌 Conectando WebSocket para chat grupal (Admin)...');
                     
-                    this.updateGroupChatUI(data);
-                    this.loadGroupChatHistory(data.room_id);
-                });
-                
-                groupChatSocket.on('new_group_message', (data) => {
-                    console.log('💬 Nuevo mensaje grupal:', data);
-                    this.handleGroupMessage(data);
-                });
-                
-                groupChatSocket.on('participant_joined', (data) => {
-                    console.log('👋 Nuevo participante:', data);
-                    this.showNotification(`${data.user_name || 'Usuario'} se unió a la sala`, 'info');
-                });
-                
-                groupChatSocket.on('participant_left', (data) => {
-                    console.log('👋 Participante salió:', data);
-                    this.showNotification(`${data.user_name || 'Usuario'} salió de la sala`, 'info');
-                });
-                
-                groupChatSocket.on('silent_mode_toggled', (data) => {
-                    console.log('🔇 Modo silencioso alternado:', data);
-                    // Admin observa estos cambios pero no afectan su estado
-                });
-                
-                groupChatSocket.on('error', (error) => {
-                    console.error('❌ Error en socket grupal:', error);
-                    this.showNotification('Error: ' + (error.message || error), 'error');
-                });
-                
-            } catch (error) {
-                console.error('❌ Error conectando WebSocket grupal:', error);
-                throw error;
-            }
+                    const token = this.getToken();
+                    const currentUser = this.getCurrentUser();
+                    
+                    const socketUrl = 'http://187.33.158.246:3011';  // Puerto 3011
+                    
+                    console.log('🔗 Conectando a:', socketUrl);
+                    
+                    groupChatSocket = io(socketUrl, {
+                        transports: ['polling', 'websocket'],
+                        reconnection: true,
+                        reconnectionDelay: 1000,
+                        reconnectionAttempts: 3,
+                        auth: {
+                            token: token,
+                            user_id: currentUser.id,
+                            user_type: 'admin',
+                            user_name: currentUser.name
+                        }
+                    });
+                    
+                    const connectionTimeout = setTimeout(() => {
+                        if (!isGroupChatConnected) {
+                            console.error('❌ TIMEOUT: Socket no conectó');
+                            if (groupChatSocket) groupChatSocket.disconnect();
+                            reject(new Error('Timeout: No se pudo conectar'));
+                        }
+                    }, 15000);
+                    
+                    groupChatSocket.on('connect', () => {
+                        clearTimeout(connectionTimeout);
+                        isGroupChatConnected = true;
+                        console.log('✅ WebSocket grupal conectado');
+                        console.log('🆔 Socket ID:', groupChatSocket.id);
+                        
+                        this.addGroupChatListeners();
+                        resolve();
+                    });
+                    
+                    groupChatSocket.on('connect_error', (error) => {
+                        clearTimeout(connectionTimeout);
+                        console.error('❌ Error de conexión:', error.message);
+                        reject(new Error(`Error de conexión: ${error.message}`));
+                    });
+                    
+                    groupChatSocket.on('disconnect', (reason) => {
+                        isGroupChatConnected = false;
+                        groupChatJoined = false;
+                        console.log('❌ Desconectado:', reason);
+                    });
+                    
+                } catch (error) {
+                    console.error('❌ Error crítico:', error);
+                    reject(error);
+                }
+            });
         }
+
+    // Nueva función para agregar listeners
+    addGroupChatListeners() {
+        if (!groupChatSocket) return;
+        
+        // Remover listeners anteriores para evitar duplicados
+        groupChatSocket.off('group_room_joined');
+        groupChatSocket.off('new_group_message');
+        groupChatSocket.off('participant_joined');
+        
+        groupChatSocket.on('group_room_joined', (data) => {
+            groupChatJoined = true;
+            isSilentMode = false;
+            currentGroupRoomId = data.room_id;
+            console.log('✅ Admin unido a sala grupal:', data);
+            console.log('Estado actual:', {
+                groupChatJoined,
+                currentGroupRoomId,
+                isGroupChatConnected
+            });
+            
+            this.updateGroupChatUI(data);
+            this.loadGroupChatHistory(data.room_id);
+        });
+        
+        groupChatSocket.onAny((eventName, ...args) => {
+            console.log('📩 Evento recibido:', eventName, args);
+        });
+        
+        groupChatSocket.on('new_group_message', (data) => {
+            console.log('💬 Nuevo mensaje grupal:', data);
+            this.handleGroupMessage(data);
+        });
+        
+        groupChatSocket.on('participant_joined', (data) => {
+            console.log('👋 Nuevo participante:', data);
+            this.showNotification(`${data.user_name || 'Usuario'} se unió`, 'info');
+        });
+        
+        groupChatSocket.on('participant_left', (data) => {
+            console.log('👋 Participante salió:', data);
+            this.showNotification(`${data.user_name || 'Usuario'} salió`, 'info');
+        });
+    }
+
+    waitForGroupSocketConnection(timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            if (isGroupChatConnected) {
+                console.log('✅ Socket ya está conectado');
+                resolve();
+                return;
+            }
+            
+            console.log('⏳ Socket no conectado, esperando...');
+            
+            const startTime = Date.now();
+            const checkInterval = setInterval(() => {
+                if (isGroupChatConnected) {
+                    clearInterval(checkInterval);
+                    console.log('✅ Socket conectado después de esperar');
+                    resolve();
+                } else if (Date.now() - startTime > timeout) {
+                    clearInterval(checkInterval);
+                    console.error('❌ Timeout esperando socket');
+                    reject(new Error('Timeout esperando conexión WebSocket'));
+                } else {
+                    console.log('⏳ Aún esperando... segundos transcurridos:', Math.floor((Date.now() - startTime) / 1000));
+                }
+            }, 500);
+        });
+    }
 
         waitForGroupSocketConnection(timeout = 5000) {
             return new Promise((resolve, reject) => {
@@ -2757,18 +2834,43 @@
             });
         }
 
+        // Reemplaza la función emitJoinGroupRoom completa:
         emitJoinGroupRoom(roomId) {
-            if (!groupChatSocket || !isGroupChatConnected) {
-                console.error('❌ Socket no conectado');
-                return;
-            }
-            
-            const currentUser = this.getCurrentUser();
-            
-            groupChatSocket.emit('join_group_room', {
-                room_id: roomId,
-                user_id: currentUser.id,
-                user_type: 'admin'
+            return new Promise((resolve, reject) => {
+                if (!groupChatSocket || !isGroupChatConnected) {
+                    reject(new Error('Socket no conectado'));
+                    return;
+                }
+                
+                const currentUser = this.getCurrentUser();
+                
+                console.log('📤 Emitiendo join_group_room:', {
+                    room_id: roomId,
+                    user_id: currentUser.id,
+                    user_type: 'admin'
+                });
+                
+                const timeout = setTimeout(() => {
+                    console.error('❌ TIMEOUT esperando group_room_joined');
+                    reject(new Error('Timeout: No se recibió confirmación'));
+                }, 10000);
+                
+                const onJoined = (data) => {
+                    console.log('✅ group_room_joined recibido:', data);
+                    clearTimeout(timeout);
+                    groupChatSocket.off('group_room_joined', onJoined);
+                    resolve(data);
+                };
+                
+                groupChatSocket.once('group_room_joined', onJoined);
+                
+                groupChatSocket.emit('join_group_room', {
+                    room_id: roomId,
+                    user_id: currentUser.id,
+                    user_type: 'admin'
+                });
+                
+                console.log('⏳ Esperando confirmación...');
             });
         }
 
@@ -3120,21 +3222,36 @@ function sendGroupMessage() {
     const message = input.value.trim();
     if (!message) return;
     
-    if (!groupChatSocket || !groupChatJoined) {
-        adminClient.showNotification('No estás conectado a la sala', 'error');
+    console.log('📝 Estado actual:', {
+        groupChatSocket: !!groupChatSocket,
+        isGroupChatConnected,
+        groupChatJoined,
+        currentGroupRoomId
+    });
+    
+    if (!groupChatSocket || !isGroupChatConnected) {
+        adminClient.showNotification('No conectado al servidor', 'error');
+        return;
+    }
+    
+    if (!groupChatJoined || !currentGroupRoomId) {
+        adminClient.showNotification('No estás en una sala', 'error');
         return;
     }
     
     const currentUser = adminClient.getCurrentUser();
     
+    console.log('📤 Enviando mensaje a sala:', currentGroupRoomId);
+    
     groupChatSocket.emit('send_group_message', {
+        room_id: currentGroupRoomId,
         content: message,
         message_type: 'text'
     });
     
     input.value = '';
+    input.focus();
 }
-
 function handleGroupChatKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();

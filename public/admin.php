@@ -49,6 +49,7 @@ if (strpos($host, 'localhost') === false && strpos($host, '127.0.0.1') === false
     <meta name="admin-user" content='<?= json_encode($user) ?>'>
     <meta name="admin-service-url" content="<?= $adminServiceUrl ?>">
     <meta name="auth-service-url" content="<?= $authServiceUrl ?>">
+    <meta name="chat-service-url" content="<?= $protocol . '://' . $host . ':3011' ?>">
     
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
