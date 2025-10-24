@@ -2349,7 +2349,6 @@ async loadMyMonitor() {
         
         const timeframe = document.getElementById('statsTimeframe')?.value || '24h';
         
-        // Mostrar loading
         this.showMonitorLoading();
         
         // 1. Obtener mis salas
@@ -2365,6 +2364,7 @@ async loadMyMonitor() {
         const myRooms = roomsResult.data?.rooms || [];
         
         console.log('🏠 Total de salas:', myRooms.length);
+        console.log('🏠 Salas completas:', myRooms);
         
         if (myRooms.length === 0) {
             this.showMonitorEmpty();
@@ -2375,38 +2375,73 @@ async loadMyMonitor() {
         const roomsData = [];
         
         for (const room of myRooms) {
+            console.log('\n📍 === PROCESANDO SALA ===');
+            console.log('📍 Room ID:', room.id);
+            console.log('📍 Room Name:', room.name || room.room_name);
+            
             try {
-                // Obtener estadísticas
-                const statsResponse = await fetch(
-                    `${API_BASE}/admin/supervisor/rooms/${room.id}/statistics?timeframe=${timeframe}`,
-                    { headers: this.getAuthHeaders() }
-                );
+                // ✅ OBTENER ESTADÍSTICAS
+                console.log('📈 Solicitando estadísticas...');
+                const statsUrl = `${API_BASE}/admin/supervisor/rooms/${room.id}/statistics?timeframe=${timeframe}`;
+                console.log('🌐 Stats URL:', statsUrl);
+                
+                const statsResponse = await fetch(statsUrl, { 
+                    headers: this.getAuthHeaders() 
+                });
+                
+                console.log('📡 Stats Response Status:', statsResponse.status);
                 
                 const statsResult = await statsResponse.json();
-                const stats = statsResult.success ? statsResult.data?.statistics : null;
+                console.log('📦 Stats Result:', statsResult);
+
+                // ✅ Los datos están directamente en statsResult.data
+                const stats = statsResult.success ? statsResult.data : null;
+                console.log('📊 Stats Procesadas:', stats);
+                console.log('📊 Sessions en stats:', stats?.sessions);
+                console.log('📊 Agents en stats:', stats?.agents);
                 
-                // Obtener sesiones activas
-                const sessionsResponse = await fetch(
-                    `${API_BASE}/admin/supervisor/rooms/${room.id}/sessions`,
-                    { headers: this.getAuthHeaders() }
-                );
+                // ✅ OBTENER SESIONES
+                console.log('💬 Solicitando sesiones...');
+                const sessionsUrl = `${API_BASE}/admin/supervisor/rooms/${room.id}/sessions`;
+                console.log('🌐 Sessions URL:', sessionsUrl);
+                
+                const sessionsResponse = await fetch(sessionsUrl, {
+                    headers: this.getAuthHeaders()
+                });
+                
+                console.log('📡 Sessions Response Status:', sessionsResponse.status);
                 
                 const sessionsResult = await sessionsResponse.json();
-                const sessions = sessionsResult.success ? sessionsResult.data?.sessions || [] : [];
+                console.log('📦 Sessions Result:', sessionsResult);
                 
-                roomsData.push({
+                const sessions = sessionsResult.success ? sessionsResult.data?.sessions || [] : [];
+                console.log('💬 Sesiones encontradas:', sessions.length);
+                console.log('💬 Sesiones completas:', sessions);
+                
+                const waiting = sessions.filter(s => s.status === 'waiting').length;
+                const active = sessions.filter(s => s.status === 'active').length;
+                
+                console.log('⏳ Waiting:', waiting);
+                console.log('✅ Active:', active);
+                
+                const roomData = {
                     room_id: room.id,
                     room_name: room.name || room.room_name,
                     room_description: room.description || room.room_description,
                     statistics: stats || this.getEmptyStats(),
                     sessions: sessions,
-                    waiting_count: sessions.filter(s => s.status === 'waiting').length,
-                    active_count: sessions.filter(s => s.status === 'active').length,
+                    waiting_count: waiting,
+                    active_count: active,
                     last_updated: new Date().toISOString()
-                });
+                };
+                
+                console.log('📋 Room Data Final:', roomData);
+                roomsData.push(roomData);
                 
             } catch (error) {
-                console.error(`Error en sala ${room.name}:`, error);
+                console.error(`❌ Error en sala ${room.name}:`, error);
+                console.error('❌ Error stack:', error.stack);
+                
                 // Agregar con datos vacíos
                 roomsData.push({
                     room_id: room.id,
@@ -2421,8 +2456,12 @@ async loadMyMonitor() {
             }
         }
         
+        console.log('\n🎯 === DATOS FINALES ===');
+        console.log('🎯 Rooms Data Completo:', roomsData);
+        
         // 3. Calcular resumen
         const summary = this.calculateSummary(roomsData);
+        console.log('📊 Summary calculado:', summary);
         
         // 4. Mostrar datos
         this.displayMonitorData({
@@ -2436,6 +2475,7 @@ async loadMyMonitor() {
         
     } catch (error) {
         console.error('❌ Error en loadMyMonitor:', error);
+        console.error('❌ Error stack:', error.stack);
         this.showMonitorError(error.message);
     }
 }
@@ -2890,65 +2930,60 @@ createRoomStatsCard(room) {
     console.log('🎴 Creando card para:', room.room_name);
     
     const stats = room.statistics || {};
-    const sessions = stats.sessions || {};
+    
+    // ✅ USAR LOS CONTADORES DIRECTOS EN LUGAR DE statistics.sessions
+    const activeSessions = room.active_count || 0;
+    const waitingSessions = room.waiting_count || 0;
+    const completedSessions = stats.sessions?.completed || 0;
+    const abandonedSessions = stats.sessions?.abandoned || 0;
+    
+    console.log('📊 Usando contadores directos:', {
+        active: activeSessions,
+        waiting: waitingSessions,
+        completed: completedSessions,
+        abandoned: abandonedSessions
+    });
+    
     const performance = stats.performance || {};
     const agents = stats.agents || {};
     const trend = stats.trend || { direction: 'stable', percentage: 0 };
     
-    const trendColor = trend.direction === 'up' ? 'text-green-600' : 
-                      trend.direction === 'down' ? 'text-red-600' : 
-                      'text-gray-600';
-    
-    const trendIcon = trend.direction === 'up' ? '↑' : 
-                     trend.direction === 'down' ? '↓' : 
-                     '→';
-    
-    const capacityPercent = agents.total > 0 
-        ? ((agents.busy / agents.total) * 100).toFixed(0)
-        : 0;
-    
-    const capacityColor = capacityPercent > 80 ? 'bg-red-500' :
-                         capacityPercent > 50 ? 'bg-yellow-500' :
-                         'bg-green-500';
+    // ... resto del código usando activeSessions y waitingSessions
     
     return `
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+            <!-- Header -->
             <div class="p-6 border-b border-gray-200">
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="text-lg font-semibold text-gray-900">${room.room_name || 'Sala'}</h3>
                     <span class="px-3 py-1 text-xs font-medium rounded-full ${
-                        sessions.active > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        activeSessions > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                     }">
-                        ${sessions.active > 0 ? 'Activa' : 'Inactiva'}
+                        ${activeSessions > 0 ? 'Activa' : 'Inactiva'}
                     </span>
                 </div>
                 <p class="text-sm text-gray-500">${room.room_description || 'Sala de chat'}</p>
-                
-                <div class="mt-2 flex items-center gap-2">
-                    <span class="${trendColor} font-semibold text-sm">${trendIcon} ${trend.percentage}%</span>
-                    <span class="text-xs text-gray-500">tendencia</span>
-                </div>
             </div>
             
+            <!-- Stats -->
             <div class="p-6 space-y-4">
-                <!-- Sesiones -->
                 <div>
                     <h4 class="text-xs font-medium text-gray-500 uppercase mb-3">Sesiones</h4>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="text-center p-3 bg-green-50 rounded-lg">
-                            <div class="text-2xl font-bold text-green-600">${sessions.active || 0}</div>
+                            <div class="text-2xl font-bold text-green-600">${activeSessions}</div>
                             <div class="text-xs text-green-700">Activas</div>
                         </div>
                         <div class="text-center p-3 bg-yellow-50 rounded-lg">
-                            <div class="text-2xl font-bold text-yellow-600">${sessions.waiting || 0}</div>
+                            <div class="text-2xl font-bold text-yellow-600">${waitingSessions}</div>
                             <div class="text-xs text-yellow-700">En Espera</div>
                         </div>
                         <div class="text-center p-3 bg-blue-50 rounded-lg">
-                            <div class="text-2xl font-bold text-blue-600">${sessions.completed || 0}</div>
+                            <div class="text-2xl font-bold text-blue-600">${completedSessions}</div>
                             <div class="text-xs text-blue-700">Completadas</div>
                         </div>
                         <div class="text-center p-3 bg-red-50 rounded-lg">
-                            <div class="text-2xl font-bold text-red-600">${sessions.abandoned || 0}</div>
+                            <div class="text-2xl font-bold text-red-600">${abandonedSessions}</div>
                             <div class="text-xs text-red-700">Abandonadas</div>
                         </div>
                     </div>
@@ -2979,29 +3014,21 @@ createRoomStatsCard(room) {
                     <div class="space-y-2">
                         <div class="flex items-center justify-between">
                             <span class="text-sm text-gray-600">Total</span>
-                            <span class="font-semibold text-gray-900">${agents.total || 0}</span>
+                            <span class="font-semibold text-gray-900">${agents.total || agents.total_assigned || 0}</span>
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-sm text-gray-600">Disponibles</span>
-                            <span class="font-semibold text-green-600">${agents.available || 0}</span>
+                            <span class="font-semibold text-green-600">${agents.available || agents.available_now || 0}</span>
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-sm text-gray-600">Ocupados</span>
-                            <span class="font-semibold text-yellow-600">${agents.busy || 0}</span>
-                        </div>
-                        <div class="mt-2">
-                            <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
-                                <span>Capacidad</span>
-                                <span>${capacityPercent}%</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2">
-                                <div class="${capacityColor} h-2 rounded-full transition-all" style="width: ${capacityPercent}%"></div>
-                            </div>
+                            <span class="font-semibold text-yellow-600">${agents.busy || agents.on_session || 0}</span>
                         </div>
                     </div>
                 </div>
             </div>
             
+            <!-- Footer -->
             <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 rounded-b-lg">
                 <div class="flex items-center justify-between text-xs text-gray-500">
                     <span>Última actualización</span>
