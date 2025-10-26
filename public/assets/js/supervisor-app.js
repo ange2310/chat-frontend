@@ -2656,7 +2656,8 @@ createRoomMonitorCard(room) {
         abandoned: 0,
         attendance_rate: 0,
         abandonment_rate: 0,
-        avg_duration: 0
+        avg_duration: 0,
+        completion_rate: 0
     };
 
     const agents = room.agents || {
@@ -2679,6 +2680,8 @@ createRoomMonitorCard(room) {
     const waitingSessions = sessions.waiting || 0;
     const completedSessions = sessions.completed || 0;
     const abandonedSessions = sessions.abandoned || 0;
+    const avgDuration = sessions.avg_duration || 0;
+    const completionRate = sessions.completion_rate || 0;
 
     // ✅ Calcular capacidad
     const capacityPercent = agents.total_assigned > 0
@@ -2758,11 +2761,11 @@ createRoomMonitorCard(room) {
                         <div class="space-y-2">
                             <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
                                 <span class="text-sm text-gray-600">Tiempo promedio</span>
-                                <span class="font-semibold text-gray-900">${sessions.avg_duration || 0} min</span>
+                                <span class="font-semibold text-gray-900">${avgDuration.toFixed(1)} min</span>
                             </div>
                             <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                <span class="text-sm text-gray-600">Tasa atención</span>
-                                <span class="font-semibold text-gray-900">${sessions.attendance_rate || 0}%</span>
+                                <span class="text-sm text-gray-600">Tasa de éxito</span>
+                                <span class="font-semibold text-gray-900">${completionRate.toFixed(1)}%</span>
                             </div>
                             <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
                                 <span class="text-sm text-gray-600">Tasa abandono</span>
@@ -3014,7 +3017,6 @@ createRoomStatsCard(room) {
     const agents = stats.agents || {};
     const trend = stats.trend || { direction: 'stable', percentage: 0 };
     
-    // ... resto del código usando activeSessions y waitingSessions
     
     return `
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
@@ -3061,15 +3063,15 @@ createRoomStatsCard(room) {
                     <div class="space-y-2">
                         <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
                             <span class="text-sm text-gray-600">Tiempo promedio</span>
-                            <span class="font-semibold text-gray-900">${performance.avg_duration_minutes || 0} min</span>
+                            <span class="font-semibold text-gray-900">${(sessions.avg_duration || 0).toFixed(1)} min</span>
                         </div>
                         <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
-                            <span class="text-sm text-gray-600">Espera promedio</span>
-                            <span class="font-semibold text-gray-900">${performance.avg_wait_time_minutes || 0} min</span>
+                            <span class="text-sm text-gray-600">Tasa de éxito</span>
+                            <span class="font-semibold text-gray-900">${sessions.completion_rate || 0}%</span>
                         </div>
                         <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
-                            <span class="text-sm text-gray-600">Tasa finalización</span>
-                            <span class="font-semibold text-gray-900">${performance.completion_rate || 0}%</span>
+                            <span class="text-sm text-gray-600">Tasa abandono</span>
+                            <span class="font-semibold text-gray-900">${sessions.abandonment_rate || 0}%</span>
                         </div>
                     </div>
                 </div>
