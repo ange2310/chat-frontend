@@ -3535,7 +3535,7 @@ createRoomStatsCard(room) {
                     
                 } catch (error) {
                     console.error('❌ Error cargando salas grupales:', error);
-                    this.showNotification('Error cargando salas grupales', 'error');
+                    this.showNotification('Error cargando salas grupales', 'error'); // ✅ this.showNotification
                 }
             }
 
@@ -3838,26 +3838,29 @@ createRoomStatsCard(room) {
                     emptyMsg.remove();
                 }
                 
-                const currentUser = this.getCurrentUser();
+                const currentUser = this.getCurrentUser(); // ✅ this.getCurrentUser()
                 const isMyMessage = data.sender_id === currentUser.id;
                 
                 const messageEl = document.createElement('div');
-                messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'}`;
+                messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4`;
                 
                 const senderLabel = data.sender_type === 'supervisor' ? 'Supervisor' :
                                 data.sender_type === 'agent' ? 'Agente' :
                                 data.sender_type === 'admin' ? 'Admin' : 'Usuario';
                 
-                const bubbleColor = isMyMessage ? 'bg-blue-600 text-white' :
+                const bubbleColor = isMyMessage ? 'bg-purple-600 text-white' :
                                 data.sender_type === 'supervisor' ? 'bg-purple-100 text-purple-900' :
                                 data.sender_type === 'agent' ? 'bg-green-100 text-green-900' :
+                                data.sender_type === 'admin' ? 'bg-red-100 text-red-900' :
                                 'bg-gray-200 text-gray-900';
+                
+                const time = new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
                 
                 messageEl.innerHTML = `
                     <div class="max-w-xs lg:max-w-md ${bubbleColor} rounded-lg px-4 py-2">
                         <div class="text-xs opacity-75 mb-1">${isMyMessage ? 'Tú' : senderLabel}</div>
                         <p class="text-sm">${this.escapeHtml(data.content)}</p>
-                        <div class="text-xs opacity-75 mt-1">${new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</div>
+                        <div class="text-xs opacity-75 mt-1">${time}</div>
                     </div>
                 `;
                 
@@ -3867,7 +3870,7 @@ createRoomStatsCard(room) {
 
             toggleGroupSilentMode() {
                 if (!groupChatSocket || !groupChatJoined) {
-                    this.showNotification('No estás conectado a la sala', 'error');
+                    this.showNotification('No estás conectado a la sala', 'error'); // ✅ this.showNotification
                     return;
                 }
                 
@@ -3896,7 +3899,7 @@ createRoomStatsCard(room) {
 
             showGroupParticipants() {
                 if (!groupChatSocket || !groupChatJoined) {
-                    this.showNotification('No estás en una sala', 'error');
+                    this.showNotification('No estás en una sala', 'error'); // ✅ this.showNotification
                     return;
                 }
                 
@@ -4501,7 +4504,7 @@ createRoomStatsCard(room) {
                 return;
             }
             
-            console.log('📝 Intentando enviar mensaje:', {
+            console.log('📝 Estado actual:', {
                 groupChatSocket: !!groupChatSocket,
                 isGroupChatConnected,
                 groupChatJoined,
@@ -4509,21 +4512,21 @@ createRoomStatsCard(room) {
             });
             
             if (!groupChatSocket) {
-                adminClient.showNotification('Socket no inicializado', 'error');
+                supervisorClient.showNotification('Socket no inicializado', 'error'); // ✅ CORREGIDO
                 return;
             }
             
             if (!isGroupChatConnected) {
-                adminClient.showNotification('No estás conectado al servidor', 'error');
+                supervisorClient.showNotification('No estás conectado al servidor', 'error'); // ✅ CORREGIDO
                 return;
             }
             
             if (!groupChatJoined || !currentGroupRoomId) {
-                adminClient.showNotification('No estás unido a una sala', 'error');
+                supervisorClient.showNotification('No estás unido a una sala', 'error'); // ✅ CORREGIDO
                 return;
             }
             
-            const currentUser = adminClient.getCurrentUser();
+            const currentUser = supervisorClient.getCurrentUser(); // ✅ CORREGIDO
             
             console.log('📤 Enviando mensaje a sala:', currentGroupRoomId);
             
@@ -4532,7 +4535,7 @@ createRoomStatsCard(room) {
                 content: message,
                 message_type: 'text',
                 sender_id: currentUser.id,
-                sender_type: 'admin'
+                sender_type: 'supervisor' // ✅ Supervisor, no admin
             });
             
             input.value = '';

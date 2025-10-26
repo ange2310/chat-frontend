@@ -6392,31 +6392,71 @@ function refreshGroupRooms() {
          */
         async function joinGroupRoom(roomId, roomName) {
             try {
-                console.log(`🚪 Uniéndose a sala: ${roomId} - ${roomName}`);
+                console.log('🚪 Uniéndose a sala grupal:', roomId, roomName);
                 
-                if (!roomId || !roomName) {
-                    throw new Error('ID de sala o nombre inválido');
-                }
-                
+                // Resetear estado
+                groupChatJoined = false;
                 currentGroupRoomId = roomId;
                 currentGroupRoom = { id: roomId, name: roomName };
                 
-                // Cambiar vista
-                document.getElementById('groupRoomsList')?.classList.add('hidden');
-                document.getElementById('activeGroupChat')?.classList.remove('hidden');
+                // ✅ VERIFICAR que los elementos existan antes de manipularlos
+                const roomsList = document.getElementById('groupRoomsList');
+                const activeChat = document.getElementById('activeGroupChat');
+                const roomNameEl = document.getElementById('groupChatRoomName');
+                const modeIndicator = document.getElementById('groupChatModeIndicator');
+                const inputEnabled = document.getElementById('groupChatInputEnabled');
+                const inputDisabled = document.getElementById('groupChatInputDisabled');
                 
-                // Actualizar UI
-                updateGroupRoomInfo(roomName);
+                // Verificar elementos críticos
+                if (!roomsList || !activeChat) {
+                    console.error('❌ Elementos HTML de chat grupal no encontrados');
+                    showNotification('Error: Interfaz de chat grupal no disponible', 'error');
+                    return;
+                }
                 
-                // Conectar WebSocket
+                // Ocultar lista, mostrar chat
+                roomsList.classList.add('hidden');
+                activeChat.classList.remove('hidden');
+                
+                // Actualizar UI si los elementos existen
+                if (roomNameEl) roomNameEl.textContent = roomName;
+                if (modeIndicator) {
+                    modeIndicator.textContent = 'Conectando...';
+                    modeIndicator.className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800';
+                }
+                
+                // Deshabilitar input temporalmente
+                if (inputEnabled) inputEnabled.classList.add('hidden');
+                if (inputDisabled) inputDisabled.classList.remove('hidden');
+                
+                // Conectar WebSocket si no está conectado
                 if (!groupChatSocket || !isGroupChatConnected) {
                     await connectGroupChatWebSocket();
                 }
                 
-                await waitForGroupSocketConnection();
-                emitJoinGroupRoom(roomId);
+                // Esperar conexión (máximo 5 segundos)
+                await waitForConnection();
                 
-                showNotification(`Uniéndose a ${roomName}...`, 'info', 2000);
+                // Emitir join y esperar confirmación
+                await emitJoinGroupRoom(roomId);
+                
+                // Habilitar input
+                if (inputDisabled) inputDisabled.classList.add('hidden');
+                if (inputEnabled) inputEnabled.classList.remove('hidden');
+                
+                // Actualizar indicador de modo
+                if (modeIndicator) {
+                    const currentUser = getCurrentUser();
+                    if (currentUser && (currentUser.role === 3 || currentUser.role === 4)) {
+                        modeIndicator.textContent = 'Modo Activo';
+                        modeIndicator.className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800';
+                    } else {
+                        modeIndicator.textContent = 'Modo Observador';
+                        modeIndicator.className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800';
+                    }
+                }
+                
+                showNotification('Conectado a la sala', 'success');
                 
             } catch (error) {
                 console.error('❌ Error uniéndose:', error);
@@ -6501,59 +6541,80 @@ function refreshGroupRooms() {
             
             groupChatSocket.on('connect', () => {
                 isGroupChatConnected = true;
-                console.log('✅ WebSocket conectado');
-                showNotification('Conectado al chat grupal', 'success', 2000);
+                console.log('✅ WebSocket grupal conectado');
+                console.log('🆔 Socket ID:', groupChatSocket.id);
             });
             
             groupChatSocket.on('disconnect', (reason) => {
                 isGroupChatConnected = false;
                 groupChatJoined = false;
-                console.log(`❌ Desconectado: ${reason}`);
+                console.log('❌ Desconectado:', reason);
             });
             
             groupChatSocket.on('group_room_joined', (data) => {
                 groupChatJoined = true;
-                isSilentMode = false;
-                console.log('✅ Unido a sala:', data);
+                currentGroupRoomId = data.room_id;
+                
+                // Determinar modo basado en rol del usuario
+                const currentUser = getCurrentUser();
+                if (currentUser && (currentUser.role === 3 || currentUser.role === 4)) {
+                    // Supervisor/Admin - modo activo por defecto
+                    isSilentMode = false;
+                } else {
+                    // Agente - modo silencioso por defecto
+                    isSilentMode = true;
+                }
+                
+                console.log('✅ Unido a sala grupal:', data);
+                console.log('📊 Estado:', {
+                    groupChatJoined,
+                    currentGroupRoomId,
+                    isGroupChatConnected,
+                    isSilentMode
+                });
                 
                 updateGroupChatUI(data);
                 loadGroupChatHistory(data.room_id);
-                showNotification(`Te uniste a ${currentGroupRoom?.name}`, 'success', 2000);
             });
             
             groupChatSocket.on('new_group_message', (data) => {
-                console.log('💬 Nuevo mensaje:', data);
+                console.log('💬 Nuevo mensaje grupal:', data);
                 handleGroupMessage(data);
             });
             
             groupChatSocket.on('participant_joined', (data) => {
-                console.log('👋 Nuevo participante:', data);
-                showNotification(`${data.user_name || 'Usuario'} se unió`, 'info', 2000);
-                updateParticipantsCount(data.participants_count);
+                console.log('👋 Participante se unió:', data);
+                showNotification(`${data.user_name || 'Usuario'} se unió`, 'info');
             });
             
             groupChatSocket.on('participant_left', (data) => {
                 console.log('👋 Participante salió:', data);
-                showNotification(`${data.user_name || 'Usuario'} salió`, 'info', 2000);
-                updateParticipantsCount(data.participants_count);
+            });
+            
+            groupChatSocket.on('silent_mode_toggled', (data) => {
+                isSilentMode = data.is_silent;
+                updateSilentModeUI(data.is_silent, data.can_send_messages);
+                showNotification(
+                    data.is_silent ? 'Modo observador activado' : 'Modo activo: puedes enviar mensajes',
+                    'success'
+                );
             });
             
             groupChatSocket.on('error', (error) => {
-                console.error('❌ Error:', error);
+                console.error('❌ Error en socket grupal:', error);
                 showNotification('Error: ' + (error.message || error), 'error');
             });
             
-            groupChatSocket.on('reconnect', (attemptNumber) => {
-                console.log(`✅ Reconectado (intento ${attemptNumber})`);
-                showNotification('Reconectado', 'success', 2000);
-                if (currentGroupRoomId) emitJoinGroupRoom(currentGroupRoomId);
+            groupChatSocket.on('connect_error', (error) => {
+                console.error('❌ Error de conexión:', error.message);
+                showNotification('Error de conexión: ' + error.message, 'error');
             });
         }
 
         /**
          * Espera a que el socket esté conectado
          */
-        function waitForGroupSocketConnection(timeout = 5000) {
+        function waitForConnection(timeout = 5000) {
             return new Promise((resolve, reject) => {
                 if (isGroupChatConnected) {
                     resolve();
@@ -6567,7 +6628,7 @@ function refreshGroupRooms() {
                         resolve();
                     } else if (Date.now() - startTime > timeout) {
                         clearInterval(checkInterval);
-                        reject(new Error('Timeout'));
+                        reject(new Error('Timeout esperando conexión'));
                     }
                 }, 100);
             });
@@ -6577,19 +6638,49 @@ function refreshGroupRooms() {
          * Emite el evento de unirse a la sala
          */
         function emitJoinGroupRoom(roomId) {
-            if (!groupChatSocket || !isGroupChatConnected) {
-                console.error('❌ Socket no conectado');
-                showNotification('No conectado', 'error');
-                return;
-            }
-            
-            const currentUser = getCurrentUser();
-            const userTypeMap = { 2: 'agent', 3: 'supervisor', 4: 'admin' };
-            
-            groupChatSocket.emit('join_group_room', {
-                room_id: roomId,
-                user_id: currentUser.id,
-                user_type: userTypeMap[currentUser.role] || 'agent'
+            return new Promise((resolve, reject) => {
+                if (!groupChatSocket || !isGroupChatConnected) {
+                    reject(new Error('Socket no conectado'));
+                    return;
+                }
+                
+                const currentUser = getCurrentUser();
+                const userTypeMap = {
+                    2: 'agent',
+                    3: 'supervisor',
+                    4: 'admin'
+                };
+                const userType = userTypeMap[currentUser.role] || 'agent';
+                
+                console.log('📤 Emitiendo join_group_room:', {
+                    room_id: roomId,
+                    user_id: currentUser.id,
+                    user_type: userType
+                });
+                
+                // Timeout de 10 segundos
+                const timeout = setTimeout(() => {
+                    if (!groupChatJoined) {
+                        reject(new Error('Timeout esperando confirmación'));
+                    }
+                }, 10000);
+                
+                // Listener único para confirmación
+                const onJoined = (data) => {
+                    clearTimeout(timeout);
+                    groupChatSocket.off('group_room_joined', onJoined);
+                    console.log('✅ Confirmación recibida');
+                    resolve(data);
+                };
+                
+                groupChatSocket.once('group_room_joined', onJoined);
+                
+                // Emitir evento
+                groupChatSocket.emit('join_group_room', {
+                    room_id: roomId,
+                    user_id: currentUser.id,
+                    user_type: userType
+                });
             });
         }
 
@@ -6766,28 +6857,38 @@ function refreshGroupRooms() {
             if (!message) return;
             
             if (!groupChatSocket || !isGroupChatConnected) {
-                showNotification('No conectado', 'error');
+                showNotification('No conectado al servidor', 'error');
                 return;
             }
             
-            if (!groupChatJoined) {
+            if (!groupChatJoined || !currentGroupRoomId) {
                 showNotification('No estás en una sala', 'error');
                 return;
             }
             
-            if (message.length > 1000) {
-                showNotification('Mensaje muy largo (máx. 1000)', 'error');
-                return;
-            }
+            const currentUser = getCurrentUser();
+            const userTypeMap = {
+                2: 'agent',
+                3: 'supervisor',
+                4: 'admin'
+            };
+            const userType = userTypeMap[currentUser.role] || 'agent';
+            
+            console.log('📤 Enviando mensaje:', {
+                room_id: currentGroupRoomId,
+                content: message
+            });
             
             groupChatSocket.emit('send_group_message', {
                 room_id: currentGroupRoomId,
                 content: message,
-                message_type: 'text'
+                message_type: 'text',
+                sender_id: currentUser.id,
+                sender_type: userType
             });
             
             input.value = '';
-            input.style.height = 'auto';
+            input.focus();
         }
 
         /**

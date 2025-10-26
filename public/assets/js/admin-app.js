@@ -1,4 +1,15 @@
+        const API_BASE = 'http://187.33.158.246';
+        const CHAT_API = `${API_BASE}/chat`;
+        const AUTH_API = `${API_BASE}/auth`;
 
+        // Variables globales para chat grupal
+        let groupChatSocket = null;
+        let isGroupChatConnected = false;
+        let groupChatJoined = false;
+        let currentGroupRoomId = null;
+        let currentGroupRoom = null;
+        let isSilentMode = false;
+        
         class AdminClient {
             constructor() {
                 this.adminServiceUrl = 'http://187.33.158.246/admin';
@@ -2681,76 +2692,41 @@
             }
         }
 
-        async connectGroupChatWebSocket() {
-            return new Promise((resolve, reject) => {
-                try {
-                    console.log('🔌 Conectando WebSocket para chat grupal (Admin)...');
-                    
-                    const token = this.getToken();
-                    const currentUser = this.getCurrentUser();
-                    
-                    const socketUrl = 'http://187.33.158.246:3011';  // Puerto 3011
-                    
-                    console.log('🔗 Conectando a:', socketUrl);
-                    
-                    groupChatSocket = io(socketUrl, {
-                        transports: ['polling', 'websocket'],
-                        reconnection: true,
-                        reconnectionDelay: 1000,
-                        reconnectionAttempts: 3,
-                        auth: {
-                            token: token,
-                            user_id: currentUser.id,
-                            user_type: 'admin',
-                            user_name: currentUser.name
-                        }
-                    });
-                    
-                    const connectionTimeout = setTimeout(() => {
-                        if (!isGroupChatConnected) {
-                            console.error('❌ TIMEOUT: Socket no conectó');
-                            if (groupChatSocket) groupChatSocket.disconnect();
-                            reject(new Error('Timeout: No se pudo conectar'));
-                        }
-                    }, 15000);
-                    
-                    groupChatSocket.on('connect', () => {
-                        clearTimeout(connectionTimeout);
-                        isGroupChatConnected = true;
-                        console.log('✅ WebSocket grupal conectado');
-                        console.log('🆔 Socket ID:', groupChatSocket.id);
-                        
-                        this.addGroupChatListeners();
-                        resolve();
-                    });
-                    
-                    groupChatSocket.on('connect_error', (error) => {
-                        clearTimeout(connectionTimeout);
-                        console.error('❌ Error de conexión:', error.message);
-                        reject(new Error(`Error de conexión: ${error.message}`));
-                    });
-                    
-                    groupChatSocket.on('disconnect', (reason) => {
-                        isGroupChatConnected = false;
-                        groupChatJoined = false;
-                        console.log('❌ Desconectado:', reason);
-                    });
-                    
-                } catch (error) {
-                    console.error('❌ Error crítico:', error);
-                    reject(error);
-                }
-            });
-        }
-
-    // Nueva función para agregar listeners
-    addGroupChatListeners() {
-        if (!groupChatSocket) return;
+    async connectGroupChatWebSocket() {
+    try {
+        console.log('🔌 Conectando WebSocket para chat grupal (Admin)...');
         
-        // Remover listeners anteriores para evitar duplicados
-        groupChatSocket.off('group_room_joined');
-        groupChatSocket.off('new_group_message');
-        groupChatSocket.off('participant_joined');
+        const token = this.getToken();
+        const currentUser = this.getCurrentUser();
+        
+        // ✅ CORRECCIÓN: Usar API_BASE en lugar de puerto específico
+        console.log('🔗 Conectando a:', API_BASE);
+        
+        groupChatSocket = io(API_BASE, {
+            transports: ['websocket', 'polling'],  // ✅ websocket primero
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5,  // ✅ Más intentos
+            auth: {
+                token: token,
+                user_id: currentUser.id,
+                user_type: 'admin',
+                user_name: currentUser.name
+            }
+        });
+        
+        // ✅ LISTENERS DIRECTOS (como el supervisor)
+        groupChatSocket.on('connect', () => {
+            isGroupChatConnected = true;
+            console.log('✅ WebSocket grupal conectado');
+            console.log('🆔 Socket ID:', groupChatSocket.id);
+        });
+        
+        groupChatSocket.on('disconnect', (reason) => {
+            isGroupChatConnected = false;
+            groupChatJoined = false;
+            console.log('❌ Desconectado:', reason);
+        });
         
         groupChatSocket.on('group_room_joined', (data) => {
             groupChatJoined = true;
@@ -2767,10 +2743,6 @@
             this.loadGroupChatHistory(data.room_id);
         });
         
-        groupChatSocket.onAny((eventName, ...args) => {
-            console.log('📩 Evento recibido:', eventName, args);
-        });
-        
         groupChatSocket.on('new_group_message', (data) => {
             console.log('💬 Nuevo mensaje grupal:', data);
             this.handleGroupMessage(data);
@@ -2785,7 +2757,22 @@
             console.log('👋 Participante salió:', data);
             this.showNotification(`${data.user_name || 'Usuario'} salió`, 'info');
         });
+        
+        groupChatSocket.on('error', (error) => {
+            console.error('❌ Error en socket grupal:', error);
+            this.showNotification('Error: ' + (error.message || error), 'error');
+        });
+        
+        groupChatSocket.on('connect_error', (error) => {
+            console.error('❌ Error de conexión:', error.message);
+            this.showNotification('Error de conexión: ' + error.message, 'error');
+        });
+        
+    } catch (error) {
+        console.error('❌ Error crítico:', error);
+        throw error;
     }
+}
 
     waitForGroupSocketConnection(timeout = 5000) {
         return new Promise((resolve, reject) => {
@@ -3072,13 +3059,6 @@
             this.showNotification('Actualizando salas...', 'info', 1000);
         }
         }
-
-        let groupChatSocket = null;
-        let isGroupChatConnected = false;
-        let groupChatJoined = false;
-        let currentGroupRoomId = null;
-        let currentGroupRoom = null;
-        let isSilentMode = false;
 
         window.adminClient = new AdminClient();
 
