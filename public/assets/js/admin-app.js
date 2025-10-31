@@ -67,13 +67,13 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                </svg>`
                     },
-                    {
+                    /*{
                         id: 'group-chat',
                         name: 'Chat Grupal',
                         icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                             </svg>`
-                    },
+                    },*/
                     {
                         id: 'profile',
                         name: 'Mi Perfil',
@@ -2880,67 +2880,224 @@
         }
 
         async loadGroupChatHistory(roomId) {
-            const container = document.getElementById('groupChatMessages');
-            if (!container) return;
+        const container = document.getElementById('groupChatMessages');
+        if (!container) return;
+        
+        container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8">Cargando mensajes...</div>';
+        
+        try {
+            console.log('📜 [ADMIN] Cargando historial del chat grupal para sala:', roomId);
             
-            container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8">Cargando mensajes...</div>';
+            // 🔧 Cargar mensajes del backend
+            const response = await fetch(`${CHAT_API}/group-chat/rooms/${roomId}/messages?limit=100`, {
+                method: 'GET',
+                headers: this.getAuthHeaders()
+            });
             
-            try {
-                // Aquí harías una llamada al backend para obtener el historial
-                // Por ahora, mostrar mensaje de inicio
-                setTimeout(() => {
-                    container.innerHTML = `
-                        <div class="text-center py-8">
-                            <div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-3">
-                                <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                                </svg>
-                            </div>
-                            <p class="text-gray-600 font-medium">Chat Grupal Administrativo</p>
-                            <p class="text-sm text-gray-500 mt-1">Tienes acceso completo como administrador</p>
-                        </div>
-                    `;
-                }, 500);
-                
-            } catch (error) {
-                console.error('❌ Error cargando historial grupal:', error);
-                container.innerHTML = '<div class="text-center text-red-500 text-sm py-8">Error cargando mensajes</div>';
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
             }
+            
+            const result = await response.json();
+            console.log('📦 [ADMIN] Respuesta del historial grupal:', result);
+            
+            if (!result.success || !result.data || !result.data.messages) {
+                console.log('⚠️ [ADMIN] No hay mensajes en la respuesta');
+                this.showAdminWelcomeMessage(container);
+                return;
+            }
+            
+            const messages = result.data.messages;
+            console.log('✅ [ADMIN] Mensajes cargados:', messages.length);
+            
+            if (messages.length === 0) {
+                this.showAdminWelcomeMessage(container);
+                return;
+            }
+            
+            // Limpiar contenedor
+            container.innerHTML = '';
+            
+            // Renderizar cada mensaje
+            messages.forEach(msg => {
+                this.renderGroupMessageFromHistory(msg);
+            });
+            
+            // Scroll al final
+            setTimeout(() => {
+                container.scrollTop = container.scrollHeight;
+            }, 100);
+            
+            console.log('✅ [ADMIN] Historial cargado exitosamente');
+            
+        } catch (error) {
+            console.error('❌ [ADMIN] Error cargando historial grupal:', error);
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-3">
+                        <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <p class="text-red-600 font-medium">Error cargando mensajes</p>
+                    <p class="text-xs text-gray-500 mt-2">${error.message}</p>
+                    <button onclick="adminClient.loadGroupChatHistory('${roomId}')" 
+                            class="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
+                        Reintentar
+                    </button>
+                </div>
+            `;
         }
+    }
+
+    // 🆕 Función auxiliar para mostrar mensaje de bienvenida admin
+    showAdminWelcomeMessage(container) {
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-3 shadow-lg">
+                    <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                </div>
+                <p class="text-gray-700 font-medium">👑 Chat Grupal Administrativo</p>
+                <p class="text-sm text-gray-500 mt-1">Sala: ${currentGroupRoom?.name || 'Chat Grupal'}</p>
+                <p class="text-xs text-gray-400 mt-2">Tienes acceso completo como administrador</p>
+                <p class="text-xs text-gray-400">Sé el primero en escribir un mensaje</p>
+            </div>
+        `;
+    }
+
+    // 🆕 Función para renderizar mensajes del historial
+    renderGroupMessageFromHistory(msg) {
+        const container = document.getElementById('groupChatMessages');
+        if (!container) return;
+        
+        // Eliminar mensaje de bienvenida si existe
+        const welcomeMsg = container.querySelector('.text-center');
+        if (welcomeMsg) {
+            welcomeMsg.remove();
+        }
+        
+        const currentUser = this.getCurrentUser();
+        const isMyMessage = msg.sender_id === currentUser?.id;
+        
+        // 🔧 Crear ID único para evitar duplicados
+        const messageId = msg.id || `msg_${msg.sender_id}_${msg.created_at}`;
+        
+        // Verificar si el mensaje ya existe
+        if (document.getElementById(messageId)) {
+            console.log('⚠️ [ADMIN] Mensaje duplicado en historial, ignorando');
+            return;
+        }
+        
+        const messageEl = document.createElement('div');
+        messageEl.id = messageId;
+        messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4`;
+        
+        // Determinar tipo y label del remitente
+        const senderType = msg.sender_type || 'patient';
+        const senderLabel = senderType === 'supervisor' ? 'Supervisor' :
+                        senderType === 'agent' ? 'Agente' :
+                        senderType === 'admin' ? 'Admin' : 
+                        msg.sender_name || 'Usuario';
+        
+        // Colores según tipo de remitente (Admin con rojo)
+        const bubbleColor = isMyMessage ? 'bg-red-600 text-white' :
+                        senderType === 'supervisor' ? 'bg-purple-100 text-purple-900' :
+                        senderType === 'agent' ? 'bg-green-100 text-green-900' :
+                        senderType === 'admin' ? 'bg-red-100 text-red-900' :
+                        'bg-gray-200 text-gray-900';
+        
+        // Parsear timestamp
+        let timestamp = msg.timestamp || msg.created_at;
+        if (typeof timestamp === 'string') {
+            timestamp = new Date(timestamp);
+        } else if (typeof timestamp === 'number') {
+            timestamp = new Date(timestamp);
+        } else {
+            timestamp = new Date();
+        }
+        
+        if (isNaN(timestamp.getTime())) {
+            timestamp = new Date();
+        }
+        
+        const time = timestamp.toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        // 🎨 Agregar emoji/icono según tipo
+        const senderIcon = senderType === 'supervisor' ? '👔' :
+                        senderType === 'agent' ? '👨‍💼' :
+                        senderType === 'admin' ? '👑' : '👤';
+        
+        messageEl.innerHTML = `
+            <div class="max-w-xs lg:max-w-md ${bubbleColor} rounded-lg px-4 py-2 shadow-sm">
+                <div class="text-xs opacity-75 mb-1 flex items-center gap-1">
+                    <span>${senderIcon}</span>
+                    <span>${isMyMessage ? 'Tú (Admin)' : senderLabel}</span>
+                </div>
+                <p class="text-sm break-words">${this.escapeHtml(msg.content)}</p>
+                <div class="text-xs opacity-75 mt-1">${time}</div>
+            </div>
+        `;
+        
+        container.appendChild(messageEl);
+    }
 
         handleGroupMessage(data) {
             const container = document.getElementById('groupChatMessages');
             if (!container) return;
             
-            // Eliminar mensaje de "no hay mensajes"
-            const emptyMsg = container.querySelector('.text-center');
-            if (emptyMsg && (emptyMsg.textContent.includes('No hay mensajes') || emptyMsg.textContent.includes('Chat Grupal'))) {
-                emptyMsg.remove();
+            // Eliminar mensaje de bienvenida si existe
+            const welcomeMsg = container.querySelector('.text-center');
+            if (welcomeMsg) {
+                welcomeMsg.remove();
             }
             
             const currentUser = this.getCurrentUser();
-            const isMyMessage = data.sender_id === currentUser.id;
+            const isMyMessage = data.sender_id === currentUser?.id;
+            
+            // 🔧 EVITAR DUPLICADOS - Verificar si el mensaje ya existe
+            const messageId = data.id || `msg_${data.sender_id}_${data.created_at || Date.now()}`;
+            
+            if (document.getElementById(messageId)) {
+                console.log('⚠️ [ADMIN] Mensaje duplicado detectado, ignorando');
+                return;
+            }
             
             const messageEl = document.createElement('div');
-            messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4`;
+            messageEl.id = messageId; // 🔧 Agregar ID único
+            messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4 animate-fade-in`;
             
-            const senderLabel = data.sender_type === 'admin' ? 'Admin' :
-                            data.sender_type === 'supervisor' ? 'Supervisor' :
-                            data.sender_type === 'agent' ? 'Agente' : 'Usuario';
+            const senderType = data.sender_type || 'patient';
+            const senderLabel = senderType === 'supervisor' ? 'Supervisor' :
+                            senderType === 'agent' ? 'Agente' :
+                            senderType === 'admin' ? 'Admin' : 'Usuario';
             
+            // Colores según tipo de remitente (Admin con rojo)
             const bubbleColor = isMyMessage ? 'bg-red-600 text-white' :
-                            data.sender_type === 'supervisor' ? 'bg-purple-100 text-purple-900' :
-                            data.sender_type === 'agent' ? 'bg-green-100 text-green-900' :
-                            data.sender_type === 'admin' ? 'bg-red-100 text-red-900' :
+                            senderType === 'supervisor' ? 'bg-purple-100 text-purple-900' :
+                            senderType === 'agent' ? 'bg-green-100 text-green-900' :
+                            senderType === 'admin' ? 'bg-red-100 text-red-900' :
                             'bg-gray-200 text-gray-900';
             
             const time = new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
             
+            const senderIcon = senderType === 'supervisor' ? '👔' :
+                            senderType === 'agent' ? '👨‍💼' :
+                            senderType === 'admin' ? '👑' : '👤';
+            
             messageEl.innerHTML = `
-                <div class="max-w-xs lg:max-w-md ${bubbleColor} rounded-lg px-4 py-2">
-                    <div class="text-xs opacity-75 mb-1">${isMyMessage ? 'Tú' : senderLabel}</div>
-                    <p class="text-sm">${this.escapeHtml(data.content)}</p>
+                <div class="max-w-xs lg:max-w-md ${bubbleColor} rounded-lg px-4 py-2 shadow-sm">
+                    <div class="text-xs opacity-75 mb-1 flex items-center gap-1">
+                        <span>${senderIcon}</span>
+                        <span>${isMyMessage ? 'Tú (Admin)' : senderLabel}</span>
+                    </div>
+                    <p class="text-sm break-words">${this.escapeHtml(data.content)}</p>
                     <div class="text-xs opacity-75 mt-1">${time}</div>
                 </div>
             `;

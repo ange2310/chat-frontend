@@ -6718,21 +6718,166 @@ function refreshGroupRooms() {
                 </div>
             `;
             
-            setTimeout(() => {
-                const currentUser = getCurrentUser();
-                const roleIcons = { 2: '👨‍💼', 3: '👔', 4: '👑' };
+            try {
+                console.log('📜 Cargando historial del chat grupal para sala:', roomId);
                 
+                // 🔧 Cargar mensajes del backend
+                const response = await fetch(`${CHAT_API}/group-chat/rooms/${roomId}/messages?limit=100`, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('📦 Respuesta del historial grupal:', result);
+                
+                if (!result.success || !result.data || !result.data.messages) {
+                    console.log('⚠️ No hay mensajes en la respuesta');
+                    showWelcomeMessage(container);
+                    return;
+                }
+                
+                const messages = result.data.messages;
+                console.log('✅ Mensajes cargados:', messages.length);
+                
+                if (messages.length === 0) {
+                    showWelcomeMessage(container);
+                    return;
+                }
+                
+                // Limpiar contenedor
+                container.innerHTML = '';
+                
+                // Renderizar cada mensaje
+                messages.forEach(msg => {
+                    renderGroupMessageFromHistory(msg);
+                });
+                
+                // Scroll al final
+                setTimeout(() => {
+                    container.scrollTop = container.scrollHeight;
+                }, 100);
+                
+                console.log('✅ Historial cargado exitosamente');
+                
+            } catch (error) {
+                console.error('❌ Error cargando historial grupal:', error);
                 container.innerHTML = `
                     <div class="text-center py-8">
-                        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-full mb-3 shadow-lg">
-                            <span class="text-3xl">${roleIcons[currentUser?.role] || '💬'}</span>
+                        <div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-3">
+                            <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
                         </div>
-                        <p class="text-gray-700 font-medium">¡Bienvenido al Chat Grupal!</p>
-                        <p class="text-sm text-gray-500 mt-1">Sala: ${currentGroupRoom?.name}</p>
-                        <p class="text-xs text-gray-400 mt-2">Puedes comenzar a escribir mensajes</p>
+                        <p class="text-red-600 font-medium">Error cargando mensajes</p>
+                        <p class="text-xs text-gray-500 mt-2">${error.message}</p>
+                        <button onclick="loadGroupChatHistory('${roomId}')" 
+                                class="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                            Reintentar
+                        </button>
                     </div>
                 `;
-            }, 500);
+            }
+        }
+
+        // 🆕 Función auxiliar para mostrar mensaje de bienvenida
+        function showWelcomeMessage(container) {
+            const currentUser = getCurrentUser();
+            const roleIcons = { 2: '👨‍💼', 3: '👔', 4: '👑' };
+            
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-full mb-3 shadow-lg">
+                        <span class="text-3xl">${roleIcons[currentUser?.role] || '💬'}</span>
+                    </div>
+                    <p class="text-gray-700 font-medium">¡Bienvenido al Chat Grupal!</p>
+                    <p class="text-sm text-gray-500 mt-1">Sala: ${currentGroupRoom?.name}</p>
+                    <p class="text-xs text-gray-400 mt-2">Sé el primero en escribir un mensaje</p>
+                </div>
+            `;
+        }
+
+        // 🆕 Función para renderizar mensajes del historial
+        function renderGroupMessageFromHistory(msg) {
+            const container = document.getElementById('groupChatMessages');
+            if (!container) return;
+            
+            // Eliminar mensaje de bienvenida si existe
+            const welcomeMsg = container.querySelector('.text-center');
+            if (welcomeMsg) {
+                welcomeMsg.remove();
+            }
+            
+            const currentUser = getCurrentUser();
+            const isMyMessage = msg.sender_id === currentUser?.id;
+            
+            // 🔧 Crear ID único para evitar duplicados
+            const messageId = msg.id || `msg_${msg.sender_id}_${msg.created_at}`;
+            
+            // Verificar si el mensaje ya existe
+            if (document.getElementById(messageId)) {
+                console.log('⚠️ Mensaje duplicado en historial, ignorando');
+                return;
+            }
+            
+            const messageEl = document.createElement('div');
+            messageEl.id = messageId;
+            messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4`;
+            
+            // Determinar tipo y label del remitente
+            const senderType = msg.sender_type || 'patient';
+            const senderLabel = senderType === 'supervisor' ? 'Supervisor' :
+                            senderType === 'agent' ? 'Agente' :
+                            senderType === 'admin' ? 'Admin' : 
+                            msg.sender_name || 'Usuario';
+            
+            // Colores según tipo de remitente
+            const bubbleColor = isMyMessage ? 'bg-green-600 text-white' :
+                            senderType === 'supervisor' ? 'bg-purple-100 text-purple-900' :
+                            senderType === 'agent' ? 'bg-green-100 text-green-900' :
+                            senderType === 'admin' ? 'bg-red-100 text-red-900' :
+                            'bg-gray-200 text-gray-900';
+            
+            // Parsear timestamp
+            let timestamp = msg.timestamp || msg.created_at;
+            if (typeof timestamp === 'string') {
+                timestamp = new Date(timestamp);
+            } else if (typeof timestamp === 'number') {
+                timestamp = new Date(timestamp);
+            } else {
+                timestamp = new Date();
+            }
+            
+            if (isNaN(timestamp.getTime())) {
+                timestamp = new Date();
+            }
+            
+            const time = timestamp.toLocaleTimeString('es-ES', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            // 🎨 Agregar emoji/icono según tipo
+            const senderIcon = senderType === 'supervisor' ? '👔' :
+                            senderType === 'agent' ? '👨‍💼' :
+                            senderType === 'admin' ? '👑' : '👤';
+            
+            messageEl.innerHTML = `
+                <div class="max-w-xs lg:max-w-md ${bubbleColor} rounded-lg px-4 py-2 shadow-sm">
+                    <div class="text-xs opacity-75 mb-1 flex items-center gap-1">
+                        <span>${senderIcon}</span>
+                        <span>${isMyMessage ? 'Tú' : senderLabel}</span>
+                    </div>
+                    <p class="text-sm break-words">${escapeHtml(msg.content)}</p>
+                    <div class="text-xs opacity-75 mt-1">${time}</div>
+                </div>
+            `;
+            
+            container.appendChild(messageEl);
         }
 
         /**
@@ -6742,15 +6887,55 @@ function refreshGroupRooms() {
             const container = document.getElementById('groupChatMessages');
             if (!container) return;
             
-            // Eliminar mensajes de bienvenida
-            const stateMessages = container.querySelectorAll('.text-center');
-            stateMessages.forEach(msg => {
-                if (msg.textContent.includes('Bienvenido') || msg.textContent.includes('Chat Grupal')) {
-                    msg.remove();
-                }
-            });
+            // Eliminar mensaje de bienvenida si existe
+            const welcomeMsg = container.querySelector('.text-center');
+            if (welcomeMsg) {
+                welcomeMsg.remove();
+            }
             
-            const messageEl = createGroupMessageElement(data);
+            const currentUser = getCurrentUser();
+            const isMyMessage = data.sender_id === currentUser?.id;
+            
+            // 🔧 EVITAR DUPLICADOS - Verificar si el mensaje ya existe
+            const messageId = data.id || `msg_${data.sender_id}_${data.created_at || Date.now()}`;
+            
+            if (document.getElementById(messageId)) {
+                console.log('⚠️ Mensaje duplicado detectado, ignorando');
+                return;
+            }
+            
+            const messageEl = document.createElement('div');
+            messageEl.id = messageId; // 🔧 Agregar ID único
+            messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4 animate-fade-in`;
+            
+            const senderType = data.sender_type || 'patient';
+            const senderLabel = senderType === 'supervisor' ? 'Supervisor' :
+                            senderType === 'agent' ? 'Agente' :
+                            senderType === 'admin' ? 'Admin' : 'Usuario';
+            
+            const bubbleColor = isMyMessage ? 'bg-green-600 text-white' :
+                            senderType === 'supervisor' ? 'bg-purple-100 text-purple-900' :
+                            senderType === 'agent' ? 'bg-green-100 text-green-900' :
+                            senderType === 'admin' ? 'bg-red-100 text-red-900' :
+                            'bg-gray-200 text-gray-900';
+            
+            const time = new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+            
+            const senderIcon = senderType === 'supervisor' ? '👔' :
+                            senderType === 'agent' ? '👨‍💼' :
+                            senderType === 'admin' ? '👑' : '👤';
+            
+            messageEl.innerHTML = `
+                <div class="max-w-xs lg:max-w-md ${bubbleColor} rounded-lg px-4 py-2 shadow-sm">
+                    <div class="text-xs opacity-75 mb-1 flex items-center gap-1">
+                        <span>${senderIcon}</span>
+                        <span>${isMyMessage ? 'Tú' : senderLabel}</span>
+                    </div>
+                    <p class="text-sm break-words">${escapeHtml(data.content)}</p>
+                    <div class="text-xs opacity-75 mt-1">${time}</div>
+                </div>
+            `;
+            
             container.appendChild(messageEl);
             container.scrollTop = container.scrollHeight;
         }

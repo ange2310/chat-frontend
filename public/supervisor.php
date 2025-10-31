@@ -103,7 +103,7 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
                         </svg>
                         Monitor de Salas
                     </a>
-                    <a href="#group-chat" onclick="showSection('group-chat'); closeMobileNav();"
+                    <!--<a href="#group-chat" onclick="showSection('group-chat'); closeMobileNav();"
                         id="nav-group-chat" class="nav-link">
                          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -111,7 +111,7 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
                          </svg>
                          Chat Grupal
                          <span id= "groupChatUnread" class="ml-auto px-2 py-1 bg-blue-500 text-white text-xs rounded-full hidden">0</span>
-                    </a>
+                    </a>-->
                 </div>
             </nav>
                 
@@ -190,7 +190,7 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
                         </svg>
                         Monitor de Salas
                     </a>
-                    <a href="#group-chat" onclick="showSection('group-chat'); closeMobileNav();" 
+                    <!--<a href="#group-chat" onclick="showSection('group-chat'); closeMobileNav();" 
                         id="mobile-nav-group-chat" class="nav-link">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
@@ -198,7 +198,7 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
                             </svg>
                             Chat Grupal
                             <span id="mobileGroupChatUnread" class="ml-auto px-2 py-1 bg-blue-500 text-white text-xs rounded-full hidden">0</span>
-                    </a>
+                    </a>-->
                 </div>
             </nav>
                 
@@ -403,7 +403,7 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
                 </div>
 
                 <!-- Group Chat Section - SEPARADA DEL MONITOR -->
-                <div id="group-chat-section" class="section-content hidden p-6">
+                <!--<div id="group-chat-section" class="section-content hidden p-6">
                     <div class="mb-6">
                         <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
                             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -421,7 +421,7 @@ if (!in_array($userRole, ['supervisor', 'admin'])) {
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>-->
                     
                     <!-- Rooms List -->
                     <div id="groupRoomsList" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">

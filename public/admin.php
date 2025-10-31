@@ -659,7 +659,7 @@ if (strpos($host, 'localhost') === false && strpos($host, '127.0.0.1') === false
                 </div>
 
                 <!-- Group Chat Section -->
-                <div id="group-chat-section" class="section-content hidden p-4 sm:p-6">
+                <!--<div id="group-chat-section" class="section-content hidden p-4 sm:p-6">
                     <div class="mb-6">
                         <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
                             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -677,7 +677,7 @@ if (strpos($host, 'localhost') === false && strpos($host, '127.0.0.1') === false
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>-->
                     
                     <!-- Rooms List -->
                     <div id="groupRoomsList" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
@@ -1365,7 +1365,7 @@ if (strpos($host, 'localhost') === false && strpos($host, '127.0.0.1') === false
         </div>
     </div>
     <!-- Participants Modal -->
-    <div id="groupParticipantsModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <!--<div id="groupParticipantsModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div class="flex items-center justify-between p-4 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-900">Participantes</h3>
@@ -1375,7 +1375,7 @@ if (strpos($host, 'localhost') === false && strpos($host, '127.0.0.1') === false
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </button>
-            </div>
+            </div>-->
             <div id="groupParticipantsList" class="p-4 max-h-96 overflow-y-auto">
                 <!-- Participants will be loaded here -->
             </div>

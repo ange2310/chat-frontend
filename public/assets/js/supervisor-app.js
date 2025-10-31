@@ -3740,7 +3740,7 @@ createRoomStatsCard(room) {
                     console.log('📤 Emitiendo join_group_room:', {
                         room_id: roomId,
                         user_id: currentUser.id,
-                        user_type: 'admin'
+                        user_type: 'supervisor'  // ✅ CORREGIDO
                     });
                     
                     // Establecer timeout de 10 segundos
@@ -3764,7 +3764,7 @@ createRoomStatsCard(room) {
                     groupChatSocket.emit('join_group_room', {
                         room_id: roomId,
                         user_id: currentUser.id,
-                        user_type: 'admin'
+                        user_type: 'supervisor'  // ✅ CORREGIDO
                     });
                 });
             }
@@ -3774,6 +3774,13 @@ createRoomStatsCard(room) {
                 const participants = data.participants || [];
                 document.getElementById('groupChatParticipantsCount').textContent = 
                     `${participants.length} participante${participants.length !== 1 ? 's' : ''}`;
+                
+                // ✅ Actualizar indicador de rol
+                const indicator = document.getElementById('groupChatModeIndicator');
+                if (indicator) {
+                    indicator.textContent = 'Modo Supervisor';
+                    indicator.className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-800';
+                }
                 
                 // Actualizar modo
                 this.updateSilentModeUI(data.is_silent, data.can_send_messages);
@@ -3786,7 +3793,7 @@ createRoomStatsCard(room) {
                 const inputEnabled = document.getElementById('groupChatInputEnabled');
                 
                 if (isSilent) {
-                    indicator.textContent = 'Modo Observador';
+                    indicator.textContent = '👔 Supervisor (Observando)';  // ✅ MEJORADO
                     indicator.className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800';
                     toggleBtn.innerHTML = `
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3798,8 +3805,8 @@ createRoomStatsCard(room) {
                     inputDisabled.classList.remove('hidden');
                     inputEnabled.classList.add('hidden');
                 } else {
-                    indicator.textContent = 'Modo Activo';
-                    indicator.className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800';
+                    indicator.textContent = '👔 Supervisor (Activo)';  // ✅ MEJORADO
+                    indicator.className = 'px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-800';
                     toggleBtn.innerHTML = `
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
@@ -3817,16 +3824,129 @@ createRoomStatsCard(room) {
                 container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8">Cargando mensajes...</div>';
                 
                 try {
-                    // Aquí harías una llamada al backend para obtener el historial
-                    // Por ahora, solo limpiar el contenedor
-                    setTimeout(() => {
+                    console.log('📜 Cargando historial del chat grupal para sala:', roomId);
+                    
+                    // 🔧 Usar API_BASE porque el backend ya tiene /chat en la ruta
+                    const response = await fetch(`${CHAT_API}/group-chat/rooms/${roomId}/messages?limit=100`, {
+                        method: 'GET',
+                        headers: this.getAuthHeaders()
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    console.log('📦 Respuesta del historial grupal:', result);
+                    
+                    if (!result.success || !result.data || !result.data.messages) {
+                        console.log('⚠️ No hay mensajes en la respuesta');
                         container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8">No hay mensajes aún</div>';
-                    }, 500);
+                        return;
+                    }
+                    
+                    const messages = result.data.messages;
+                    console.log('✅ Mensajes cargados:', messages.length);
+                    
+                    if (messages.length === 0) {
+                        container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8">No hay mensajes aún</div>';
+                        return;
+                    }
+                    
+                    // Limpiar contenedor
+                    container.innerHTML = '';
+                    
+                    // Renderizar cada mensaje
+                    messages.forEach(msg => {
+                        this.renderGroupMessageFromHistory(msg);
+                    });
+                    
+                    // Scroll al final
+                    setTimeout(() => {
+                        container.scrollTop = container.scrollHeight;
+                    }, 100);
+                    
+                    console.log('✅ Historial cargado exitosamente');
                     
                 } catch (error) {
                     console.error('❌ Error cargando historial grupal:', error);
-                    container.innerHTML = '<div class="text-center text-red-500 text-sm py-8">Error cargando mensajes</div>';
+                    container.innerHTML = `
+                        <div class="text-center text-red-500 text-sm py-8">
+                            <p>Error cargando mensajes</p>
+                            <p class="text-xs text-gray-500 mt-2">${error.message}</p>
+                        </div>
+                    `;
                 }
+            }
+
+            renderGroupMessageFromHistory(msg) {
+                const container = document.getElementById('groupChatMessages');
+                if (!container) return;
+                
+                // Eliminar mensaje de "no hay mensajes" si existe
+                const emptyMsg = container.querySelector('.text-center');
+                if (emptyMsg && emptyMsg.textContent.includes('No hay mensajes')) {
+                    emptyMsg.remove();
+                }
+                
+                const currentUser = this.getCurrentUser();
+                const isMyMessage = msg.sender_id === currentUser.id;
+                
+                // 🔧 Crear ID único para evitar duplicados
+                const messageId = msg.id || `msg_${msg.sender_id}_${msg.created_at}`;
+                
+                // Verificar si el mensaje ya existe
+                if (document.getElementById(messageId)) {
+                    console.log('⚠️ Mensaje duplicado en historial, ignorando');
+                    return;
+                }
+                
+                const messageEl = document.createElement('div');
+                messageEl.id = messageId;
+                messageEl.className = `flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4`;
+                
+                // Determinar tipo y label del remitente
+                const senderType = msg.sender_type || 'patient';
+                const senderLabel = senderType === 'supervisor' ? 'Supervisor' :
+                                senderType === 'agent' ? 'Agente' :
+                                senderType === 'admin' ? 'Admin' : 
+                                msg.sender_name || 'Usuario';
+                
+                // Colores según tipo de remitente
+                const bubbleColor = isMyMessage ? 'bg-purple-600 text-white' :
+                                senderType === 'supervisor' ? 'bg-purple-100 text-purple-900' :
+                                senderType === 'agent' ? 'bg-green-100 text-green-900' :
+                                senderType === 'admin' ? 'bg-red-100 text-red-900' :
+                                'bg-gray-200 text-gray-900';
+                
+                // Parsear timestamp
+                let timestamp = msg.timestamp || msg.created_at;
+                if (typeof timestamp === 'string') {
+                    timestamp = new Date(timestamp);
+                } else if (typeof timestamp === 'number') {
+                    timestamp = new Date(timestamp);
+                } else {
+                    timestamp = new Date();
+                }
+                
+                if (isNaN(timestamp.getTime())) {
+                    timestamp = new Date();
+                }
+                
+                const time = timestamp.toLocaleTimeString('es-ES', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                messageEl.innerHTML = `
+                    <div class="max-w-xs lg:max-w-md ${bubbleColor} rounded-lg px-4 py-2">
+                        <div class="text-xs opacity-75 mb-1">${isMyMessage ? 'Tú' : senderLabel}</div>
+                        <p class="text-sm">${this.escapeHtml(msg.content)}</p>
+                        <div class="text-xs opacity-75 mt-1">${time}</div>
+                    </div>
+                `;
+                
+                container.appendChild(messageEl);
             }
 
             handleGroupMessage(data) {

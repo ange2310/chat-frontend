@@ -1181,7 +1181,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                         Ver por Salas
                     </a>
                     
-                    <a href="#profile" onclick="showProfileSection()" 
+                    <a href="#profile" onclick="showProfileSection()"
                        id="nav-profile" class="nav-link">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
@@ -1189,7 +1189,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                         Mi Perfil
                     </a>
 
-                    <a href="#group-chat" onclick="showSection('group-chat'); closeMobileNav();" 
+                    <!--<a href="#group-chat" onclick="showSection('group-chat'); closeMobileNav();" 
                         id="nav-group-chat" class="nav-link">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
@@ -1197,7 +1197,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                             </svg>
                             Chat Grupal
                             <span id="groupChatUnread" class="ml-auto px-2 py-1 bg-blue-500 text-white text-xs rounded-full hidden">0</span>
-                    </a>
+                    </a>-->
                 </div>
             </nav>
                 
@@ -1293,7 +1293,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                         Perfil
                     </a>
 
-                    <a href="#group-chat" onclick="showSection('group-chat'); closeMobileNav();" 
+                    <!--<a href="#group-chat" onclick="showSection('group-chat'); closeMobileNav();" 
                         id="nav-group-chat" class="nav-link">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
@@ -1301,7 +1301,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                             </svg>
                             Chat Grupal
                             <span id="groupChatUnread" class="ml-auto px-2 py-1 bg-blue-500 text-white text-xs rounded-full hidden">0</span>
-                    </a>
+                    </a>-->
                 </div>
             </nav>
                 
@@ -1510,7 +1510,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                 </div>
 
                 <!-- Group Chat Section -->
-                <div id="group-chat-section" class="section-content hidden p-6">
+               <!-- <div id="group-chat-section" class="section-content hidden p-6">
                     <div class="mb-6">
                         <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
                             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -1528,7 +1528,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>-->
                     
                     <!-- Rooms List -->
                     <div id="groupRoomsList" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
@@ -1851,7 +1851,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                                 </div>
 
                                 <!-- Group Chat Section -->
-                                <div id="group-chat-section" class="section-content hidden p-6">
+                                <!--<div id="group-chat-section" class="section-content hidden p-6">
                                     <div class="mb-6">
                                         <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
                                             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -1869,7 +1869,7 @@ if (!in_array($userRole, $validStaffRoles)) {
                                                 </button>
                                             </div>
                                         </div>
-                                    </div>
+                                    </div>-->
                                     
                                     <!-- Rooms List -->
                                     <div id="groupRoomsList" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
